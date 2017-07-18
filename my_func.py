@@ -82,3 +82,9 @@ def calc_RMSE(comm, rank, nnp, natom, nsample, dataset):
     F_RMSE /= (nsample * natom * 3)
     
     return E_RMSE, F_RMSE
+
+# デバッグ用にリストをファイルに書き出す関数を定義
+def output_list(file, list):
+    for line in list:
+        file.writelines(map(str, line))
+        file.write('\n')

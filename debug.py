@@ -13,6 +13,8 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
+f = open('output_rank'+str(rank)+'.out', 'w')
+
 # on root proc, read data from file and calculate symmetric functions
 if rank == 0:
     stime = time.time()
@@ -37,6 +39,12 @@ nnp.w[2] = comm.bcast(nnp.w[2], root=0)
 nnp.b[0] = comm.bcast(nnp.b[0], root=0)
 nnp.b[1] = comm.bcast(nnp.b[1], root=0)
 nnp.b[2] = comm.bcast(nnp.b[2], root=0)
+my_func.output_list(f, nnp.w[0])
+my_func.output_list(f, nnp.w[1])
+my_func.output_list(f, nnp.w[2])
+my_func.output_list(f, nnp.b[0])
+my_func.output_list(f, nnp.b[1])
+my_func.output_list(f, nnp.b[2])
 # ロードする場合
 #nnp.load_w('weight_params/')
 
@@ -54,6 +62,12 @@ if rank == 0:
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
+    my_func.output_list(f, nnp.w[0])
+    my_func.output_list(f, nnp.w[1])
+    my_func.output_list(f, nnp.w[2])
+    my_func.output_list(f, nnp.b[0])
+    my_func.output_list(f, nnp.b[1])
+    my_func.output_list(f, nnp.b[2])
 #    if (m+1) % 10 == 0:
 #        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 #        if rank == 0:
@@ -61,6 +75,7 @@ for m in range(nepoch):
 #            print E_RMSE
 #            print F_RMSE
 
+f.close()
 E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 if rank == 0:
     print 'iteration: '+str(m+1)
