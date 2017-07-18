@@ -68,10 +68,10 @@ def calc_RMSE(comm, rank, nnp, natom, nsample, dataset):
     E_RMSE = 0.0
     F_RMSE = np.zeros((natom,3))
     for n in range(nsample):
-        Et = subdataset[n][0]
-        Frt = subdataset[n][1]
-        G = subdataset[n][2]
-        dG = subdataset[n][3]
+        Et = dataset[n][0]
+        Frt = dataset[n][1]
+        G = dataset[n][2]
+        dG = dataset[n][3]
         E_out = hdnnp.query_E(comm, nnp, G[rank], natom)
         E_RMSE += (Et - E_out[0]) ** 2
         for k in range(natom):

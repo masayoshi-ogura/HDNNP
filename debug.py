@@ -15,6 +15,7 @@ size = comm.Get_size()
 
 # on root proc, read data from file and calculate symmetric functions
 if rank == 0:
+    stime = time.time()
     Es = np.load('Ge-Es.npy')
     Fs = np.load('Ge-Fs.npy')
     Gs = np.load('Ge-Gs.npy')
@@ -28,7 +29,8 @@ else:
 [nsample,natom,dataset] = comm.bcast([nsample,natom,dataset], root=0)
 
 # initialize single NNP
-nnp = hdnnp.single_nnp(1, 10, 10, 1, learning=0.1, name='Ge')
+learning = 0.3
+nnp = hdnnp.single_nnp(1, 10, 10, 1, learning, name='Ge')
 nnp.w[0] = comm.bcast(nnp.w[0], root=0)
 nnp.w[1] = comm.bcast(nnp.w[1], root=0)
 nnp.w[2] = comm.bcast(nnp.w[2], root=0)
@@ -39,17 +41,19 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 #nnp.load_w('weight_params/')
 
 # training
-if rank == 0:
-    print 'learning_rate: 0.1'
-    print 'learning_number: 100'
-    print 'beta: 1.0\n'
 # 重複ありで全データセットからランダムにsubnum個取り出し、それをサブセットとしてトレーニングする。
-nepoch = 1000
+nepoch = 300
 # サブセット１つにデータをいくつ含めるか
-subnum = 10
+subnum = 1
+beta = 0.1
+if rank == 0:
+    print 'learning_rate: '+str(learning)
+    print 'nepoch: '+str(nepoch)
+    print 'data_num_of_subset: '+str(subnum)
+    print 'beta: '+str(beta)+'\n'
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
-    hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta=1.0)
+    hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
     if (m+1) % 10 == 0:
         E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
         if rank == 0:
@@ -58,4 +62,6 @@ for m in range(nepoch):
             print F_RMSE
 
 if rank == 0:
+    etime = time.time()
+    print '\nspent time: '+str(etime-stime)
     nnp.save_w('weight_params/')
