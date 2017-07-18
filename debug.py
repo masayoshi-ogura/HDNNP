@@ -42,9 +42,9 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 
 # training
 # 重複ありで全データセットからランダムにsubnum個取り出し、それをサブセットとしてトレーニングする。
-nepoch = 300
+nepoch = 1000
 # サブセット１つにデータをいくつ含めるか
-subnum = 1
+subnum = 10
 beta = 0.1
 if rank == 0:
     print 'learning_rate: '+str(learning)
@@ -54,12 +54,12 @@ if rank == 0:
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
-    if (m+1) % 10 == 0:
-        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
-        if rank == 0:
-            print 'iteration: '+str(m+1)
-            print E_RMSE
-            print F_RMSE
+#    if (m+1) % 10 == 0:
+#        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+#        if rank == 0:
+#            print 'iteration: '+str(m+1)
+#            print E_RMSE
+#            print F_RMSE
 
 if rank == 0:
     etime = time.time()
