@@ -1,5 +1,5 @@
 #!/bin/sh
-#PBS -N mo2
+#PBS -N hogehoge
 #PBS -j oe
 #PBS -q default
 #PBS -l nodes=1:ppn=8:B
