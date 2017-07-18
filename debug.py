@@ -58,6 +58,8 @@ for m in range(nepoch):
     if (m+1) % 1000 == 0 and rank == 0:
         file.write('iteration: '+str(m+1))
         file.write('\n')
+        file.write('spent time: '+str(time.time()-stime))
+        file.write('\n')
         file.flush()
 #        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 #        if rank == 0:
