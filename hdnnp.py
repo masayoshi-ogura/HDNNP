@@ -127,8 +127,8 @@ def train(comm, rank, nnp, natom, subnum, subdataset, beta):
         dG = subdataset[n][3]
         E = query_E(comm, nnp, G[rank], natom)
         Fr = query_F(comm, nnp, G[rank], dG[rank], natom)
-        E_error = (Et - E[0]) / natom
-        F_errors = (Frt - Fr) / natom
+        E_error = (Et - E[0])
+        F_errors = (Frt - Fr)
 
         w_grad,b_grad = nnp.train([G[rank]], [dGr for atom in dG[rank] for dGr in atom], [E_error], [force for atom in F_errors for force in atom], beta)
 

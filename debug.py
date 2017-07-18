@@ -29,7 +29,7 @@ else:
 [nsample,natom,dataset] = comm.bcast([nsample,natom,dataset], root=0)
 
 # initialize single NNP
-learning = 0.3
+learning = 0.1
 nnp = hdnnp.single_nnp(1, 10, 10, 1, learning, name='Ge')
 nnp.w[0] = comm.bcast(nnp.w[0], root=0)
 nnp.w[1] = comm.bcast(nnp.w[1], root=0)
