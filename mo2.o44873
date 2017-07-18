@@ -1,0 +1,56 @@
+learning_rate: 0.1
+learning_number: 100
+beta: 1.0
+
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+Traceback (most recent call last):
+  File "debug.py", line 54, in <module>
+  File "debug.py", line 54, in <module>
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+    Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+  File "/home/ogura/m1/HDNNP/20170718/my_func.py", line 71, in calc_RMSE
+    Et = subdataset[n][0]
+NameError:     Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+global name 'subdataset' is not defined
+    Et = subdataset[n][0]
+NameError: global name 'subdataset' is not defined
+--------------------------------------------------------------------------
+mpirun noticed that the job aborted, but has no info as to the process
+that caused that situation.
+--------------------------------------------------------------------------
