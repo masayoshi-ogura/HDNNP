@@ -61,8 +61,8 @@ for m in range(nepoch):
 #            print E_RMSE
 #            print F_RMSE
 
+E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 if rank == 0:
-    E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
     print 'iteration: '+str(m+1)
     print E_RMSE
     print F_RMSE
