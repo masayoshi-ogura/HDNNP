@@ -13,8 +13,6 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-f = open('output_rank'+str(rank)+'.out', 'w')
-
 # on root proc, read data from file and calculate symmetric functions
 if rank == 0:
     stime = time.time()
@@ -31,7 +29,7 @@ else:
 [nsample,natom,dataset] = comm.bcast([nsample,natom,dataset], root=0)
 
 # initialize single NNP
-learning = 0.01
+learning = 0.1
 nnp = hdnnp.single_nnp(1, 10, 10, 1, learning, name='Ge')
 nnp.w[0] = comm.bcast(nnp.w[0], root=0)
 nnp.w[1] = comm.bcast(nnp.w[1], root=0)
@@ -39,18 +37,12 @@ nnp.w[2] = comm.bcast(nnp.w[2], root=0)
 nnp.b[0] = comm.bcast(nnp.b[0], root=0)
 nnp.b[1] = comm.bcast(nnp.b[1], root=0)
 nnp.b[2] = comm.bcast(nnp.b[2], root=0)
-my_func.output_list(f, nnp.w[0])
-my_func.output_list(f, nnp.w[1])
-my_func.output_list(f, nnp.w[2])
-my_func.output_list(f, nnp.b[0])
-my_func.output_list(f, nnp.b[1])
-my_func.output_list(f, nnp.b[2])
 # ロードする場合
 #nnp.load_w('weight_params/')
 
 # training
 # 重複ありで全データセットからランダムにsubnum個取り出し、それをサブセットとしてトレーニングする。
-nepoch = 1000
+nepoch = 100000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
 beta = 0.1
@@ -62,12 +54,6 @@ if rank == 0:
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
-    my_func.output_list(f, nnp.w[0])
-    my_func.output_list(f, nnp.w[1])
-    my_func.output_list(f, nnp.w[2])
-    my_func.output_list(f, nnp.b[0])
-    my_func.output_list(f, nnp.b[1])
-    my_func.output_list(f, nnp.b[2])
 #    if (m+1) % 10 == 0:
 #        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 #        if rank == 0:
