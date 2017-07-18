@@ -18,14 +18,14 @@ class single_nnp:
         self.w = []
         self.b = []
         # input-hidden1
-        self.w.append(np.random.normal(0.0, 0.5, (hidden1_n, input_n)))
-        self.b.append(np.random.normal(0.0, 0.5, (hidden1_n, 1)))
+        self.w.append(np.random.normal(0.0, 1.0, (hidden1_n, input_n)))
+        self.b.append(np.random.normal(0.0, 1.0, (hidden1_n, 1)))
         # hidden1-hidden2
-        self.w.append(np.random.normal(0.0, 0.5, (hidden2_n, hidden1_n)))
-        self.b.append(np.random.normal(0.0, 0.5, (hidden2_n, 1)))
+        self.w.append(np.random.normal(0.0, 1.0, (hidden2_n, hidden1_n)))
+        self.b.append(np.random.normal(0.0, 1.0, (hidden2_n, 1)))
         # hidden2-output
-        self.w.append(np.random.normal(-1.0, 1.0, (output_n, hidden2_n)))
-        self.b.append(np.random.normal(-1.0, 1.0, (output_n, 1)))
+        self.w.append(np.random.normal(0.0, 1.0, (output_n, hidden2_n)))
+        self.b.append(np.random.normal(0.0, 1.0, (output_n, 1)))
         
         # define activation function and derivative
         self.activation_func = lambda x: sp.expit(x)
