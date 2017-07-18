@@ -45,7 +45,7 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 nepoch = 1000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
-beta = 0.1
+beta = 0.0
 if rank == 0:
     print 'learning_rate: '+str(learning)
     print 'nepoch: '+str(nepoch)
