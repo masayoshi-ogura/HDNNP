@@ -15,6 +15,7 @@ size = comm.Get_size()
 
 # on root proc, read data from file and calculate symmetric functions
 if rank == 0:
+    file = open('progress', 'w')
     stime = time.time()
     Es = np.load('Ge-Es.npy')
     Fs = np.load('Ge-Fs.npy')
@@ -54,7 +55,10 @@ if rank == 0:
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
-#    if (m+1) % 10 == 0:
+    if (m+1) % 1000 == 0 and rank == 0:
+        file.write('iteration: '+str(m+1))
+        file.write('\n')
+        file.flush()
 #        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 #        if rank == 0:
 #            print 'iteration: '+str(m+1)
@@ -64,9 +68,9 @@ for m in range(nepoch):
 f.close()
 E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 if rank == 0:
-    print 'iteration: '+str(m+1)
     print E_RMSE
     print F_RMSE
     etime = time.time()
     print '\nspent time: '+str(etime-stime)
     nnp.save_w('weight_params/')
+    file.close()
