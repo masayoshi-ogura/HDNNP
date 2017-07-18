@@ -29,7 +29,7 @@ else:
 [nsample,natom,dataset] = comm.bcast([nsample,natom,dataset], root=0)
 
 # initialize single NNP
-learning = 0.1
+learning = 0.01
 nnp = hdnnp.single_nnp(1, 10, 10, 1, learning, name='Ge')
 nnp.w[0] = comm.bcast(nnp.w[0], root=0)
 nnp.w[1] = comm.bcast(nnp.w[1], root=0)
@@ -45,7 +45,7 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 nepoch = 1000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
-beta = 0.0
+beta = 0.1
 if rank == 0:
     print 'learning_rate: '+str(learning)
     print 'nepoch: '+str(nepoch)
