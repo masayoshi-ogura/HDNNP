@@ -65,7 +65,6 @@ for m in range(nepoch):
 #            print E_RMSE
 #            print F_RMSE
 
-f.close()
 E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
 if rank == 0:
     print E_RMSE
