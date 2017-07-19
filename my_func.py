@@ -27,9 +27,8 @@ def vector_ij(extend, natom):
 ### output
 # Gs: numpy array (nsample x natom x gnum)
 # dGs: numpy array (nsample x natom x 3*natom * gnum)
-def symmetric_func(atoms_objs, natom, nsample, Rcs, Rss, etas):
+def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
     # Rc, Rs, etaを配列で受け取り、その相乗数gnumのG,dGを配列で返す
-    gnum = len(Rcs)*len(Rss)*len(etas)
     Gs = np.empty((nsample, natom, gnum)) # nsample x natom x gnum 個の配列
     dGs = np.emtpy((nsample, natom, 3*natom, gnum)) # nsample x natom x 3*natom x gnum 個の配列
     for m in range(nsample):

@@ -18,21 +18,27 @@ size = comm.Get_size()
 if rank == 0:
     file = open('progress'+str(datetime.now().time())+'.out', 'w')
     stime = time.time()
-    Es = np.load('Ge-Es.npy')
-    Fs = np.load('Ge-Fs.npy')
-    Gs = np.load('Ge-Gs.npy')
-    dGs = np.load('Ge-dGs.npy')
+    Es = np.load('Ge-Es.npy') # nsample
+    Fs = np.load('Ge-Fs.npy') # nsample x 3*natom
+    Gs = np.load('Ge-Gs.npy') # nsample x natom x gnum
+    dGs = np.load('Ge-dGs.npy') # nsample x natom x 3*natom x gnum
     nsample = 181
     natom = 8
-    dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(nsample)]
+    gnum = len(Rcs)*len(Rss)*len(etas)
 else:
-    nsample,natom,dataset = None,None,[None,np.empty((8,3)),np.empty(8),np.empty((8,8,3))] * 181
-
-[nsample,natom,dataset] = comm.bcast([nsample,natom,dataset], root=0)
+    nsample,natom,gnum = None,None,None
+[nsample,natom,gnum] = comm.bcast([nsample,natom,gnum], root=0)
+if rank != 0:
+    Es,Fs,Gs,dGs = np.empty(nsample),np.empty((nsample,3*natom)),np.empty(nsample,natom,gnum),np.empty((nsample,natom,3*natom,gnum))
+comm.Bcast(Es, root=0)
+comm.Bcast(Fs, root=0)
+comm.Bcast(Gs, root=0)
+comm.Bcast(dGs, root=0)
+dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(nsample)]
 
 # initialize single NNP
 learning = 0.1
-nnp = hdnnp.single_nnp(1, 10, 10, 1, learning, name='Ge')
+nnp = hdnnp.single_nnp(gnum, 10, 10, 1, learning, name='Ge')
 nnp.w[0] = comm.bcast(nnp.w[0], root=0)
 nnp.w[1] = comm.bcast(nnp.w[1], root=0)
 nnp.w[2] = comm.bcast(nnp.w[2], root=0)
