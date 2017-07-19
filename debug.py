@@ -16,7 +16,7 @@ size = comm.Get_size()
 
 # on root proc, read data from file and calculate symmetric functions
 if rank == 0:
-    file = open('progress'+str(datetime.now().time()), 'w')
+    file = open('progress'+str(datetime.now().time())+'.out', 'w')
     stime = time.time()
     Es = np.load('Ge-Es.npy')
     Fs = np.load('Ge-Fs.npy')
@@ -49,10 +49,14 @@ nepoch = 100000
 subnum = 10
 beta = 0.0
 if rank == 0:
-    print 'learning_rate: '+str(learning)
-    print 'nepoch: '+str(nepoch)
-    print 'data_num_of_subset: '+str(subnum)
-    print 'beta: '+str(beta)+'\n'
+    file.write('learning_rate: '+str(learning))
+    file.write('\n')
+    file.write('nepoch: '+str(nepoch))
+    file.write('\n')
+    file.write('data_num_of_subset: '+str(subnum))
+    file.write('\n')
+    file.write('beta: '+str(beta)+'\n')
+    file.write('\n')
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
@@ -63,15 +67,12 @@ for m in range(nepoch):
             file.write('\n')
             file.write('energy RMSE: '+str(E_RMSE))
             file.write('\n')
-            file.write('force RMSE: ')
-            file.writelines(map(str,F_RMSE))
+            file.write('force RMSE: '+str(F_RMSE))
             file.write('\n')
             file.write('spent time: '+str(time.time()-stime))
             file.write('\n')
             file.flush()
 
 if rank == 0:
-    etime = time.time()
-    print '\nspent time: '+str(etime-stime)
     nnp.save_w('weight_params/')
     file.close()

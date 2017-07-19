@@ -66,18 +66,18 @@ def symmetric_func(atoms_obj, extend, natom, Rc, Rs, eta):
 # RMSEを計算する
 def calc_RMSE(comm, rank, nnp, natom, nsample, dataset):
     E_RMSE = 0.0
-    F_RMSE = np.zeros((natom,3))
+    F_RMSE = 0.0
     for n in range(nsample):
         Et = dataset[n][0]
         Frt = dataset[n][1]
         G = dataset[n][2]
         dG = dataset[n][3]
         E_out = hdnnp.query_E(comm, nnp, G[rank], natom)
+        F_rout = hdnnp.query_F(comm, nnp, G[rank], dG[rank], natom)
         E_RMSE += (Et - E_out[0]) ** 2
         for k in range(natom):
             for l in range(3):
-                  F_rout = hdnnp.query_F(comm, nnp, G[rank], dG[rank], natom)
-                  F_RMSE[k][l] += (Frt[k][l] - F_rout[k][l]) ** 2
+                  F_RMSE += (Frt[k][l] - F_rout[k][l]) ** 2
     E_RMSE /= nsample
     F_RMSE /= (nsample * natom * 3)
     
