@@ -30,7 +30,7 @@ def vector_ij(extend, natom):
 def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
     # Rc, Rs, etaを配列で受け取り、その相乗数gnumのG,dGを配列で返す
     Gs = np.empty((nsample, natom, gnum)) # nsample x natom x gnum 個の配列
-    dGs = np.emtpy((nsample, natom, 3*natom, gnum)) # nsample x natom x 3*natom x gnum 個の配列
+    dGs = np.empty((nsample, natom, 3*natom, gnum)) # nsample x natom x 3*natom x gnum 個の配列
     for m in range(nsample):
         extend = atoms_objs[m].repeat(2)
         r, R = vector_ij(extend, natom)

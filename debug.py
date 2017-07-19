@@ -22,14 +22,14 @@ if rank == 0:
     Fs = np.load('Ge-Fs.npy') # nsample x 3*natom
     Gs = np.load('Ge-Gs.npy') # nsample x natom x gnum
     dGs = np.load('Ge-dGs.npy') # nsample x natom x 3*natom x gnum
-    nsample = 181
+    nsample = len(Es)
     natom = 8
     gnum = len(Rcs)*len(Rss)*len(etas)
 else:
     nsample,natom,gnum = None,None,None
 [nsample,natom,gnum] = comm.bcast([nsample,natom,gnum], root=0)
 if rank != 0:
-    Es,Fs,Gs,dGs = np.empty(nsample),np.empty((nsample,3*natom)),np.empty(nsample,natom,gnum),np.empty((nsample,natom,3*natom,gnum))
+    Es,Fs,Gs,dGs = np.empty(nsample),np.empty((nsample,3*natom)),np.empty((nsample,natom,gnum)),np.empty((nsample,natom,3*natom,gnum))
 comm.Bcast(Es, root=0)
 comm.Bcast(Fs, root=0)
 comm.Bcast(Gs, root=0)

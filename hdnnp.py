@@ -19,13 +19,13 @@ class single_nnp:
         self.b = []
         # input-hidden1
         self.w.append(np.random.normal(0.0, 0.5, (hidden1_n, input_n)))
-        self.b.append(np.random.normal(0.0, 0.5, (hidden1_n, 1)))
+        self.b.append(np.random.normal(0.0, 0.5, (hidden1_n)))
         # hidden1-hidden2
         self.w.append(np.random.normal(0.0, 0.5, (hidden2_n, hidden1_n)))
-        self.b.append(np.random.normal(0.0, 0.5, (hidden2_n, 1)))
+        self.b.append(np.random.normal(0.0, 0.5, (hidden2_n)))
         # hidden2-output
         self.w.append(np.random.normal(-0.1, 0.5, (output_n, hidden2_n)))
-        self.b.append(np.random.normal(-0.1, 0.5, (output_n, 1)))
+        self.b.append(np.random.normal(-0.1, 0.5, (output_n)))
         
         # define activation function and derivative
         self.activation_func = lambda x: sp.expit(x)
@@ -56,24 +56,24 @@ class single_nnp:
         
         # forces
         R = len(dGi)
-        f_output_errors = np.empty(1)
-        f_hidden2_errors = np.empty(self.hidden2_n)
-        f_hidden1_errors = np.empty(self.hidden1_n)
-        f_grad_output_cost = np.empty((self.output_n, self.hidden2_n))
-        f_grad_hidden2_cost = np.empty((self.hidden2_n, self.hidden1_n))
-        f_grad_hidden1_cost = np.empty((self.hidden1_n, self.input_n))
+        f_output_errors = np.zeros(1)
+        f_hidden2_errors = np.zeros(self.hidden2_n)
+        f_hidden1_errors = np.zeros(self.hidden1_n)
+        f_grad_output_cost = np.zeros((self.output_n, self.hidden2_n))
+        f_grad_hidden2_cost = np.zeros((self.hidden2_n, self.hidden1_n))
+        f_grad_hidden1_cost = np.zeros((self.hidden1_n, self.input_n))
         for r in range(R):
             f_output_error = F_errors[r]
             coef = np.dot(self.w[1], self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[0], dGi[r]))
-            f_hidden2_error = self.dif_activation_func(self.hidden2_inputs) * np.dot(- self.w[2], (1 - 2 * self.hidden2_outputs) * coef) * f_output_errors)
+            f_hidden2_error = self.dif_activation_func(self.hidden2_inputs) * np.dot(- self.w[2], (1 - 2 * self.hidden2_outputs) * coef) * f_output_errors
             f_hidden1_error = self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[1].T, f_hidden2_errors)
             
             f_output_errors += f_output_error
             f_hidden2_errors += f_hidden2_error
             f_hidden1_errors += f_hidden1_error
-            f_grad_output_cost += np.matrix(f_output_error) * (- self.dif_activation_func(self.hidden2_inputs) * coef)
-            f_grad_hidden2_cost += np.matrix(f_hidden2_error) * self.hidden2_outputs
-            f_grad_hidden1_cost += np.matrix(f_hidden1_error) * Gi
+            f_grad_output_cost += np.matrix(f_output_error).T * (- self.dif_activation_func(self.hidden2_inputs) * coef)
+            f_grad_hidden2_cost += np.matrix(f_hidden2_error).T * self.hidden1_outputs
+            f_grad_hidden1_cost += np.matrix(f_hidden1_error).T * Gi
         
         # modify weight parameters
         w_grad,b_grad = [],[]
@@ -88,13 +88,13 @@ class single_nnp:
     def query(self, Gi):
         # feed_forward
         bias = np.ones(1)
-        self.hidden1_inputs = np.dot(self.w[0], Gi) + np.dot(self.b[0], bias)
+        self.hidden1_inputs = np.dot(self.w[0], Gi) + (self.b[0] * bias)
         self.hidden1_outputs = self.activation_func(self.hidden1_inputs)
         
-        self.hidden2_inputs = np.dot(self.w[1], self.hidden1_outputs) + np.dot(self.b[1], bias)
+        self.hidden2_inputs = np.dot(self.w[1], self.hidden1_outputs) + (self.b[1] * bias)
         self.hidden2_outputs = self.activation_func(self.hidden2_inputs)
         
-        self.final_inputs = np.dot(self.w[2], self.hidden2_outputs) + np.dot(self.b[2], bias)
+        self.final_inputs = np.dot(self.w[2], self.hidden2_outputs) + (self.b[2] * bias)
         final_outputs = self.final_inputs
         
         return final_outputs
