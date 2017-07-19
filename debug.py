@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import time
+from datetime import datetime
 from mpi4py import MPI
 import numpy as np
 import random
@@ -15,7 +16,7 @@ size = comm.Get_size()
 
 # on root proc, read data from file and calculate symmetric functions
 if rank == 0:
-    file = open('progress'+str(random.randint(1,10)), 'w')
+    file = open('progress'+str(datetime.now().time()), 'w')
     stime = time.time()
     Es = np.load('Ge-Es.npy')
     Fs = np.load('Ge-Fs.npy')
@@ -46,7 +47,7 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 nepoch = 100000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
-beta = 0.1
+beta = 0.0
 if rank == 0:
     print 'learning_rate: '+str(learning)
     print 'nepoch: '+str(nepoch)
