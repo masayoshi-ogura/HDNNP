@@ -114,9 +114,8 @@ def calc_RMSE(comm, rank, nnp, natom, nsample, dataset):
         dG = dataset[n][3]
         E_out = hdnnp.query_E(comm, nnp, G[rank], natom)
         F_rout = hdnnp.query_F(comm, nnp, G[rank], dG[rank], natom)
-        E_RMSE += (Et - E_out[0]) ** 2
-        for r in range(3*natom):
-            F_RMSE += (Frt[r] - F_rout[r]) ** 2
+        E_RMSE += (Et - E_out) ** 2
+        F_RMSE += np.sum((Frt - F_rout)**2)
     E_RMSE /= nsample
     F_RMSE /= (nsample * natom * 3)
     
