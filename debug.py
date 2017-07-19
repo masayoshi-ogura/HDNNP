@@ -44,10 +44,10 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 
 # training
 # 重複ありで全データセットからランダムにsubnum個取り出し、それをサブセットとしてトレーニングする。
-nepoch = 100000
+nepoch = 30000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
-beta = 0.0
+beta = 0.5
 if rank == 0:
     file.write('learning_rate: '+str(learning))
     file.write('\n')
