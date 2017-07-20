@@ -8,4 +8,4 @@ NPROCS=`wc -l <$PBS_NODEFILE`
 cd $PBS_O_WORKDIR
 source /var/mpi-selector/data/openmpi-1.5.1-intel64-v12.0.0u1.sh
 
-mpirun -machinefile $PBS_NODEFILE -np $NPROCS python debug.py
+mpirun -machinefile $PBS_NODEFILE -np $NPROCS python main.py
