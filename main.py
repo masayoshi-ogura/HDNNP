@@ -37,10 +37,10 @@ if rank == 0:
     #Gs,dGs = my_func.symmetric_func(cordinates, natom, nsample, gnum, Rcs, Rss, etas)
     
     ## read from numpy file
-    Es = np.load('Ge-Es.npy') # nsample
-    Fs = np.load('Ge-Fs.npy') # nsample x 3*natom
-    Gs = np.load('Ge-Gs.npy') # nsample x natom x gnum
-    dGs = np.load('Ge-dGs.npy') # nsample x natom x 3*natom x gnum
+    Es = np.load('Ge-Es-Elt0.npy') # nsample
+    Fs = np.load('Ge-Fs-Elt0.npy') # nsample x 3*natom
+    Gs = np.load('Ge-Gs-Elt0-gnum4.npy') # nsample x natom x gnum
+    dGs = np.load('Ge-dGs-Elt0-gnum4.npy') # nsample x natom x 3*natom x gnum
     nsample = len(Es)
     natom = len(Gs[0])
     gnum = len(Gs[0][0])
@@ -72,16 +72,16 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 
 # training
 # 重複ありで全データセットからランダムにsubnum個取り出し、それをサブセットとしてトレーニングする。
-nepoch = 10000
+nepoch = 8000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
 if rank == 0:
-    file.write('Rc: '+','.join(map(str,Rcs)))
-    file.write('\n')
-    file.write('Rs: '+','.join(map(str,Rss)))
-    file.write('\n')
-    file.write('eta: '+','.join(map(str,etas)))
-    file.write('\n')
+    #file.write('Rc: '+','.join(map(str,Rcs)))
+    #file.write('\n')
+    #file.write('Rs: '+','.join(map(str,Rss)))
+    #file.write('\n')
+    #file.write('eta: '+','.join(map(str,etas)))
+    #file.write('\n')
     file.write('NN_figure: '+str(gnum)+'x'+str(hidden_n)+'x'+str(hidden_n)+'x1')
     file.write('\n')
     file.write('learning_rate: '+str(learning))
@@ -94,6 +94,7 @@ if rank == 0:
     file.write('\n')
     file.write('gamma: '+str(gamma)+'\n')
     file.write('\n')
+    file.flush()
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     nnp.train(comm, rank, natom, subnum, subdataset)
