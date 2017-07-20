@@ -24,7 +24,7 @@ if rank == 0:
     dGs = np.load('Ge-dGs.npy') # nsample x natom x 3*natom x gnum
     nsample = len(Es)
     natom = 8
-    gnum = len(Rcs)*len(Rss)*len(etas)
+    gnum = 20
 else:
     nsample,natom,gnum = None,None,None
 [nsample,natom,gnum] = comm.bcast([nsample,natom,gnum], root=0)
@@ -38,7 +38,9 @@ dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(nsample)]
 
 # initialize single NNP
 learning = 0.1
-nnp = hdnnp.single_nnp(gnum, 10, 10, 1, learning, name='Ge')
+beta = 0.5
+gamma = 0.9
+nnp = hdnnp.single_nnp(gnum, 10, 10, 1, learning, beta, gamma, name='Ge')
 nnp.w[0] = comm.bcast(nnp.w[0], root=0)
 nnp.w[1] = comm.bcast(nnp.w[1], root=0)
 nnp.w[2] = comm.bcast(nnp.w[2], root=0)
@@ -53,7 +55,6 @@ nnp.b[2] = comm.bcast(nnp.b[2], root=0)
 nepoch = 30000
 # サブセット１つにデータをいくつ含めるか
 subnum = 10
-beta = 0.5
 if rank == 0:
     file.write('learning_rate: '+str(learning))
     file.write('\n')
@@ -61,13 +62,15 @@ if rank == 0:
     file.write('\n')
     file.write('data_num_of_subset: '+str(subnum))
     file.write('\n')
-    file.write('beta: '+str(beta)+'\n')
+    file.write('beta: '+str(beta))
+    file.write('\n')
+    file.write('gamma: '+str(gamma)+'\n')
     file.write('\n')
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
-    hdnnp.train(comm, rank, nnp, natom, subnum, subdataset, beta)
+    nnp.train(comm, rank, natom, subnum, subdataset)
     if (m+1) % 1000 == 0:
-        E_RMSE,F_RMSE = my_func.calc_RMSE(comm, rank, nnp, natom, nsample, dataset)
+        E_RMSE,F_RMSE = nnp.calc_RMSE(comm, rank, natom, nsample, dataset)
         if rank == 0:
             file.write('iteration: '+str(m+1))
             file.write('\n')

@@ -3,15 +3,20 @@
 from mpi4py import MPI
 import numpy as np
 import scipy.special as sp
+import math
 
 class single_nnp:
-    def __init__(self, input_n, hidden1_n, hidden2_n, output_n, learning, name):
+    def __init__(self, input_n, hidden1_n, hidden2_n, output_n, learning, beta, gamma, name):
         # set number of nodes of each layers and learning rate
+        # beta: mixing parameter of error between energy and force
+        # gamma: NAG parameter. rate of accumulation
         self.input_n = input_n
         self.hidden1_n = hidden1_n
         self.hidden2_n = hidden2_n
         self.output_n = output_n
         self.learning = learning
+        self.beta = beta
+        self.gamma = gamma
         self.name = name
         
         # initialize weight parameters
@@ -27,10 +32,13 @@ class single_nnp:
         self.w.append(np.random.normal(-0.1, 0.5, (output_n, hidden2_n)))
         self.b.append(np.random.normal(-0.1, 0.5, (output_n)))
         
+        # accumulation of weight parameters and bias parameters
+        self.v_w = [np.zeros_like(self.w[0]),np.zeros_like(self.w[1]),np.zeros_like(self.w[2])]
+        self.v_b = [np.zeros_like(self.b[0]),np.zeros_like(self.b[1]),np.zeros_like(self.b[2])]
+        
         # define activation function and derivative
         self.activation_func = lambda x: sp.expit(x)
         self.dif_activation_func = lambda x: sp.expit(x) * (1 - sp.expit(x))
-        pass
     
     ### input
     # Gi: numpy array (gnum)
@@ -40,9 +48,9 @@ class single_nnp:
     ### output
     # w_grad: list of weight_parameters(numpy array)
     # b_grad: list of bias_parameters(numpy array)
-    def train(self, Gi, dGi, E_error, F_errors, beta):
+    def gradient(self, Gi, dGi, E_error, F_errors):
         # feed_forward
-        self.query(Gi)
+        self.energy(Gi)
         
         # back_prop
         # energy
@@ -77,15 +85,15 @@ class single_nnp:
         
         # modify weight parameters
         w_grad,b_grad = [],[]
-        w_grad.append(self.learning * (e_grad_hidden1_cost - beta * f_grad_hidden1_cost / R))
-        w_grad.append(self.learning * (e_grad_hidden2_cost - beta * f_grad_hidden2_cost / R))
-        w_grad.append(self.learning * (e_grad_output_cost - beta * f_grad_output_cost / R))
-        b_grad.append(self.learning * (e_hidden1_errors - beta * f_hidden1_errors / R))
-        b_grad.append(self.learning * (e_hidden2_errors - beta * f_hidden2_errors / R))
-        b_grad.append(self.learning * (e_output_errors - beta * f_output_errors / R))
+        w_grad.append(self.learning * (e_grad_hidden1_cost - self.beta * f_grad_hidden1_cost / R))
+        w_grad.append(self.learning * (e_grad_hidden2_cost - self.beta * f_grad_hidden2_cost / R))
+        w_grad.append(self.learning * (e_grad_output_cost - self.beta * f_grad_output_cost / R))
+        b_grad.append(self.learning * (e_hidden1_errors - self.beta * f_hidden1_errors / R))
+        b_grad.append(self.learning * (e_hidden2_errors - self.beta * f_hidden2_errors / R))
+        b_grad.append(self.learning * (e_output_errors - self.beta * f_output_errors / R))
         return w_grad, b_grad
     
-    def query(self, Gi):
+    def energy(self, Gi):
         # feed_forward
         bias = np.ones(1)
         self.hidden1_inputs = np.dot(self.w[0], Gi) + (self.b[0] * bias)
@@ -99,8 +107,8 @@ class single_nnp:
         
         return final_outputs
         
-    def differentiate(self, Gi, dGi):
-        self.query(Gi)
+    def force(self, Gi, dGi):
+        self.energy(Gi)
         
         hidden1_outputs = np.dot(self.w[0], dGi.T)
         
@@ -128,69 +136,101 @@ class single_nnp:
         self.b[1] = np.load(dire+self.name+'_bh1h2.npy')
         self.b[2] = np.load(dire+self.name+'_bh2o.npy')
 
-
-### input
-# comm, rank: MPI communicator, rank of the processor
-# nnp: hdnnp.single_nnp instance
-# subdataset: list of following 4 objects
-#             energy: float
-#             forces: numpy array (3*natom)
-#             G: numpy array (natom x gnum)
-#             dG: numpy array (natom x 3*natom x gnum)
-def train(comm, rank, nnp, natom, subnum, subdataset, beta):
-    w_grad_sum = [np.zeros_like(nnp.w[0]),np.zeros_like(nnp.w[1]),np.zeros_like(nnp.w[2])]
-    b_grad_sum = [np.zeros_like(nnp.b[0]),np.zeros_like(nnp.b[1]),np.zeros_like(nnp.b[2])]
-    for n in range(subnum):
-        Et = subdataset[n][0]
-        Frt = subdataset[n][1]
-        G = subdataset[n][2]
-        dG = subdataset[n][3]
-        E = query_E(comm, nnp, G[rank], natom)
-        Fr = query_F(comm, nnp, G[rank], dG[rank], natom)
-        E_error = (Et - E)
-        F_errors = (Frt - Fr)
-
-        w_grad,b_grad = nnp.train(G[rank], dG[rank], E_error, F_errors, beta)
-
+    ### input
+    # comm, rank: MPI communicator, rank of the processor
+    # subdataset: list of following 4 objects
+    #             energy: float
+    #             forces: numpy array (3*natom)
+    #             G: numpy array (natom x gnum)
+    #             dG: numpy array (natom x 3*natom x gnum)
+    def train(self, comm, rank, natom, subnum, subdataset):
+        w_grad_sum = [np.zeros_like(self.w[0]),np.zeros_like(self.w[1]),np.zeros_like(self.w[2])]
+        b_grad_sum = [np.zeros_like(self.b[0]),np.zeros_like(self.b[1]),np.zeros_like(self.b[2])]
+        
+        # before calculating grad_sum, renew weight and bias parameters with old v_w and v_b
         for i in range(3):
-            tmp = np.zeros_like(w_grad[i])
-            comm.Allreduce(w_grad[i], tmp, op=MPI.SUM)
-            w_grad_sum[i] += tmp
+            self.w[i] += self.gamma * self.v_w[i]
+            self.b[i] += self.gamma * self.v_b[i]
+        
+        # calculate grad_sum
+        for n in range(subnum):
+            Et = subdataset[n][0]
+            Frt = subdataset[n][1]
+            G = subdataset[n][2]
+            dG = subdataset[n][3]
+            E = self.query_E(comm, G[rank], natom)
+            Fr = self.query_F(comm, G[rank], dG[rank], natom)
+            E_error = (Et - E)
+            F_errors = (Frt - Fr)
+
+            w_grad,b_grad = self.gradient(G[rank], dG[rank], E_error, F_errors)
+
+            for i in range(3):
+                w_recv = np.zeros_like(w_grad[i])
+                b_recv = np.zeros_like(b_grad[i])
+                comm.Allreduce(w_grad[i], w_recv, op=MPI.SUM)
+                comm.Allreduce(b_grad[i], b_recv, op=MPI.SUM)
+                w_grad_sum[i] += w_recv
+                b_grad_sum[i] += b_recv
+        
+        # renew weight and bias parameters with calculated gradient
         for i in range(3):
-            tmp = np.zeros_like(b_grad[i])
-            comm.Allreduce(b_grad[i], tmp, op=MPI.SUM)
-            b_grad_sum[i] += tmp
-    
-    for i in range(3):
-        nnp.w[i] += w_grad_sum[i] / (subnum * natom)
-    for i in range(3):
-        nnp.b[i] += b_grad_sum[i] / (subnum * natom)
+            self.w[i] += w_grad_sum[i] / (subnum * natom)
+            self.b[i] += b_grad_sum[i] / (subnum * natom)
+            self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (subnum * natom))
+            self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (subnum * natom))
 
-### input
-# comm: MPI communicator
-# nnp: hdnnp.single_nnp instance
-# Gi: numpy array (gnum)
-### output
-# E: float
-def query_E(comm, nnp, Gi, natom):
-    Ei = nnp.query(Gi)
-    E = np.zeros(1)
-    comm.Allreduce(Ei, E, op=MPI.SUM)
-    
-    return E[0]
+    ### input
+    # comm: MPI communicator
+    # Gi: numpy array (gnum)
+    ### output
+    # E: float
+    def query_E(self, comm, Gi, natom):
+        Ei = self.energy(Gi)
+        E = np.zeros(1)
+        comm.Allreduce(Ei, E, op=MPI.SUM)
+        
+        return E[0]
 
-### input
-# comm: MPI communicator
-# nnp: hdnnp.single_nnp instance
-# Gi: numpy array (gnum)
-# dGi: numpy array (3*natom x gnum)
-### output
-# Fr: numpy array (3*natom)
-def query_F(comm, nnp, Gi, dGi, natom):
-    Fir = np.zeros(3*natom)
-    for r in range(3*natom):
-        Fir[r] = nnp.differentiate(Gi, dGi[r])
-    Fr = np.zeros(3*natom)
-    comm.Allreduce(Fir, Fr, op=MPI.SUM)
-    
-    return Fr
+    ### input
+    # comm: MPI communicator
+    # Gi: numpy array (gnum)
+    # dGi: numpy array (3*natom x gnum)
+    ### output
+    # Fr: numpy array (3*natom)
+    def query_F(self, comm, Gi, dGi, natom):
+        Fir = np.zeros(3*natom)
+        for r in range(3*natom):
+            Fir[r] = self.force(Gi, dGi[r])
+        Fr = np.zeros(3*natom)
+        comm.Allreduce(Fir, Fr, op=MPI.SUM)
+        
+        return Fr
+        
+    # RMSEを計算する
+    ### input
+    # comm, rank: MPI communicator, rank of the processor
+    # dataset: list of following 4 objects
+    #          energy: float
+    #          forces: numpy array (3*natom)
+    #          G: numpy array (natom x gnum)
+    #          dG: numpy array (natom x 3*natom x gnum)
+    ### output
+    # E_RMSE: float
+    # F_RMSE: float
+    def calc_RMSE(self, comm, rank, natom, nsample, dataset):
+        E_MSE = 0.0
+        F_MSE = 0.0
+        for n in range(nsample):
+            Et = dataset[n][0]
+            Frt = dataset[n][1]
+            G = dataset[n][2]
+            dG = dataset[n][3]
+            E_out = self.query_E(comm, G[rank], natom)
+            F_rout = self.query_F(comm, G[rank], dG[rank], natom)
+            E_MSE += (Et - E_out) ** 2
+            F_MSE += np.sum((Frt - F_rout)**2)
+        E_RMSE = math.sqrt(E_MSE / nsample)
+        F_RMSE = math.sqrt(F_MSE / (nsample * natom * 3))
+        
+        return E_RMSE, F_RMSE
