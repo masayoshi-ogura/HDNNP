@@ -104,8 +104,8 @@ def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
 # E_RMSE: float
 # F_RMSE: float
 def calc_RMSE(comm, rank, nnp, natom, nsample, dataset):
-    E_RMSE = 0.0
-    F_RMSE = 0.0
+    E_MSE = 0.0
+    F_MSE = 0.0
     for n in range(nsample):
         Et = dataset[n][0]
         Frt = dataset[n][1]
@@ -113,10 +113,10 @@ def calc_RMSE(comm, rank, nnp, natom, nsample, dataset):
         dG = dataset[n][3]
         E_out = hdnnp.query_E(comm, nnp, G[rank], natom)
         F_rout = hdnnp.query_F(comm, nnp, G[rank], dG[rank], natom)
-        E_RMSE += (Et - E_out) ** 2
-        F_RMSE += np.sum((Frt - F_rout)**2)
-    E_RMSE /= nsample
-    F_RMSE /= (nsample * natom * 3)
+        E_MSE += (Et - E_out) ** 2
+        F_MSE += np.sum((Frt - F_rout)**2)
+    E_RMSE = math.sqrt(E_MSE / nsample)
+    F_RMSE = math.sqrt(F_MSE / (nsample * natom * 3))
     
     return E_RMSE, F_RMSE
 
