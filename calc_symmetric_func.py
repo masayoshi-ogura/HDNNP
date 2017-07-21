@@ -4,7 +4,6 @@ import numpy as np
 from quippy import AtomsReader
 import my_func
 
-weight_dir = 'weight_params/'
 name = 'Ge'
 
 train_dir = 'training_data/xyz/'
@@ -20,7 +19,7 @@ Rss = [1.0,2.0,3.0,4.0,5.0]
 etas = [0.0,0.1,0.5,1.0,1.5]
 gnum = len(Rcs)*len(Rss)*len(etas)
 Gs,dGs = my_func.symmetric_func(cordinates, natom, nsample, gnum, Rcs, Rss, etas)
-np.save(weight_dir+name+'-Es.npy', Es)
-np.save(weight_dir+name+'-Fs.npy', Fs)
-np.save(weight_dir+name+'-Gs.npy', Gs)
-np.save(weight_dir+name+'-dGs.npy', dGs)
+np.save(train_dir+name+'-Es.npy', Es)
+np.save(train_dir+name+'-Fs.npy', Fs)
+np.save(train_dir+name+'-Gs.npy', Gs)
+np.save(train_dir+name+'-dGs.npy', dGs)
