@@ -82,7 +82,7 @@ if rank == 0:
     file.write('data_num_of_subset: '+str(subnum)+'\n\n')
     file.flush()
 else:
-    nsmample,natom,gnum = None,None,None
+    nsample,natom,gnum = None,None,None
 # broadcast training data set to other procs
 [nsample,natom,gnum] = comm.bcast([nsample,natom,gnum], root=0)
 if rank != 0:
