@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from mpi4py import MPI
 import numpy as np
-#from quippy import *
 
 # 原子間ベクトルとその長さ
 ### input
