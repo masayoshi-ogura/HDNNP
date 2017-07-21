@@ -34,8 +34,9 @@ learning = 0.001
 beta = 0.5
 gamma = 0.9
 hidden_n = 3
-nepoch = 8000
+nepoch = 10000
 subnum = 10
+output_interval = 100
 name = 'Ge'
 
 # on root proc,
@@ -50,10 +51,10 @@ if rank == 0:
     
     if cname == 'forte':
         train_dir = 'training_data/npy/'
-        Es = np.load(train_dir+name+'-Es-Elt0.npy') # nsample
-        Fs = np.load(train_dir+name+'-Fs-Elt0.npy') # nsample x 3*natom
-        Gs = np.load(train_dir+name+'-Gs-Elt0-gnum4.npy') # nsample x natom x gnum
-        dGs = np.load(train_dir+name+'-dGs-Elt0-gnum4.npy') # nsample x natom x 3*natom x gnum
+        Es = np.load(train_dir+name+'-Es.npy') # nsample
+        Fs = np.load(train_dir+name+'-Fs.npy') # nsample x 3*natom
+        Gs = np.load(train_dir+name+'-Gs.npy') # nsample x natom x gnum
+        dGs = np.load(train_dir+name+'-dGs.npy') # nsample x natom x 3*natom x gnum
         nsample = len(Es)
         natom = len(Gs[0])
         gnum = len(Gs[0][0])
@@ -106,7 +107,7 @@ for i in range(3):
 for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     nnp.train(comm, rank, natom, subnum, subdataset)
-    if (m+1) % 10 == 0:
+    if (m+1) % output_interval == 0:
         E_RMSE,F_RMSE = nnp.calc_RMSE(comm, rank, natom, nsample, dataset)
         if rank == 0:
             file.write('iteration: '+str(m+1)+'\n')
