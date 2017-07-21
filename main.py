@@ -44,7 +44,8 @@ name = 'Ge'
 # 3. read training data set from .xyz and calculate symmetric functions, or read from .npy
 # 4. write parameters to output file
 if rank == 0:
-    file = open('progress'+str(datetime.now().time())+'.out', 'w')
+    now = datetime.now()
+    file = open('progress'+now.strftime('-%m%d-%H%M%S')+'.out', 'w')
     stime = time.time()
     
     if cname == 'forte':
