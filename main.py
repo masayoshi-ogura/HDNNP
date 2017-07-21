@@ -66,9 +66,10 @@ if rank == 0:
         natom = 8
         Es = np.array([data.cohesive_energy for data in rawdataset])
         Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((nsample,3*natom))
-        Rcs = [cordinates[0].lattice[1][1]]
-        Rss = [1.0,2.0]
-        etas = [0.1,1.0]
+        a = cordinates[0].lattice[1][1]
+        Rcs = [a]
+        Rss = [1.0]
+        etas = [0.0]
         gnum = len(Rcs)*len(Rss)*len(etas)
         Gs,dGs = my_func.symmetric_func(cordinates, natom, nsample, gnum, Rcs, Rss, etas)
         file.write('Rc: '+','.join(map(str,Rcs))+'\n')

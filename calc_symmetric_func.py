@@ -14,9 +14,10 @@ nsample = len(rawdataset)
 natom = 8
 Es = np.array([data.cohesive_energy for data in rawdataset])
 Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((nsample,3*natom))
-Rcs = [cordinates[0].lattice[1][1]]
-Rss = [1.0,2.0,3.0,4.0,5.0]
-etas = [0.0,0.1,0.5,1.0,1.5]
+a = cordinates[0].lattice[1][1]
+Rcs = [a]
+Rss = [1.0]
+etas = [0.0]
 gnum = len(Rcs)*len(Rss)*len(etas)
 Gs,dGs = my_func.symmetric_func(cordinates, natom, nsample, gnum, Rcs, Rss, etas)
 np.save(train_dir+name+'-Es.npy', Es)
