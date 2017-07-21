@@ -77,10 +77,12 @@ if rank == 0:
     file.write('NN_figure: '+str(gnum)+'x'+str(hidden_n)+'x'+str(hidden_n)+'x1\n')
     file.write('learning_rate: '+str(learning)+'\n')
     file.write('beta: '+str(beta)+'\n')
-    file.write('gamma: '+str(gamma)+'\n\n')
+    file.write('gamma: '+str(gamma)+'\n')
     file.write('nepoch: '+str(nepoch)+'\n')
-    file.write('data_num_of_subset: '+str(subnum)+'\n')
+    file.write('data_num_of_subset: '+str(subnum)+'\n\n')
     file.flush()
+else:
+    nsmample,natom,gnum = None,None,None
 # broadcast training data set to other procs
 [nsample,natom,gnum] = comm.bcast([nsample,natom,gnum], root=0)
 if rank != 0:
