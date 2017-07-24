@@ -232,5 +232,6 @@ class single_nnp:
             F_MSE += np.sum((Frt - F_rout)**2)
         E_RMSE = math.sqrt(E_MSE / nsample)
         F_RMSE = math.sqrt(F_MSE / (nsample * natom * 3))
+        RMSE = E_RMSE + beta * F_RMSE
         
-        return E_RMSE, F_RMSE
+        return E_RMSE, F_RMSE, RMSE
