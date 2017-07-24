@@ -100,7 +100,7 @@ nnp = hdnnp.single_nnp(gnum, hidden_n, hidden_n, 1, learning, beta, gamma, name)
 for i in range(3):
     nnp.w[i] = comm.bcast(nnp.w[i], root=0)
     nnp.b[i] = comm.bcast(nnp.b[i], root=0)
-# ロードする場合
+# load weight parameters when restart
 #nnp.load_w('weight_params/')
 
 # training
