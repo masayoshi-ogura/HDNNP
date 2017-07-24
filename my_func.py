@@ -2,7 +2,7 @@
 
 import numpy as np
 
-# 原子間ベクトルとその長さ
+# calculate interatomic vectors and distances
 ### input
 # extend: Atoms Object
 ### output
@@ -16,7 +16,7 @@ def vector_ij(extend, natom):
         R[i] = extend.get_distances(i, range(len(extend)), mic=True)
     return r, R
 
-# 対称関数と全方向に関する微分
+# calculate the symmetry functions and derivatives of it
 ### input
 # atoms_objs: list of Atoms Object
 # Rcs,Rss,etas: list of float
@@ -24,13 +24,12 @@ def vector_ij(extend, natom):
 # Gs: numpy array (nsample x natom x gnum)
 # dGs: numpy array (nsample x natom x 3*natom * gnum)
 def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
-    # Rc, Rs, etaを配列で受け取り、その相乗数gnumのG,dGを配列で返す
     Gs = np.empty((nsample, natom, gnum)) # nsample x natom x gnum 個の配列
     dGs = np.empty((nsample, natom, 3*natom, gnum)) # nsample x natom x 3*natom x gnum 個の配列
     for m in range(nsample):
         extend = atoms_objs[m].repeat(2)
         r, R = vector_ij(extend, natom)
-        # 後で転置してGs,dGsに加える
+        # append transposed G and dG to Gs and dGs later
         G = np.empty((gnum, natom)) # gnum x natom
         dG = np.empty((gnum, 3*natom, natom)) # gnum x 3*natom x natom
         k = 0
@@ -43,28 +42,26 @@ def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
                     tanh = np.tanh(1 - R / Rc)
                     f = np.exp(-eta * (R - Rs) ** 2)
                     
-                    # 一番簡単な対称関数
+                    # G1
                     #gij = tanh ** 3
                     ###############
                     
-                    # 次に難しいやつ
+                    # G2
                     gij = f * (tanh **3)
                     ###########
                     
                     gij[filter] = 0
                     G[k] = np.dot(gij, np.ones(len(extend)))
                     
-                    # 微分を求める
+                    # calculate derivatives
                     dG_k = np.zeros((natom,3*natom))
                     for i in range(natom):
                         for j in range(len(extend)):
-                            # RijがRc以上、またはiとjが同原子なら、ゼロ行列のまま
+                            # if Rij is longer than cut-off, leave at 0
                             if R[i][j] > Rc or i == j:
                                 pass
                             else:
                                 # dRij: ∂Rij / ∂rkα
-                                # n×3行列
-                                # iとjが変わるたびに計算し直す必要がある？
                                 dRij = np.zeros((natom, 3))
                                 for l in range(natom):
                                     if l == i:
@@ -72,26 +69,18 @@ def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
                                     elif l == j:
                                         dRij[l] = r[i][j] / R[i][j]
                                 dRij = dRij.reshape(3*natom)
-                                        
-                                # 対称関数は一番簡単やなつ
+                                
+                                # G1
                                 #dgij =  (-3 / Rc) * (tanh[i][j] ** 2) * (1 - tanh[i][j] ** 2) * dRij
                                 ###################
-
-                                # 次に難しいやつ
+                                
+                                # G2
                                 dgij = - f[i][j] * (tanh[i][j] ** 2) * ((2 * tanh[i][j] * eta * (R[i][j] - Rs)) + (3 * (1 - (tanh[i][j] ** 2)) / Rc)) * dRij
                                 ###########
+                                
                                 dG_k[i] += dgij
                     dG[k] = dG_k.T
                     k+=1
         Gs[m] = G.T
         dGs[m] = dG.T
     return Gs, dGs
-
-# デバッグ用にリストをファイルに書き出す関数を定義
-### input
-# file: file object
-# list: list object
-def output_list(file, list):
-    for line in list:
-        file.writelines(map(str, line))
-        file.write('\n')

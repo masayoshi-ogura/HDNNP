@@ -106,7 +106,7 @@ class single_nnp:
         final_outputs = self.final_inputs
         
         return final_outputs
-        
+    
     def force(self, Gi, dGi):
         self.energy(Gi)
         
@@ -127,7 +127,7 @@ class single_nnp:
         np.save(dire+self.name+'_bih1.npy', self.b[0])
         np.save(dire+self.name+'_bh1h2.npy', self.b[1])
         np.save(dire+self.name+'_bh2o.npy', self.b[2])
-        
+    
     def load_w(self, dire):
         self.w[0] = np.load(dire+self.name+'_wih1.npy')
         self.w[1] = np.load(dire+self.name+'_wh1h2.npy')
@@ -180,6 +180,7 @@ class single_nnp:
             self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (subnum * natom))
             self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (subnum * natom))
 
+    # calculte energy
     ### input
     # comm: MPI communicator
     # Gi: numpy array (gnum)
@@ -192,6 +193,7 @@ class single_nnp:
         
         return E[0]
 
+    # calculate force
     ### input
     # comm: MPI communicator
     # Gi: numpy array (gnum)
@@ -207,7 +209,7 @@ class single_nnp:
         
         return Fr
         
-    # RMSEを計算する
+    # calculate RMSE
     ### input
     # comm, rank: MPI communicator, rank of the processor
     # dataset: list of following 4 objects
