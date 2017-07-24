@@ -108,11 +108,12 @@ for m in range(nepoch):
     subdataset = random.sample(dataset, subnum)
     nnp.train(comm, rank, natom, subnum, subdataset)
     if (m+1) % output_interval == 0:
-        E_RMSE,F_RMSE = nnp.calc_RMSE(comm, rank, natom, nsample, dataset)
+        E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, natom, nsample, dataset)
         if rank == 0:
             file.write('iteration: '+str(m+1)+'\n')
             file.write('energy RMSE: '+str(E_RMSE)+'\n')
             file.write('force RMSE: '+str(F_RMSE)+'\n')
+            file.write('RMSE: '+str(RMSE)+'\n')
             file.write('spent time: '+str(time.time()-stime)+'\n')
             file.flush()
 
