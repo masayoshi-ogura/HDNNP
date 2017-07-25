@@ -41,10 +41,10 @@ class single_nnp:
         self.dif_activation_func = lambda x: sp.expit(x) * (1 - sp.expit(x))
     
     ### input
-    # Gi: numpy array (gnum)
-    # dGi: numpy array (3*natom x gnum)
+    # Gi: numpy array (NINPUT)
+    # dGi: numpy array (3*NATOM x NINPUT)
     # E_error: float
-    # F_errors: numpy array (3*natom)
+    # F_errors: numpy array (3*NATOM)
     ### output
     # w_grad: list of weight_parameters(numpy array)
     # b_grad: list of bias_parameters(numpy array)
@@ -140,10 +140,10 @@ class single_nnp:
     # comm, rank: MPI communicator, rank of the processor
     # subdataset: list of following 4 objects
     #             energy: float
-    #             forces: numpy array (3*natom)
-    #             G: numpy array (natom x gnum)
-    #             dG: numpy array (natom x 3*natom x gnum)
-    def train(self, comm, rank, natom, subnum, subdataset):
+    #             forces: numpy array (3*NATOM)
+    #             G: numpy array (NATOM x NINPUT)
+    #             dG: numpy array (NATOM x 3*NATOM x NINPUT)
+    def train(self, comm, rank, NATOM, subnum, subdataset):
         w_grad_sum = [np.zeros_like(self.w[0]),np.zeros_like(self.w[1]),np.zeros_like(self.w[2])]
         b_grad_sum = [np.zeros_like(self.b[0]),np.zeros_like(self.b[1]),np.zeros_like(self.b[2])]
         
@@ -158,8 +158,8 @@ class single_nnp:
             Frt = subdataset[n][1]
             G = subdataset[n][2]
             dG = subdataset[n][3]
-            E = self.query_E(comm, G[rank], natom)
-            Fr = self.query_F(comm, G[rank], dG[rank], natom)
+            E = self.query_E(comm, G[rank], NATOM)
+            Fr = self.query_F(comm, G[rank], dG[rank], NATOM)
             E_error = (Et - E)
             F_errors = (Frt - Fr)
 
@@ -175,18 +175,18 @@ class single_nnp:
         
         # renew weight and bias parameters with calculated gradient
         for i in range(3):
-            self.w[i] += w_grad_sum[i] / (subnum * natom)
-            self.b[i] += b_grad_sum[i] / (subnum * natom)
-            self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (subnum * natom))
-            self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (subnum * natom))
+            self.w[i] += w_grad_sum[i] / (subnum * NATOM)
+            self.b[i] += b_grad_sum[i] / (subnum * NATOM)
+            self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (subnum * NATOM))
+            self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (subnum * NATOM))
 
     # calculte energy
     ### input
     # comm: MPI communicator
-    # Gi: numpy array (gnum)
+    # Gi: numpy array (NINPUT)
     ### output
     # E: float
-    def query_E(self, comm, Gi, natom):
+    def query_E(self, comm, Gi, NATOM):
         Ei = self.energy(Gi)
         E = np.zeros(1)
         comm.Allreduce(Ei, E, op=MPI.SUM)
@@ -196,15 +196,15 @@ class single_nnp:
     # calculate force
     ### input
     # comm: MPI communicator
-    # Gi: numpy array (gnum)
-    # dGi: numpy array (3*natom x gnum)
+    # Gi: numpy array (NINPUT)
+    # dGi: numpy array (3*NATOM x NINPUT)
     ### output
-    # Fr: numpy array (3*natom)
-    def query_F(self, comm, Gi, dGi, natom):
-        Fir = np.zeros(3*natom)
-        for r in range(3*natom):
+    # Fr: numpy array (3*NATOM)
+    def query_F(self, comm, Gi, dGi, NATOM):
+        Fir = np.zeros(3*NATOM)
+        for r in range(3*NATOM):
             Fir[r] = self.force(Gi, dGi[r])
-        Fr = np.zeros(3*natom)
+        Fr = np.zeros(3*NATOM)
         comm.Allreduce(Fir, Fr, op=MPI.SUM)
         
         return Fr
@@ -214,26 +214,26 @@ class single_nnp:
     # comm, rank: MPI communicator, rank of the processor
     # dataset: list of following 4 objects
     #          energy: float
-    #          forces: numpy array (3*natom)
-    #          G: numpy array (natom x gnum)
-    #          dG: numpy array (natom x 3*natom x gnum)
+    #          forces: numpy array (3*NATOM)
+    #          G: numpy array (NATOM x NINPUT)
+    #          dG: numpy array (NATOM x 3*NATOM x NINPUT)
     ### output
     # E_RMSE: float
     # F_RMSE: float
-    def calc_RMSE(self, comm, rank, natom, nsample, dataset):
+    def calc_RMSE(self, comm, rank, NATOM, NSAMPLE, dataset):
         E_MSE = 0.0
         F_MSE = 0.0
-        for n in range(nsample):
+        for n in range(NSAMPLE):
             Et = dataset[n][0]
             Frt = dataset[n][1]
             G = dataset[n][2]
             dG = dataset[n][3]
-            E_out = self.query_E(comm, G[rank], natom)
-            F_rout = self.query_F(comm, G[rank], dG[rank], natom)
+            E_out = self.query_E(comm, G[rank], NATOM)
+            F_rout = self.query_F(comm, G[rank], dG[rank], NATOM)
             E_MSE += (Et - E_out) ** 2
             F_MSE += np.sum((Frt - F_rout)**2)
-        E_RMSE = math.sqrt(E_MSE / nsample)
-        F_RMSE = math.sqrt(F_MSE / (nsample * natom * 3))
+        E_RMSE = math.sqrt(E_MSE / NSAMPLE)
+        F_RMSE = math.sqrt(F_MSE / (NSAMPLE * NATOM * 3))
         RMSE = E_RMSE + beta * F_RMSE
         
         return E_RMSE, F_RMSE, RMSE

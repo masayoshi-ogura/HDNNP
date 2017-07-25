@@ -6,12 +6,12 @@ import numpy as np
 ### input
 # extend: Atoms Object
 ### output
-# r: numpy array (natom x 8*natom x 3)
-# R: numpy array (natom x 8*ntaom)
-def vector_ij(extend, natom):
-    r = np.zeros((natom, len(extend), 3))
-    R = np.zeros((natom, len(extend)))
-    for i in range(natom):
+# r: numpy array (NATOM x 8*NATOM x 3)
+# R: numpy array (NATOM x 8*NATOM)
+def vector_ij(extend, NATOM):
+    r = np.zeros((NATOM, len(extend), 3))
+    R = np.zeros((NATOM, len(extend)))
+    for i in range(NATOM):
         r[i] = extend.get_distances(i, range(len(extend)), mic=True, vector=True)
         R[i] = extend.get_distances(i, range(len(extend)), mic=True)
     return r, R
@@ -21,17 +21,17 @@ def vector_ij(extend, natom):
 # atoms_objs: list of Atoms Object
 # Rcs,Rss,etas: list of float
 ### output
-# Gs: numpy array (nsample x natom x gnum)
-# dGs: numpy array (nsample x natom x 3*natom * gnum)
-def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
-    Gs = np.empty((nsample, natom, gnum)) # nsample x natom x gnum 個の配列
-    dGs = np.empty((nsample, natom, 3*natom, gnum)) # nsample x natom x 3*natom x gnum 個の配列
-    for m in range(nsample):
+# Gs: numpy array (NSAMPLE x NATOM x NINPUT)
+# dGs: numpy array (NSAMPLE x NATOM x 3*NATOM * NINPUT)
+def symmetric_func(atoms_objs, NATOM, NSAMPLE, NINPUT, Rcs, Rss, etas):
+    Gs = np.empty((NSAMPLE, NATOM, NINPUT)) # NSAMPLE x NATOM x NINPUT 個の配列
+    dGs = np.empty((NSAMPLE, NATOM, 3*NATOM, NINPUT)) # NSAMPLE x NATOM x 3*NATOM x NINPUT 個の配列
+    for m in range(NSAMPLE):
         extend = atoms_objs[m].repeat(2)
-        r, R = vector_ij(extend, natom)
+        r, R = vector_ij(extend, NATOM)
         # append transposed G and dG to Gs and dGs later
-        G = np.empty((gnum, natom)) # gnum x natom
-        dG = np.empty((gnum, 3*natom, natom)) # gnum x 3*natom x natom
+        G = np.empty((NINPUT, NATOM)) # NINPUT x NATOM
+        dG = np.empty((NINPUT, 3*NATOM, NATOM)) # NINPUT x 3*NATOM x NATOM
         k = 0
         for Rc in Rcs:
             for Rs in Rss:
@@ -54,21 +54,21 @@ def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
                     G[k] = np.dot(gij, np.ones(len(extend)))
                     
                     # calculate derivatives
-                    dG_k = np.zeros((natom,3*natom))
-                    for i in range(natom):
+                    dG_k = np.zeros((NATOM,3*NATOM))
+                    for i in range(NATOM):
                         for j in range(len(extend)):
                             # if Rij is longer than cut-off, leave at 0
                             if R[i][j] > Rc or i == j:
                                 pass
                             else:
                                 # dRij: ∂Rij / ∂rkα
-                                dRij = np.zeros((natom, 3))
-                                for l in range(natom):
+                                dRij = np.zeros((NATOM, 3))
+                                for l in range(NATOM):
                                     if l == i:
                                         dRij[l] = - r[i][j] / R[i][j]
                                     elif l == j:
                                         dRij[l] = r[i][j] / R[i][j]
-                                dRij = dRij.reshape(3*natom)
+                                dRij = dRij.reshape(3*NATOM)
                                 
                                 # G1
                                 #dgij =  (-3 / Rc) * (tanh[i][j] ** 2) * (1 - tanh[i][j] ** 2) * dRij
