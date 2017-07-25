@@ -7,3 +7,5 @@
 *.e[0-9]*
 *.po[0-9]*
 *.pe[0-9]*
+
+hyperparameters.py
