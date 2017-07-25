@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 
+###########################################################
+#
+# don't remove this file!
+# copy this file to 'hyperparameters.py', and edit it
+#
+###########################################################
+
 # define hyper parameters
 # LEARNING: float
 #           learning rate for each training
