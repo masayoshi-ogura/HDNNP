@@ -24,6 +24,8 @@
 #                  the number of interval to output RMSE to progress file
 # NATOM: int
 #        the number of atoms in the cell
+# Rss, etas: list of float
+#            parameter of symmetric functions
 # NSAMPLE, NINPUT: determined automatically in main.py
 LEARNING        = 
 BETA            = 
@@ -33,6 +35,8 @@ NEPOCH          =
 NSUBSET         = 
 OUTPUT_INTERVAL = 
 NATOM           = 
+Rss             = 
+etas            = 
 NSAMPLE,NINPUT  = None,None
 
 # define other variables

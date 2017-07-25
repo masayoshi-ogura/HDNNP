@@ -62,8 +62,6 @@ if rank == 0:
         Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((NSAMPLE,3*NATOM))
         a = cordinates[0].lattice[1][1]
         Rcs = [a]
-        Rss = [1.0]
-        etas = [0.0]
         NINPUT = len(Rcs)*len(Rss)*len(etas)
         Gs,dGs = my_func.symmetric_func(cordinates, NATOM, NSAMPLE, NINPUT, Rcs, Rss, etas)
         file.write('Rc: '+','.join(map(str,Rcs))+'\n')
