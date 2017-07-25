@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
 # set computer name
-from os import uname
+from os
 from re import match
-if match(r'Masayoshi', uname()[1]):
+if match(r'Masayoshi', os.uname()[1]):
     cname = 'local'
-elif match(r'forte', uname()[1]):
+elif match(r'forte', os.uname()[1]):
     cname = 'forte'
-elif match(r'iris', uname()[1]):
+elif match(r'iris', os.uname()[1]):
     cname = 'iris'
 
 # import python modules
@@ -30,6 +30,7 @@ size = comm.Get_size()
 
 # set variables to all procs
 weight_dir = 'weight_params/'
+train_dir = 'training_data/'
 learning = 0.001
 beta = 0.5
 gamma = 0.9
@@ -45,22 +46,23 @@ name = 'Ge'
 # 3. read training data set from .xyz and calculate symmetric functions, or read from .npy
 # 4. write parameters to output file
 if rank == 0:
-    now = datetime.now()
-    file = open('progress'+now.strftime('-%m%d-%H%M%S')+'.out', 'w')
+    datestr = datetime.now().strftime('%m%d-%H%M%S')
+    file = open('progress-'+datestr+'.out', 'w')
     stime = time.time()
     
     if cname == 'forte':
-        train_dir = 'training_data/npy/'
-        Es = np.load(train_dir+name+'-Es.npy') # nsample
-        Fs = np.load(train_dir+name+'-Fs.npy') # nsample x 3*natom
-        Gs = np.load(train_dir+name+'-Gs.npy') # nsample x natom x gnum
-        dGs = np.load(train_dir+name+'-dGs.npy') # nsample x natom x 3*natom x gnum
+        train_npy_dir = train_dir+'npy/'
+        Es = np.load(train_npy_dir+name+'-Es.npy') # nsample
+        Fs = np.load(train_npy_dir+name+'-Fs.npy') # nsample x 3*natom
+        Gs = np.load(train_npy_dir+name+'-Gs.npy') # nsample x natom x gnum
+        dGs = np.load(train_npy_dir+name+'-dGs.npy') # nsample x natom x 3*natom x gnum
         nsample = len(Es)
         natom = len(Gs[0])
         gnum = len(Gs[0][0])
     else:
-        train_dir = 'training_data/xyz/'
-        alldataset = AtomsReader(datadir+'AllSiGe.xyz')
+        train_xyz_dir = train_dir+'xyz/'
+        train_npy_dir = train_dir+'npy/'
+        alldataset = AtomsReader(train_xyz_dir+'AllSiGe.xyz')
         rawdataset = [data for data in alldataset if data.config_type == 'CrystalSi0Ge8' and data.cohesive_energy < 0.0]
         cordinates = [data for data in rawdataset]
         nsample = len(rawdataset)
@@ -119,10 +121,14 @@ for m in range(nepoch):
 
 # save
 if rank == 0:
-    nnp.save_w(weight_dir)
+    weight_save_dir = weight_dir+datestr+'/'
+    train_save_dir = train_npy_dir+datestr+'/'
+    os.mkdir(weight_save_dir)
+    os.mkdir(train_save_dir)
+    nnp.save_w(weight_save_dir)
     file.close()
     if not cname == 'forte':
-        np.save(train_dir+name+'-Es.npy', Es)
-        np.save(train_dir+name+'-Fs.npy', Fs)
-        np.save(train_dir+name+'-Gs.npy', Gs)
-        np.save(train_dir+name+'-dGs.npy', dGs)
+        np.save(train_save_dir+name+'-Es.npy', Es)
+        np.save(train_save_dir+name+'-Fs.npy', Fs)
+        np.save(train_save_dir+name+'-Gs.npy', Gs)
+        np.save(train_save_dir+name+'-dGs.npy', dGs)
