@@ -94,7 +94,7 @@ for m in range(hp.nepoch):
     subdataset = random.sample(dataset, hp.nsubset)
     nnp.train(comm, rank, hp.natom, hp.nsubset, subdataset)
     if (m+1) % other.output_interval == 0:
-        E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset)
+        E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
         if rank == 0:
             file.write('iteration: '+str(m+1)+'\n')
             file.write('energy RMSE: '+str(E_RMSE)+'\n')

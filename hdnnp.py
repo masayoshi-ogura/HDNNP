@@ -219,7 +219,7 @@ class single_nnp:
     ### output
     # E_RMSE: float
     # F_RMSE: float
-    def calc_RMSE(self, comm, rank, natom, nsample, dataset):
+    def calc_RMSE(self, comm, rank, natom, nsample, dataset, beta):
         E_MSE = 0.0
         F_MSE = 0.0
         for n in range(nsample):
