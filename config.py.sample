@@ -11,9 +11,12 @@
 # NSAMPLE, NINPUT: determined automatically in main.py
 # natom: int
 #        the number of atoms in the cell
-# Rcs, Rss, etas, lams, zetas: list of float
-#                              parameter of symmetric functions
-#                              Rcs is determined automatically in main.py
+# Rcs, Rss, etas: list of float
+#                 parameter of symmetric functions
+#                 Rcs is determined automatically in main.py
+# lams, zetas: list of int
+#              lams is -1 or 1
+#              zetas is 1,2,4,...
 # learning_rate: float
 #                learning rate for each training
 # beta: float
