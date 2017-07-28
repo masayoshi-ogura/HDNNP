@@ -122,10 +122,10 @@ def symmetric_func_numerical(atoms_objs, natom, nsample, ninput, Rcs, Rss, etas,
             for eta in etas:
                 # G2
                 for Rs in Rss:
-                    G[n] = G2(R, natom, fc, Rc)
+                    G[n] = G2(R, natom, fc, Rc, Rs, eta)
                     for r in range(3*natom):
-                        G2_plus = G2(R_plus[r], natom, fc_plus[r], Rc)
-                        G2_minus = G2(R_minus[r], natom, fc_minus[r], Rc)
+                        G2_plus = G2(R_plus[r], natom, fc_plus[r], Rc, Rs, eta)
+                        G2_minus = G2(R_minus[r], natom, fc_minus[r], Rc, Rs, eta)
                         dG[n][r] = (G2_plus - G2_minus) / (2 * dr)
                     n += 1
                 
