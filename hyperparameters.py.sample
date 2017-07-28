@@ -35,15 +35,21 @@ NEPOCH          =
 NSUBSET         = 
 OUTPUT_INTERVAL = 
 NATOM           = 
-Rss             = 
-etas            = 
-NSAMPLE,NINPUT  = None,None
+Rss             = []
+etas            = []
+NSAMPLE,NINPUT  = None,None # don't change
 
 # define other variables
 # name: string
 #       used for saving numpy array as npy file
-# RESTART: boolean
+# IMPORT_QUIPPY: boolean
 #          whether start from scratch or restart trianing
 #          when True, load weight parameters from npy file
-name            = 
-RESTART         = 
+# LOAD_WEIGHT_PARAMS, SAVE_WEIGHT_PARAMS: boolean
+# LOAD_TRAINING_DATA, SAVE_TRAINING_DATA: boolean
+name               = ''
+IMPORT_QUIPPY      = 
+LOAD_WEIGHT_PARAMS = 
+LOAD_TRAINING_DATA = 
+SAVE_WEIGHT_PARAMS = 
+SAVE_TRAINING_DATA = 

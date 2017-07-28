@@ -1,28 +1,21 @@
 # -*- coding: utf-8 -*-
 
-# set computer name
-import os
-from re import match
-if match(r'Masayoshi', os.uname()[1]):
-    cname = 'local'
-elif match(r'forte', os.uname()[1]):
-    cname = 'forte'
-elif match(r'iris', os.uname()[1]):
-    cname = 'iris'
+# define variables
+import hyperparameters
 
 # import python modules
 import time
+import os
 from datetime import datetime
 from mpi4py import MPI
 import numpy as np
 import random
-if not cname == 'forte':
+if IMPORT_QUIPPY:
     from quippy import AtomsReader
 
 # import own modules
 import hdnnp
 import my_func
-import hyperparameters
 
 # set MPI variables
 comm = MPI.COMM_WORLD
@@ -43,7 +36,7 @@ if rank == 0:
     file = open('progress-'+datestr+'.out', 'w')
     stime = time.time()
     
-    if cname == 'forte':
+    if LOAD_TRAINING_DATA:
         train_npy_dir = train_dir+'npy/'
         Es = np.load(train_npy_dir+name+'-Es.npy') # NSAMPLE
         Fs = np.load(train_npy_dir+name+'-Fs.npy') # NSAMPLE x 3*NATOM
@@ -89,7 +82,7 @@ dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(NSAMPLE)]
 # initialize single NNP
 nnp = hdnnp.single_nnp(NINPUT, HIDDEN_NODES, HIDDEN_NODES, 1, LEARNING, BETA, GAMMA, name)
 # load weight parameters when restart
-if RESTART:
+if LOAD_WEIGHT_PARAMS:
     nnp.load_w('weight_params/')
 else:
     for i in range(3):
@@ -112,13 +105,14 @@ for m in range(NEPOCH):
 
 # save
 if rank == 0:
-    weight_save_dir = weight_dir+datestr+'/'
-    train_save_dir = train_npy_dir+datestr+'/'
-    os.mkdir(weight_save_dir)
-    os.mkdir(train_save_dir)
-    nnp.save_w(weight_save_dir)
     file.close()
-    if not cname == 'forte':
+    if SAVE_WEIGHT_PARAMS:
+        weight_save_dir = weight_dir+datestr+'/'
+        os.mkdir(weight_save_dir)
+        nnp.save_w(weight_save_dir)
+    if SAVE_TRAINING_DATA:
+        train_save_dir = train_npy_dir+datestr+'/'
+        os.mkdir(train_save_dir)
         np.save(train_save_dir+name+'-Es.npy', Es)
         np.save(train_save_dir+name+'-Fs.npy', Fs)
         np.save(train_save_dir+name+'-Gs.npy', Gs)
