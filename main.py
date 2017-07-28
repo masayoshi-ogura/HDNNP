@@ -55,11 +55,13 @@ if rank == 0:
         Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((hp.nsample,3*hp.natom))
         a = cordinates[0].lattice[1][1]
         hp.Rcs = [a]
-        hp.ninput = len(hp.Rcs)*len(hp.Rss)*len(hp.etas)
-        Gs,dGs = my_func.symmetric_func(cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas)
+        hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.Rss)*len(hp.etas) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
+        Gs,dGs = my_func.symmetric_func_numerical(cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas, hp.lams, hp.zetas)
         file.write('Rc: '+','.join(map(str,hp.Rcs))+'\n')
         file.write('Rs: '+','.join(map(str,hp.Rss))+'\n')
         file.write('eta: '+','.join(map(str,hp.etas))+'\n')
+        file.write('lam: '+','.join(map(str,hp.lams))+'\n')
+        file.write('zeta: '+','.join(map(str,hp.zetas))+'\n')
     file.write('NN_figure: '+str(hp.ninput)+'x'+str(hp.hidden_nodes)+'x'+str(hp.hidden_nodes)+'x1\n')
     file.write('learning_rate: '+str(hp.learning_rate)+'\n')
     file.write('beta: '+str(hp.beta)+'\n')
