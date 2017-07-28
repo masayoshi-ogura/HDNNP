@@ -17,7 +17,6 @@ class single_nnp:
         self.learning_rate = learning_rate
         self.beta = beta
         self.gamma = gamma
-        self.name = name
         
         # initialize weight parameters
         self.w = []

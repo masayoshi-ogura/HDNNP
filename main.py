@@ -80,7 +80,7 @@ comm.Bcast(dGs, root=0)
 dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
 
 # initialize single NNP
-nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma, other.name)
+nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
 # load weight parameters when restart
 if bool.LOAD_WEIGHT_PARAMS:
     nnp.load_w(weight_dir, other.name)
