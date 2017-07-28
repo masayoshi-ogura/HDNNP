@@ -8,7 +8,6 @@
 ###########################################################
 
 # define hyper parameters
-# NSAMPLE, NINPUT: determined automatically in main.py
 # natom: int
 #        the number of atoms in the cell
 # Rcs, Rss, etas: list of float
@@ -30,7 +29,6 @@
 # nsubset: int
 #          the number of datas in the subset which is selected from all training data set
 class hp:
-    nsample,ninput = None,None # don't change
     # about symmetric functions
     natom          = 
     Rcs            = [] # don't change
