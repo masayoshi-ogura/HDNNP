@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # define variables
-import hyperparameters
+from config import hp,bool,other
 
 # import python modules
 import time
@@ -10,7 +10,7 @@ from datetime import datetime
 from mpi4py import MPI
 import numpy as np
 import random
-if IMPORT_QUIPPY:
+if bool.IMPORT_QUIPPY:
     from quippy import AtomsReader
 
 # import own modules
@@ -36,65 +36,65 @@ if rank == 0:
     file = open('progress-'+datestr+'.out', 'w')
     stime = time.time()
     
-    if LOAD_TRAINING_DATA:
+    if bool.LOAD_TRAINING_DATA:
         train_npy_dir = train_dir+'npy/'
-        Es = np.load(train_npy_dir+name+'-Es.npy') # NSAMPLE
-        Fs = np.load(train_npy_dir+name+'-Fs.npy') # NSAMPLE x 3*NATOM
-        Gs = np.load(train_npy_dir+name+'-Gs.npy') # NSAMPLE X NATOM X NINPUT
-        dGs = np.load(train_npy_dir+name+'-dGs.npy') # NSAMPLE x NATOM x 3*NATOM x NINPUT
-        NSAMPLE = len(Es)
-        NINPUT = len(Gs[0][0])
+        Es = np.load(train_npy_dir+other.name+'-Es.npy') # nsample
+        Fs = np.load(train_npy_dir+other.name+'-Fs.npy') # nsample x 3*natom
+        Gs = np.load(train_npy_dir+other.name+'-Gs.npy') # nsample X natom X ninput
+        dGs = np.load(train_npy_dir+other.name+'-dGs.npy') # nsample x natom x 3*natom x ninput
+        hp.nsample = len(Es)
+        hp.ninput = len(Gs[0][0])
     else:
         train_xyz_dir = train_dir+'xyz/'
         train_npy_dir = train_dir+'npy/'
         alldataset = AtomsReader(train_xyz_dir+'AllSiGe.xyz')
         rawdataset = [data for data in alldataset if data.config_type == 'CrystalSi0Ge8' and data.cohesive_energy < 0.0]
         cordinates = [data for data in rawdataset]
-        NSAMPLE = len(rawdataset)
+        hp.nsample = len(rawdataset)
         Es = np.array([data.cohesive_energy for data in rawdataset])
-        Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((NSAMPLE,3*NATOM))
+        Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((hp.nsample,3*hp.natom))
         a = cordinates[0].lattice[1][1]
-        Rcs = [a]
-        NINPUT = len(Rcs)*len(Rss)*len(etas)
-        Gs,dGs = my_func.symmetric_func(cordinates, NATOM, NSAMPLE, NINPUT, Rcs, Rss, etas)
-        file.write('Rc: '+','.join(map(str,Rcs))+'\n')
-        file.write('Rs: '+','.join(map(str,Rss))+'\n')
-        file.write('eta: '+','.join(map(str,etas))+'\n')
-    file.write('NN_figure: '+str(NINPUT)+'x'+str(HIDDEN_NODES)+'x'+str(HIDDEN_NODES)+'x1\n')
-    file.write('learning_rate: '+str(LEARNING)+'\n')
-    file.write('beta: '+str(BETA)+'\n')
-    file.write('gamma: '+str(GAMMA)+'\n')
-    file.write('nepoch: '+str(NEPOCH)+'\n')
-    file.write('data_num_of_subset: '+str(NSUBSET)+'\n\n')
+        hp.Rcs = [a]
+        hp.ninput = len(hp.Rcs)*len(hp.Rss)*len(hp.etas)
+        Gs,dGs = my_func.symmetric_func(cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas)
+        file.write('Rc: '+','.join(map(str,hp.Rcs))+'\n')
+        file.write('Rs: '+','.join(map(str,hp.Rss))+'\n')
+        file.write('eta: '+','.join(map(str,hp.etas))+'\n')
+    file.write('NN_figure: '+str(hp.ninput)+'x'+str(hp.hidden_nodes)+'x'+str(hp.hidden_nodes)+'x1\n')
+    file.write('learning_rate: '+str(hp.learning_rate)+'\n')
+    file.write('beta: '+str(hp.beta)+'\n')
+    file.write('gamma: '+str(hp.gamma)+'\n')
+    file.write('nepoch: '+str(hp.nepoch)+'\n')
+    file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
     file.flush()
 
 # broadcast training data set to other procs
-NSAMPLE = comm.bcast(NSAMPLE, root=0)
-NINPUT = comm.bcast(NINPUT, root=0)
+hp.nsample = comm.bcast(hp.nsample, root=0)
+hp.ninput = comm.bcast(hp.ninput, root=0)
 if rank != 0:
-    Es,Fs,Gs,dGs = np.empty(NSAMPLE),np.empty((NSAMPLE,3*NATOM)),np.empty((NSAMPLE,NATOM,NINPUT)),np.empty((NSAMPLE,NATOM,3*NATOM,NINPUT))
+    Es,Fs,Gs,dGs = np.empty(hp.nsample),np.empty((hp.nsample,3*hp.natom)),np.empty((hp.nsample,hp.natom,hp.ninput)),np.empty((hp.nsample,hp.natom,3*hp.natom,hp.ninput))
 comm.Bcast(Es, root=0)
 comm.Bcast(Fs, root=0)
 comm.Bcast(Gs, root=0)
 comm.Bcast(dGs, root=0)
-dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(NSAMPLE)]
+dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
 
 # initialize single NNP
-nnp = hdnnp.single_nnp(NINPUT, HIDDEN_NODES, HIDDEN_NODES, 1, LEARNING, BETA, GAMMA, name)
+nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma, other.name)
 # load weight parameters when restart
-if LOAD_WEIGHT_PARAMS:
-    nnp.load_w('weight_params/')
+if bool.LOAD_WEIGHT_PARAMS:
+    nnp.load_w(weight_dir, other.name)
 else:
     for i in range(3):
         comm.Bcast(nnp.w[i], root=0)
         comm.Bcast(nnp.b[i], root=0)
 
 # training
-for m in range(NEPOCH):
-    subdataset = random.sample(dataset, NSUBSET)
-    nnp.train(comm, rank, NATOM, NSUBSET, subdataset)
-    if (m+1) % OUTPUT_INTERVAL == 0:
-        E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, NATOM, NSAMPLE, dataset)
+for m in range(hp.nepoch):
+    subdataset = random.sample(dataset, hp.nsubset)
+    nnp.train(comm, rank, hp.natom, hp.nsubset, subdataset)
+    if (m+1) % other.output_interval == 0:
+        E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset)
         if rank == 0:
             file.write('iteration: '+str(m+1)+'\n')
             file.write('energy RMSE: '+str(E_RMSE)+'\n')
@@ -106,14 +106,14 @@ for m in range(NEPOCH):
 # save
 if rank == 0:
     file.close()
-    if SAVE_WEIGHT_PARAMS:
+    if bool.SAVE_WEIGHT_PARAMS:
         weight_save_dir = weight_dir+datestr+'/'
         os.mkdir(weight_save_dir)
-        nnp.save_w(weight_save_dir)
-    if SAVE_TRAINING_DATA:
+        nnp.save_w(weight_save_dir, other.name)
+    if bool.SAVE_TRAINING_DATA:
         train_save_dir = train_npy_dir+datestr+'/'
         os.mkdir(train_save_dir)
-        np.save(train_save_dir+name+'-Es.npy', Es)
-        np.save(train_save_dir+name+'-Fs.npy', Fs)
-        np.save(train_save_dir+name+'-Gs.npy', Gs)
-        np.save(train_save_dir+name+'-dGs.npy', dGs)
+        np.save(train_save_dir+other.name+'-Es.npy', Es)
+        np.save(train_save_dir+other.name+'-Fs.npy', Fs)
+        np.save(train_save_dir+other.name+'-Gs.npy', Gs)
+        np.save(train_save_dir+other.name+'-dGs.npy', dGs)

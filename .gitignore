@@ -8,4 +8,4 @@
 *.po[0-9]*
 *.pe[0-9]*
 
-hyperparameters.py
+config.py
