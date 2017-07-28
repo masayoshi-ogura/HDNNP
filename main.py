@@ -96,11 +96,8 @@ for m in range(hp.nepoch):
     if (m+1) % other.output_interval == 0:
         E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
         if rank == 0:
-            file.write('iteration: '+str(m+1)+'\n')
-            file.write('energy RMSE: '+str(E_RMSE)+'\n')
-            file.write('force RMSE: '+str(F_RMSE)+'\n')
-            file.write('RMSE: '+str(RMSE)+'\n')
-            file.write('spent time: '+str(time.time()-stime)+'\n')
+            file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
+            file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time.time()-stime, E_RMSE, F_RMSE, RMSE))
             file.flush()
 
 # save
