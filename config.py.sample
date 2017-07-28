@@ -3,7 +3,7 @@
 ###########################################################
 #
 # don't remove this file!
-# copy this file to 'hyperparameters.py', and edit it
+# copy this file to 'config.py', and edit it
 #
 ###########################################################
 
@@ -11,9 +11,9 @@
 # NSAMPLE, NINPUT: determined automatically in main.py
 # natom: int
 #        the number of atoms in the cell
-# Rcs, Rss, etas: list of float
-#            parameter of symmetric functions
-#            Rcs is determined automatically in main.py
+# Rcs, Rss, etas, lams, zetas: list of float
+#                              parameter of symmetric functions
+#                              Rcs is determined automatically in main.py
 # learning_rate: float
 #                learning rate for each training
 # beta: float
@@ -33,6 +33,8 @@ class hp:
     Rcs            = [] # don't change
     Rss            = []
     etas           = []
+    lams           = []
+    zetas          = []
     # about training
     learning_rate  = 
     beta           = 
