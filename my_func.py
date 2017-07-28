@@ -108,8 +108,8 @@ def symmetric_func_numerical(atoms_objs, natom, nsample, ninput, Rcs, Rss, etas,
             fc = cutoff_func(R, Rc)
             fc_plus,fc_minus = [],[]
             for r in range(3*natom):
-                fc_plus.append(R_plus[r], Rc)
-                fc_minus.append(R_minus[r], Rc)
+                fc_plus.append(cutoff_func(R_plus[r], Rc))
+                fc_minus.append(cutoff_func(R_minus[r], Rc))
             
             # G1
             G[n] = G1(R, natom, fc, Rc)
