@@ -56,7 +56,7 @@ if rank == 0:
         a = cordinates[0].lattice[1][1]
         hp.Rcs = [a]
         hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.Rss)*len(hp.etas) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-        Gs,dGs = my_func.symmetric_func_numerical(cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas, hp.lams, hp.zetas)
+        Gs,dGs = my_func.symmetric_func(cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas, hp.lams, hp.zetas)
         file.write('Rc: '+','.join(map(str,hp.Rcs))+'\n')
         file.write('Rs: '+','.join(map(str,hp.Rss))+'\n')
         file.write('eta: '+','.join(map(str,hp.etas))+'\n')
