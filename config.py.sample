@@ -1,0 +1,64 @@
+# -*- coding: utf-8 -*-
+
+###########################################################
+#
+# don't remove this file!
+# copy this file to 'hyperparameters.py', and edit it
+#
+###########################################################
+
+# define hyper parameters
+# NSAMPLE, NINPUT: determined automatically in main.py
+# natom: int
+#        the number of atoms in the cell
+# Rcs, Rss, etas: list of float
+#            parameter of symmetric functions
+#            Rcs is determined automatically in main.py
+# learning_rate: float
+#                learning rate for each training
+# beta: float
+#       mixing parameter between energy and force
+# gamma: float
+#       momentum rate for updating weight parameters
+# hidden_nodes: int
+#               the number of nodes for each hidden layers in NN
+# nepoch: int
+#         the number of epochs
+# nsubset: int
+#          the number of datas in the subset which is selected from all training data set
+class hp:
+    nsample,ninput = None,None # don't change
+    # about symmetric functions
+    natom          = 
+    Rcs            = [] # don't change
+    Rss            = []
+    etas           = []
+    # about training
+    learning_rate  = 
+    beta           = 
+    gamma          = 
+    hidden_nodes   = 
+    nepoch         = 
+    nsubset        = 
+
+# define boolean
+# IMPORT_QUIPPY: boolean
+#          whether start from scratch or restart trianing
+#          when True, load weight parameters from npy file
+# LOAD_WEIGHT_PARAMS, SAVE_WEIGHT_PARAMS: boolean
+# LOAD_TRAINING_DATA, SAVE_TRAINING_DATA: boolean
+class bool:
+    IMPORT_QUIPPY      = 
+    LOAD_WEIGHT_PARAMS = 
+    LOAD_TRAINING_DATA = 
+    SAVE_WEIGHT_PARAMS = 
+    SAVE_TRAINING_DATA = 
+
+# define other vairables
+# name: string
+#       used for saving numpy array as npy file
+# output_interval: int
+#                  the number of interval to output RMSE to progress file
+class other:
+    name            = 
+    output_interval = 

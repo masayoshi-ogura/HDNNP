@@ -7,7 +7,7 @@ import numpy as np
 # extend: Atoms Object
 ### output
 # r: numpy array (natom x 8*natom x 3)
-# R: numpy array (natom x 8*ntaom)
+# R: numpy array (natom x 8*natom)
 def vector_ij(extend, natom):
     r = np.zeros((natom, len(extend), 3))
     R = np.zeros((natom, len(extend)))
@@ -21,17 +21,17 @@ def vector_ij(extend, natom):
 # atoms_objs: list of Atoms Object
 # Rcs,Rss,etas: list of float
 ### output
-# Gs: numpy array (nsample x natom x gnum)
-# dGs: numpy array (nsample x natom x 3*natom * gnum)
-def symmetric_func(atoms_objs, natom, nsample, gnum, Rcs, Rss, etas):
-    Gs = np.empty((nsample, natom, gnum)) # nsample x natom x gnum 個の配列
-    dGs = np.empty((nsample, natom, 3*natom, gnum)) # nsample x natom x 3*natom x gnum 個の配列
+# Gs: numpy array (nsample x natom x ninput)
+# dGs: numpy array (nsample x natom x 3*natom * ninput)
+def symmetric_func(atoms_objs, natom, nsample, ninput, Rcs, Rss, etas):
+    Gs = np.empty((nsample, natom, ninput)) # nsample x natom x ninput 個の配列
+    dGs = np.empty((nsample, natom, 3*natom, ninput)) # nsample x natom x 3*natom x ninput 個の配列
     for m in range(nsample):
         extend = atoms_objs[m].repeat(2)
         r, R = vector_ij(extend, natom)
         # append transposed G and dG to Gs and dGs later
-        G = np.empty((gnum, natom)) # gnum x natom
-        dG = np.empty((gnum, 3*natom, natom)) # gnum x 3*natom x natom
+        G = np.empty((ninput, natom)) # ninput x natom
+        dG = np.empty((ninput, 3*natom, natom)) # ninput x 3*natom x natom
         k = 0
         for Rc in Rcs:
             for Rs in Rss:

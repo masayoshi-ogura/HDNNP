@@ -6,31 +6,30 @@ import scipy.special as sp
 import math
 
 class single_nnp:
-    def __init__(self, input_n, hidden1_n, hidden2_n, output_n, learning, beta, gamma, name):
+    def __init__(self, input_nodes, hidden1_nodes, hidden2_nodes, output_nodes, learning_rate, beta, gamma):
         # set number of nodes of each layers and learning rate
         # beta: mixing parameter of error between energy and force
         # gamma: NAG parameter. rate of accumulation
-        self.input_n = input_n
-        self.hidden1_n = hidden1_n
-        self.hidden2_n = hidden2_n
-        self.output_n = output_n
-        self.learning = learning
+        self.input_nodes = input_nodes
+        self.hidden1_nodes = hidden1_nodes
+        self.hidden2_nodes = hidden2_nodes
+        self.output_nodes = output_nodes
+        self.learning_rate = learning_rate
         self.beta = beta
         self.gamma = gamma
-        self.name = name
         
         # initialize weight parameters
         self.w = []
         self.b = []
         # input-hidden1
-        self.w.append(np.random.normal(0.0, 0.5, (hidden1_n, input_n)))
-        self.b.append(np.random.normal(0.0, 0.5, (hidden1_n)))
+        self.w.append(np.random.normal(0.0, 0.5, (hidden1_nodes, input_nodes)))
+        self.b.append(np.random.normal(0.0, 0.5, (hidden1_nodes)))
         # hidden1-hidden2
-        self.w.append(np.random.normal(0.0, 0.5, (hidden2_n, hidden1_n)))
-        self.b.append(np.random.normal(0.0, 0.5, (hidden2_n)))
+        self.w.append(np.random.normal(0.0, 0.5, (hidden2_nodes, hidden1_nodes)))
+        self.b.append(np.random.normal(0.0, 0.5, (hidden2_nodes)))
         # hidden2-output
-        self.w.append(np.random.normal(-0.1, 0.5, (output_n, hidden2_n)))
-        self.b.append(np.random.normal(-0.1, 0.5, (output_n)))
+        self.w.append(np.random.normal(-0.1, 0.5, (output_nodes, hidden2_nodes)))
+        self.b.append(np.random.normal(-0.1, 0.5, (output_nodes)))
         
         # accumulation of weight parameters and bias parameters
         self.v_w = [np.zeros_like(self.w[0]),np.zeros_like(self.w[1]),np.zeros_like(self.w[2])]
@@ -41,8 +40,8 @@ class single_nnp:
         self.dif_activation_func = lambda x: sp.expit(x) * (1 - sp.expit(x))
     
     ### input
-    # Gi: numpy array (gnum)
-    # dGi: numpy array (3*natom x gnum)
+    # Gi: numpy array (ninput)
+    # dGi: numpy array (3*natom x ninput)
     # E_error: float
     # F_errors: numpy array (3*natom)
     ### output
@@ -65,11 +64,11 @@ class single_nnp:
         # forces
         R = len(dGi)
         f_output_errors = np.zeros(1)
-        f_hidden2_errors = np.zeros(self.hidden2_n)
-        f_hidden1_errors = np.zeros(self.hidden1_n)
-        f_grad_output_cost = np.zeros((self.output_n, self.hidden2_n))
-        f_grad_hidden2_cost = np.zeros((self.hidden2_n, self.hidden1_n))
-        f_grad_hidden1_cost = np.zeros((self.hidden1_n, self.input_n))
+        f_hidden2_errors = np.zeros(self.hidden2_nodes)
+        f_hidden1_errors = np.zeros(self.hidden1_nodes)
+        f_grad_output_cost = np.zeros((self.output_nodes, self.hidden2_nodes))
+        f_grad_hidden2_cost = np.zeros((self.hidden2_nodes, self.hidden1_nodes))
+        f_grad_hidden1_cost = np.zeros((self.hidden1_nodes, self.input_nodes))
         for r in range(R):
             f_output_error = F_errors[r]
             coef = np.dot(self.w[1], self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[0], dGi[r]))
@@ -85,12 +84,12 @@ class single_nnp:
         
         # modify weight parameters
         w_grad,b_grad = [],[]
-        w_grad.append(self.learning * (e_grad_hidden1_cost - self.beta * f_grad_hidden1_cost / R))
-        w_grad.append(self.learning * (e_grad_hidden2_cost - self.beta * f_grad_hidden2_cost / R))
-        w_grad.append(self.learning * (e_grad_output_cost - self.beta * f_grad_output_cost / R))
-        b_grad.append(self.learning * (e_hidden1_errors - self.beta * f_hidden1_errors / R))
-        b_grad.append(self.learning * (e_hidden2_errors - self.beta * f_hidden2_errors / R))
-        b_grad.append(self.learning * (e_output_errors - self.beta * f_output_errors / R))
+        w_grad.append(self.learning_rate * (e_grad_hidden1_cost - self.beta * f_grad_hidden1_cost / R))
+        w_grad.append(self.learning_rate * (e_grad_hidden2_cost - self.beta * f_grad_hidden2_cost / R))
+        w_grad.append(self.learning_rate * (e_grad_output_cost - self.beta * f_grad_output_cost / R))
+        b_grad.append(self.learning_rate * (e_hidden1_errors - self.beta * f_hidden1_errors / R))
+        b_grad.append(self.learning_rate * (e_hidden2_errors - self.beta * f_hidden2_errors / R))
+        b_grad.append(self.learning_rate * (e_output_errors - self.beta * f_output_errors / R))
         return w_grad, b_grad
     
     def energy(self, Gi):
@@ -120,30 +119,30 @@ class single_nnp:
         
         return final_outputs.reshape(-1)
     
-    def save_w(self, dire):
-        np.save(dire+self.name+'_wih1.npy', self.w[0])
-        np.save(dire+self.name+'_wh1h2.npy', self.w[1])
-        np.save(dire+self.name+'_wh2o.npy', self.w[2])
-        np.save(dire+self.name+'_bih1.npy', self.b[0])
-        np.save(dire+self.name+'_bh1h2.npy', self.b[1])
-        np.save(dire+self.name+'_bh2o.npy', self.b[2])
+    def save_w(self, dire, name):
+        np.save(dire+name+'_wih1.npy', self.w[0])
+        np.save(dire+name+'_wh1h2.npy', self.w[1])
+        np.save(dire+name+'_wh2o.npy', self.w[2])
+        np.save(dire+name+'_bih1.npy', self.b[0])
+        np.save(dire+name+'_bh1h2.npy', self.b[1])
+        np.save(dire+name+'_bh2o.npy', self.b[2])
     
-    def load_w(self, dire):
-        self.w[0] = np.load(dire+self.name+'_wih1.npy')
-        self.w[1] = np.load(dire+self.name+'_wh1h2.npy')
-        self.w[2] = np.load(dire+self.name+'_wh2o.npy')
-        self.b[0] = np.load(dire+self.name+'_bih1.npy')
-        self.b[1] = np.load(dire+self.name+'_bh1h2.npy')
-        self.b[2] = np.load(dire+self.name+'_bh2o.npy')
+    def load_w(self, dire, name):
+        self.w[0] = np.load(dire+name+'_wih1.npy')
+        self.w[1] = np.load(dire+name+'_wh1h2.npy')
+        self.w[2] = np.load(dire+name+'_wh2o.npy')
+        self.b[0] = np.load(dire+name+'_bih1.npy')
+        self.b[1] = np.load(dire+name+'_bh1h2.npy')
+        self.b[2] = np.load(dire+name+'_bh2o.npy')
 
     ### input
     # comm, rank: MPI communicator, rank of the processor
     # subdataset: list of following 4 objects
     #             energy: float
     #             forces: numpy array (3*natom)
-    #             G: numpy array (natom x gnum)
-    #             dG: numpy array (natom x 3*natom x gnum)
-    def train(self, comm, rank, natom, subnum, subdataset):
+    #             G: numpy array (natom x ninput)
+    #             dG: numpy array (natom x 3*natom x ninput)
+    def train(self, comm, rank, natom, nsubset, subdataset):
         w_grad_sum = [np.zeros_like(self.w[0]),np.zeros_like(self.w[1]),np.zeros_like(self.w[2])]
         b_grad_sum = [np.zeros_like(self.b[0]),np.zeros_like(self.b[1]),np.zeros_like(self.b[2])]
         
@@ -153,7 +152,7 @@ class single_nnp:
             self.b[i] += self.gamma * self.v_b[i]
         
         # calculate grad_sum
-        for n in range(subnum):
+        for n in range(nsubset):
             Et = subdataset[n][0]
             Frt = subdataset[n][1]
             G = subdataset[n][2]
@@ -175,15 +174,15 @@ class single_nnp:
         
         # renew weight and bias parameters with calculated gradient
         for i in range(3):
-            self.w[i] += w_grad_sum[i] / (subnum * natom)
-            self.b[i] += b_grad_sum[i] / (subnum * natom)
-            self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (subnum * natom))
-            self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (subnum * natom))
+            self.w[i] += w_grad_sum[i] / (nsubset * natom)
+            self.b[i] += b_grad_sum[i] / (nsubset * natom)
+            self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (nsubset * natom))
+            self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (nsubset * natom))
 
     # calculte energy
     ### input
     # comm: MPI communicator
-    # Gi: numpy array (gnum)
+    # Gi: numpy array (ninput)
     ### output
     # E: float
     def query_E(self, comm, Gi, natom):
@@ -196,8 +195,8 @@ class single_nnp:
     # calculate force
     ### input
     # comm: MPI communicator
-    # Gi: numpy array (gnum)
-    # dGi: numpy array (3*natom x gnum)
+    # Gi: numpy array (ninput)
+    # dGi: numpy array (3*natom x ninput)
     ### output
     # Fr: numpy array (3*natom)
     def query_F(self, comm, Gi, dGi, natom):
@@ -215,12 +214,12 @@ class single_nnp:
     # dataset: list of following 4 objects
     #          energy: float
     #          forces: numpy array (3*natom)
-    #          G: numpy array (natom x gnum)
-    #          dG: numpy array (natom x 3*natom x gnum)
+    #          G: numpy array (natom x ninput)
+    #          dG: numpy array (natom x 3*natom x ninput)
     ### output
     # E_RMSE: float
     # F_RMSE: float
-    def calc_RMSE(self, comm, rank, natom, nsample, dataset):
+    def calc_RMSE(self, comm, rank, natom, nsample, dataset, beta):
         E_MSE = 0.0
         F_MSE = 0.0
         for n in range(nsample):
