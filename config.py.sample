@@ -27,7 +27,7 @@
 # nsubset: int
 #          the number of datas in the subset which is selected from all training data set
 class hp:
-    NSAMPLE,NINPUT = None,None # don't change
+    nsample,ninput = None,None # don't change
     # about symmetric functions
     natom          = 
     Rcs            = [] # don't change
