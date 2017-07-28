@@ -57,9 +57,9 @@ class single_nnp:
         e_hidden2_errors = self.dif_activation_func(self.hidden2_inputs) * np.dot(self.w[2].T, e_output_errors)
         e_hidden1_errors = self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[1].T, e_hidden2_errors)
         
-        e_grad_output_cost = np.matrix(e_output_errors).T * (self.hidden2_outputs)
-        e_grad_hidden2_cost = np.matrix(e_hidden2_errors).T * (self.hidden1_outputs)
-        e_grad_hidden1_cost = np.matrix(e_hidden1_errors).T * Gi
+        e_grad_output_cost = np.dot(e_output_errors.reshape((-1,1)), self.hidden2_outputs.reshape((1,-1)))
+        e_grad_hidden2_cost = np.dot(e_hidden2_errors.reshape((-1,1)), self.hidden1_outputs.reshape((1,-1)))
+        e_grad_hidden1_cost = np.dot(e_hidden1_errors.reshape((-1,1)), Gi.reshape((1,-1)))
         
         # forces
         R = len(dGi)
@@ -78,9 +78,9 @@ class single_nnp:
             f_output_errors += f_output_error
             f_hidden2_errors += f_hidden2_error
             f_hidden1_errors += f_hidden1_error
-            f_grad_output_cost += np.matrix(f_output_error).T * (- self.dif_activation_func(self.hidden2_inputs) * coef)
-            f_grad_hidden2_cost += np.matrix(f_hidden2_error).T * self.hidden1_outputs
-            f_grad_hidden1_cost += np.matrix(f_hidden1_error).T * Gi
+            f_grad_output_cost += np.dot(f_output_error.reshape((-1,1)), (- self.dif_activation_func(self.hidden2_inputs) * coef).reshape((1,-1)))
+            f_grad_hidden2_cost += np.dot(f_hidden2_error.reshape((-1,1)), self.hidden1_outputs.reshape((1,-1)))
+            f_grad_hidden1_cost += np.dot(f_hidden1_error.reshape((-1,1)), Gi.reshape((1,-1)))
         
         # modify weight parameters
         w_grad,b_grad = [],[]
