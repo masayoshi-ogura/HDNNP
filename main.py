@@ -68,6 +68,7 @@ if rank == 0:
     file.write('gamma: '+str(hp.gamma)+'\n')
     file.write('nepoch: '+str(hp.nepoch)+'\n')
     file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
+    file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
     file.flush()
 
 # broadcast training data set to other procs
@@ -98,7 +99,6 @@ for m in range(hp.nepoch):
     if (m+1) % other.output_interval == 0:
         E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
         if rank == 0:
-            file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
             file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time.time()-stime, E_RMSE, F_RMSE, RMSE))
             file.flush()
 
