@@ -14,21 +14,13 @@ import time
 # Gs: numpy array (nsample x natom x ninput)
 # dGs: numpy array (nsample x natom x 3*natom * ninput)
 def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, etas, lams, zetas):
-    if rank == 0:
-        st = time.time()
     Gs = np.empty((nsample, natom, ninput))
     dGs = np.empty((nsample, natom, 3*natom, ninput))
     for m in range(nsample):
-        if rank == 0:
-            print 'start m:'+str(m)
-            print time.time()-st
         # prepare R and cosine
         extend = atoms_objs[m].repeat(2)
         R = distance_ij(rank, extend, natom)
         cosine = cosine_ijk(rank, extend, natom)
-        if rank == 0:
-            print 'checkpoint 1:'
-            print time.time()-st
         # prepare just slightly deviated R and cosine for numerical derivatives
         R_array,cosine_array = np.empty((1+2*3*natom,8*natom)),np.empty((1+2*3*natom,8*natom,8*natom))
         R_array[0] = R; cosine_array[0] = cosine
@@ -43,9 +35,6 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
             extend_minus = extend.copy(); extend_minus.translate(disp_minus)
             R_array[2*r+2] = (distance_ij(rank, extend_minus, natom))
             cosine_array[2*r+2] = (cosine_ijk(rank, extend_minus, natom))
-            if rank == 0:
-                print 'checkpoint 2, r:'+str(r)
-                print time.time()-st
         
         G = np.empty((ninput, natom))
         dG = np.empty((ninput, 3*natom, natom))
