@@ -16,34 +16,35 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
     Gs = np.empty((nsample, natom, ninput))
     dGs = np.empty((nsample, natom, 3*natom, ninput))
     for m in range(nsample):
-        # prepare R and cosine
-        atoms = atoms_objs[m]
-        atoms.set_cutoff(Rc)
-        atoms.calc_connect()
-        n_neighb = atoms.n_neighbours(rank+1) # 1-indexed
-        R = distance_ij(rank, atoms)
-        cosine = cosine_ijk(rank, atoms, n_neighb)
-        # prepare just slightly deviated R and cosine for numerical derivatives
-        # assume that neighbour atoms are not changed after displacing since dr is too small
-        R_array,cosine_array = np.empty((1+2*3*natom,n_neighb)),np.empty((1+2*3*natom,n_neighb,n_neighb))
-        R_array[0] = R; cosine_array[0] = cosine
-        dr = 0.001
-        for r in range(3*natom):
-            k=r/3; alpha=r%3
-            # prepare displaced R and cosine
-            atoms_plus = atoms.copy(); atoms_plus.pos[k][alpha] += dr
-            atoms_plus.calc_connect()
-            R_array[2*r+1] = (distance_ij(rank, atoms_plus))
-            cosine_array[2*r+1] = (cosine_ijk(rank, atoms_plus, n_neighb))
-            atoms_minus = atoms.copy(); atoms_minus.pos[k][alpha] -= dr
-            atoms_minus.calc_connect()
-            R_array[2*r+2] = (distance_ij(rank, atoms_minus))
-            cosine_array[2*r+2] = (cosine_ijk(rank, atoms_minus, n_neighb))
-        
         G = np.empty((ninput, natom))
         dG = np.empty((ninput, 3*natom, natom))
         n = 0
         for Rc in Rcs:
+            # prepare R and cosine
+            atoms = atoms_objs[m]
+            atoms.set_cutoff(Rc)
+            atoms.calc_connect()
+            n_neighb = atoms.n_neighbours(rank+1) # 1-indexed
+            R = distance_ij(rank, atoms)
+            cosine = cosine_ijk(rank, atoms, n_neighb)
+            
+            # prepare just slightly deviated R and cosine for numerical derivatives
+            # assume that neighbour atoms are not changed after displacing since dr is too small
+            R_array,cosine_array = np.empty((1+2*3*natom,n_neighb)),np.empty((1+2*3*natom,n_neighb,n_neighb))
+            R_array[0] = R; cosine_array[0] = cosine
+            dr = 0.0001
+            for r in range(3*natom):
+                k=r/3; alpha=r%3
+                # prepare displaced R and cosine
+                atoms_plus = atoms.copy(); atoms_plus.pos[k+1][alpha+1] += dr
+                atoms_plus.calc_connect()
+                R_array[2*r+1] = (distance_ij(rank, atoms_plus))
+                cosine_array[2*r+1] = (cosine_ijk(rank, atoms_plus, n_neighb))
+                atoms_minus = atoms.copy(); atoms_minus.pos[k+1][alpha+1] -= dr
+                atoms_minus.calc_connect()
+                R_array[2*r+2] = (distance_ij(rank, atoms_minus))
+                cosine_array[2*r+2] = (cosine_ijk(rank, atoms_minus, n_neighb))
+            
             # prepare cutoff functions with Rc
             fc_array = cutoff_func(R_array, Rc)
             
