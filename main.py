@@ -26,37 +26,34 @@ size = comm.Get_size()
 weight_dir = 'weight_params/'
 train_dir = 'training_data/'
 
-# on root proc,
-# 1. prepare output file
-# 2. set variables unrelated to calculation
-# 3. read training data set from .xyz and calculate symmetric functions, or read from .npy
-# 4. write parameters to output file
+if bool.LOAD_TRAINING_DATA:
+    train_npy_dir = train_dir+'npy/'
+    Es = np.load(train_npy_dir+other.name+'-Es.npy') # nsample
+    Fs = np.load(train_npy_dir+other.name+'-Fs.npy') # nsample x 3*natom
+    Gs = np.load(train_npy_dir+other.name+'-Gs.npy') # nsample x natom x ninput
+    dGs = np.load(train_npy_dir+other.name+'-dGs.npy') # nsample x natom x 3*natom x ninput
+    hp.nsample = len(Es)
+    hp.ninput = len(Gs[0][0])
+else:
+    train_xyz_dir = train_dir+'xyz/'
+    train_npy_dir = train_dir+'npy/'
+    alldataset = AtomsReader(train_xyz_dir+'AllSiGe.xyz')
+    rawdataset = [data for data in alldataset if data.config_type == 'CrystalSi0Ge8' and data.cohesive_energy < 0.0]
+    cordinates = [data for data in rawdataset]
+    hp.nsample = len(rawdataset)
+    Es = np.array([data.cohesive_energy for data in rawdataset])
+    Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((hp.nsample,3*hp.natom))
+    a = cordinates[0].lattice[1][1]
+    hp.Rcs = [a]
+    hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.Rss)*len(hp.etas) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
+    Gs,dGs = my_func.symmetric_func(comm, rank, cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas, hp.lams, hp.zetas)
+dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
+
 if rank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     file = open('progress-'+datestr+'.out', 'w')
     stime = time.time()
-    
-    if bool.LOAD_TRAINING_DATA:
-        train_npy_dir = train_dir+'npy/'
-        Es = np.load(train_npy_dir+other.name+'-Es.npy') # nsample
-        Fs = np.load(train_npy_dir+other.name+'-Fs.npy') # nsample x 3*natom
-        Gs = np.load(train_npy_dir+other.name+'-Gs.npy') # nsample X natom X ninput
-        dGs = np.load(train_npy_dir+other.name+'-dGs.npy') # nsample x natom x 3*natom x ninput
-        hp.nsample = len(Es)
-        hp.ninput = len(Gs[0][0])
-    else:
-        train_xyz_dir = train_dir+'xyz/'
-        train_npy_dir = train_dir+'npy/'
-        alldataset = AtomsReader(train_xyz_dir+'AllSiGe.xyz')
-        rawdataset = [data for data in alldataset if data.config_type == 'CrystalSi0Ge8' and data.cohesive_energy < 0.0]
-        cordinates = [data for data in rawdataset]
-        hp.nsample = len(rawdataset)
-        Es = np.array([data.cohesive_energy for data in rawdataset])
-        Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((hp.nsample,3*hp.natom))
-        a = cordinates[0].lattice[1][1]
-        hp.Rcs = [a]
-        hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.Rss)*len(hp.etas) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-        Gs,dGs = my_func.symmetric_func(cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas, hp.lams, hp.zetas)
+    if not bool.LOAD_TRAINING_DATA:
         file.write('Rc: '+','.join(map(str,hp.Rcs))+'\n')
         file.write('Rs: '+','.join(map(str,hp.Rss))+'\n')
         file.write('eta: '+','.join(map(str,hp.etas))+'\n')
@@ -70,17 +67,6 @@ if rank == 0:
     file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
     file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
     file.flush()
-
-# broadcast training data set to other procs
-hp.nsample = comm.bcast(hp.nsample, root=0)
-hp.ninput = comm.bcast(hp.ninput, root=0)
-if rank != 0:
-    Es,Fs,Gs,dGs = np.empty(hp.nsample),np.empty((hp.nsample,3*hp.natom)),np.empty((hp.nsample,hp.natom,hp.ninput)),np.empty((hp.nsample,hp.natom,3*hp.natom,hp.ninput))
-comm.Bcast(Es, root=0)
-comm.Bcast(Fs, root=0)
-comm.Bcast(Gs, root=0)
-comm.Bcast(dGs, root=0)
-dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
 
 # initialize single NNP
 nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
