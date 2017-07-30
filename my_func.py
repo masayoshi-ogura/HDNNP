@@ -2,7 +2,6 @@
 
 from mpi4py import MPI
 import numpy as np
-import time
 
 # calculate the symmetry functions and derivatives of it
 ### input
@@ -63,6 +62,7 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
                 for lam in lams:
                     for zeta in zetas:
                         G4_array = G4(comm, rank, R_array, cosine_array, natom, fc_array, eta, lam, zeta)
+                        G[n] = G4_array[0]
                         for r in range(3*natom):
                             dG[n][r] = (G4_array[2*r+1] - G4_array[2*r+2]) / (2 * dr)
                         n += 1
