@@ -105,7 +105,7 @@ def G2(comm, i, R, natom, fc, Rs, eta):
 
 # calculate symmetric function type-4
 # 3-bodies
-def G4(i, R, angle, natom, fc, eta, lam, zeta):
+def G4(comm, i, R, angle, natom, fc, eta, lam, zeta):
     G,Gi = np.empty(natom),np.empty(natom)
     R_res = np.exp(- eta * (R**2)).reshape((-1,1))
     fc_res = fc.reshape((-1,1))
