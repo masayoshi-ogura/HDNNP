@@ -16,29 +16,35 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
     Gs = np.empty((nsample, natom, ninput))
     dGs = np.empty((nsample, natom, 3*natom, ninput))
     for m in range(nsample):
-        # prepare R and cosine
-        extend = atoms_objs[m].repeat(2)
-        R = distance_ij(rank, extend, natom)
-        cosine = cosine_ijk(rank, extend, natom)
-        # prepare just slightly deviated R and cosine for numerical derivatives
-        R_array,cosine_array = np.empty((1+2*3*natom,8*natom)),np.empty((1+2*3*natom,8*natom,8*natom))
-        R_array[0] = R; cosine_array[0] = cosine
-        dr = 0.001
-        for r in range(3*natom):
-            disp_plus = np.array([dr if i==r else 0 for i in range(8*3*natom)]).reshape((8*natom,3))
-            disp_minus = np.array([-dr if i==r else 0 for i in range(8*3*natom)]).reshape((8*natom,3))
-            # prepare displaced R and cosine
-            extend_plus = extend.copy(); extend_plus.translate(disp_plus)
-            R_array[2*r+1] = (distance_ij(rank, extend_plus, natom))
-            cosine_array[2*r+1] = (cosine_ijk(rank, extend_plus, natom))
-            extend_minus = extend.copy(); extend_minus.translate(disp_minus)
-            R_array[2*r+2] = (distance_ij(rank, extend_minus, natom))
-            cosine_array[2*r+2] = (cosine_ijk(rank, extend_minus, natom))
-        
         G = np.empty((ninput, natom))
         dG = np.empty((ninput, 3*natom, natom))
         n = 0
         for Rc in Rcs:
+            # prepare R and cosine
+            atoms = atoms_objs[m]
+            atoms.set_cutoff(Rc)
+            atoms.calc_connect()
+            n_neighb = atoms.n_neighbours(rank+1) # 1-indexed
+            R = distance_ij(rank, atoms)
+            cosine = cosine_ijk(rank, atoms, n_neighb)
+            
+            # prepare just slightly deviated R and cosine for numerical derivatives
+            # assume that neighbour atoms are not changed after displacing since dr is too small
+            R_array,cosine_array = np.empty((1+2*3*natom,n_neighb)),np.empty((1+2*3*natom,n_neighb,n_neighb))
+            R_array[0] = R; cosine_array[0] = cosine
+            dr = 0.0001
+            for r in range(3*natom):
+                k=r/3; alpha=r%3
+                # prepare displaced R and cosine
+                atoms_plus = atoms.copy(); atoms_plus.pos[k+1][alpha+1] += dr
+                atoms_plus.calc_connect()
+                R_array[2*r+1] = (distance_ij(rank, atoms_plus))
+                cosine_array[2*r+1] = (cosine_ijk(rank, atoms_plus, n_neighb))
+                atoms_minus = atoms.copy(); atoms_minus.pos[k+1][alpha+1] -= dr
+                atoms_minus.calc_connect()
+                R_array[2*r+2] = (distance_ij(rank, atoms_minus))
+                cosine_array[2*r+2] = (cosine_ijk(rank, atoms_minus, n_neighb))
+            
             # prepare cutoff functions with Rc
             fc_array = cutoff_func(R_array, Rc)
             
@@ -61,7 +67,7 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
                 # G4
                 for lam in lams:
                     for zeta in zetas:
-                        G4_array = G4(comm, rank, R_array, cosine_array, natom, fc_array, eta, lam, zeta)
+                        G4_array = G4(comm, rank, R_array, cosine_array, natom, n_neighb, fc_array, eta, lam, zeta)
                         G[n] = G4_array[0]
                         for r in range(3*natom):
                             dG[n][r] = (G4_array[2*r+1] - G4_array[2*r+2]) / (2 * dr)
@@ -74,8 +80,6 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
 # 2-bodies
 def G1(comm, i, natom, fc):
     G,Gi = np.empty((natom,1+2*3*natom)),np.zeros((natom,1+2*3*natom))
-    filter = np.array([[j == i for j in range(8*natom)]]).repeat(1+2*3*natom, axis=0)
-    fc[filter] = 0.0
     Gi[i] = np.sum(fc, axis=1)
     comm.Allreduce(Gi, G, op=MPI.SUM)
     return G.T
@@ -85,47 +89,42 @@ def G1(comm, i, natom, fc):
 def G2(comm, i, R, natom, fc, Rs, eta):
     G,Gi = np.empty((natom,1+2*3*natom)),np.zeros((natom,1+2*3*natom))
     gi = np.exp(- eta * (R - Rs) ** 2) * fc
-    filter = np.array([[j == i for j in range(8*natom)]]).repeat(1+2*3*natom, axis=0)
-    gi[filter] = 0.0
     Gi[i] = np.sum(gi, axis=1)
     comm.Allreduce(Gi, G, op=MPI.SUM)
     return G.T
 
 # calculate symmetric function type-4
 # 3-bodies
-def G4(comm, i, R, cosine, natom, fc, eta, lam, zeta):
+def G4(comm, i, R, cosine, natom, n_neighb, fc, eta, lam, zeta):
     G,Gi = np.empty((natom,1+2*3*natom)),np.zeros((natom,1+2*3*natom))
-    R_ij = np.exp(- eta * (R**2))[:,:,None].repeat(8*natom,axis=2)
-    R_ik = np.exp(- eta * (R**2))[:,None,:].repeat(8*natom,axis=1)
-    fc_ij = fc[:,:,None].repeat(8*natom,axis=2)
-    fc_ik = fc[:,None,:].repeat(8*natom,axis=1)
+    R_ij = np.exp(- eta * (R**2))[:,:,None].repeat(n_neighb,axis=2)
+    R_ik = np.exp(- eta * (R**2))[:,None,:].repeat(n_neighb,axis=1)
+    fc_ij = fc[:,:,None].repeat(n_neighb,axis=2)
+    fc_ik = fc[:,None,:].repeat(n_neighb,axis=1)
     gi = ((1+lam*cosine)**zeta) * R_ij * R_ik * fc_ij * fc_ik
-    filter = np.array([j == i or k == i or k == j for j in range(8*natom) for k in range(8*natom)]).repeat(1+2*3*natom).reshape((1+2*3*natom,8*natom,8*natom))
+    filter = np.array([k == j for j in range(n_neighb) for k in range(n_neighb)]).repeat(1+2*3*natom).reshape((1+2*3*natom,n_neighb,n_neighb))
     gi[filter] = 0.0
     Gi[i] = (2 ** (1-zeta)) * np.sum(gi, axis=(1,2))
     comm.Allreduce(Gi, G, op=MPI.SUM)
     return G.T
 
-# calculate interatomic distances
-def distance_ij(i, atoms_obj, natom):
-    # R = atoms_obj.get_all_distances(mic=True)[i]
-    R = atoms_obj.get_distances(i, range(8*natom), mic=True)
+# calculate interatomic distances with neighbours
+def distance_ij(i, atoms):
+    R = np.array([con.distance for con in atoms.connect[i+1]])
     return R
 
-# calculate anlges
-def cosine_ijk(i, atoms_obj, natom):
-    cosine = np.zeros((8*natom,8*natom))
-    for j in range(8*natom):
-        for k in range(8*natom):
-            if j == i or k == i or k == j:
+# calculate anlges with neighbours
+def cosine_ijk(i, atoms, n_neighb):
+    cosine = np.zeros((n_neighb,n_neighb))
+    for j in range(n_neighb):
+        for k in range(n_neighb):
+            if k == j:
                 pass
             else:
-                cosine[j][k] = atoms_obj.cosine(j,i,k)
+                cosine[j][k] = atoms.cosine_neighbour(i+1,j+1,k+1)
     return cosine
 
-# calculate cutoff function
+# calculate cutoff function with neighbours
 def cutoff_func(R, Rc):
-    filter = R > Rc
     fc = np.tanh(1-R/Rc)**3
-    fc[filter] = 0.0
     return fc
