@@ -24,53 +24,55 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
             atoms = atoms_objs[m]
             atoms.set_cutoff(Rc)
             atoms.calc_connect()
-            n_neighb = atoms.n_neighbours(rank+1) # 1-indexed
             R = distance_ij(rank, atoms)
-            cosine = cosine_ijk(rank, atoms, n_neighb)
+            fc = cutoff_func(R, Rc)
+            cosine = cosine_ijk(rank, atoms)
             
             # prepare just slightly deviated R and cosine for numerical derivatives
             # assume that neighbour atoms are not changed after displacing since dr is too small
-            R_array,cosine_array = np.empty((1+2*3*natom,n_neighb)),np.empty((1+2*3*natom,n_neighb,n_neighb))
-            R_array[0] = R; cosine_array[0] = cosine
+            R_array,fc_array,cosine_array = [],[],[]
+            R_array[0] = R; fc_array[0] = fc; cosine_array[0] = cosine
             dr = 0.0001
             for r in range(3*natom):
                 k=r/3; alpha=r%3
                 # prepare displaced R and cosine
                 atoms_plus = atoms.copy(); atoms_plus.pos[k+1][alpha+1] += dr
                 atoms_plus.calc_connect()
-                R_array[2*r+1] = (distance_ij(rank, atoms_plus))
-                cosine_array[2*r+1] = (cosine_ijk(rank, atoms_plus, n_neighb))
+                R_array[2*r+1] = distance_ij(rank, atoms_plus)
+                fc_array[2*r+1] = cutoff_func(R_array[2*r+1], Rc)
+                cosine_array[2*r+1] = cosine_ijk(rank, atoms_plus)
                 atoms_minus = atoms.copy(); atoms_minus.pos[k+1][alpha+1] -= dr
                 atoms_minus.calc_connect()
-                R_array[2*r+2] = (distance_ij(rank, atoms_minus))
-                cosine_array[2*r+2] = (cosine_ijk(rank, atoms_minus, n_neighb))
-            
-            # prepare cutoff functions with Rc
-            fc_array = cutoff_func(R_array, Rc)
+                R_array[2*r+2] = distance_ij(rank, atoms_minus)
+                fc_array[2*r+2] = cutoff_func(R_array[2*r+2], Rc)
+                cosine_array[2*r+2] = cosine_ijk(rank, atoms_minus)
             
             # G1
-            G1_array = G1(comm, rank, natom, fc_array)
-            G[n] = G1_array[0]
+            G[n] = G1(comm, rank, natom, fc_array[0])
             for r in range(3*natom):
-                dG[n][r] = (G1_array[2*r+1] - G1_array[2*r+2]) / (2 * dr)
+                G1_plus = G1(comm, rank, natom, fc_array[2*r+1])
+                G1_minus = G1(comm, rank, natom, fc_array[2*r+2])
+                dG[n][r] = (G1_plus - G1_minus) / (2 * dr)
             n += 1
             
             for eta in etas:
                 # G2
                 for Rs in Rss:
-                    G2_array = G2(comm, rank, R_array, natom, fc_array, Rs, eta)
-                    G[n] = G2_array[0]
+                    G[n] = G2(comm, rank, R_array[0], natom, fc_array[0], Rs, eta)
                     for r in range(3*natom):
-                        dG[n][r] = (G2_array[2*r+1] - G2_array[2*r+2]) / (2 * dr)
+                        G2_plus = G2(comm, rank, R_array[2*r+1], natom, fc_array[2*r+1], Rs, eta)
+                        G2_minus = G2(comm, rank, R_array[2*r+2], natom, fc_array[2*r+2], Rs, eta)
+                        dG[n][r] = (G2_plus - G2_minus) / (2 * dr)
                     n += 1
                 
                 # G4
                 for lam in lams:
                     for zeta in zetas:
-                        G4_array = G4(comm, rank, R_array, cosine_array, natom, n_neighb, fc_array, eta, lam, zeta)
-                        G[n] = G4_array[0]
+                        G[n] = G4(comm, rank, R_array[0], cosine_array[0], natom, fc_array[0], eta, lam, zeta)
                         for r in range(3*natom):
-                            dG[n][r] = (G4_array[2*r+1] - G4_array[2*r+2]) / (2 * dr)
+                            G4_plus = G4(comm, rank, R_array[2*r+1], cosine_array[2*r+1], natom, fc_array[2*r+1], eta, lam, zeta)
+                            G4_minus = G4(comm, rank, R_array[2*r+2], cosine_array[2*r+2], natom, fc_array[2*r+2], eta, lam, zeta)
+                            dG[n][r] = (G4_plus - G4_minus) / (2 * dr)
                         n += 1
         Gs[m] = G.T
         dGs[m] = dG.T
@@ -79,34 +81,32 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
 # calculate symmetric function type-1
 # 2-bodies
 def G1(comm, i, natom, fc):
-    G,Gi = np.empty((natom,1+2*3*natom)),np.zeros((natom,1+2*3*natom))
-    Gi[i] = np.sum(fc, axis=1)
+    G,Gi = np.empty(natom),np.zeros(natom)
+    Gi[i] = np.sum(fc)
     comm.Allreduce(Gi, G, op=MPI.SUM)
-    return G.T
+    return G
 
 # calculate symmetric function type-2
 # 2-bodies
 def G2(comm, i, R, natom, fc, Rs, eta):
-    G,Gi = np.empty((natom,1+2*3*natom)),np.zeros((natom,1+2*3*natom))
+    G,Gi = np.empty(natom),np.zeros(natom)
     gi = np.exp(- eta * (R - Rs) ** 2) * fc
-    Gi[i] = np.sum(gi, axis=1)
+    Gi[i] = np.sum(gi)
     comm.Allreduce(Gi, G, op=MPI.SUM)
-    return G.T
+    return G
 
 # calculate symmetric function type-4
 # 3-bodies
-def G4(comm, i, R, cosine, natom, n_neighb, fc, eta, lam, zeta):
-    G,Gi = np.empty((natom,1+2*3*natom)),np.zeros((natom,1+2*3*natom))
-    R_ij = np.exp(- eta * (R**2))[:,:,None].repeat(n_neighb,axis=2)
-    R_ik = np.exp(- eta * (R**2))[:,None,:].repeat(n_neighb,axis=1)
-    fc_ij = fc[:,:,None].repeat(n_neighb,axis=2)
-    fc_ik = fc[:,None,:].repeat(n_neighb,axis=1)
-    gi = ((1+lam*cosine)**zeta) * R_ij * R_ik * fc_ij * fc_ik
-    filter = np.array([k == j for j in range(n_neighb) for k in range(n_neighb)]).repeat(1+2*3*natom).reshape((1+2*3*natom,n_neighb,n_neighb))
+def G4(comm, i, R, cosine, natom, fc, eta, lam, zeta):
+    G,Gi = np.empty(natom),np.zeros(natom)
+    gauss = np.exp(- eta * (R**2)).reshape((-1,1))
+    cutoff = fc.reshape((-1,1))
+    gi = ((1+lam*cosine)**zeta) * np.dot(gauss, gauss.T) * np.dot(cutoff, cutoff.T)
+    filter = np.identity(len(R), dtype=bool)
     gi[filter] = 0.0
-    Gi[i] = (2 ** (1-zeta)) * np.sum(gi, axis=(1,2))
+    Gi[i] = (2 ** (1-zeta)) * np.sum
     comm.Allreduce(Gi, G, op=MPI.SUM)
-    return G.T
+    return G
 
 # calculate interatomic distances with neighbours
 def distance_ij(i, atoms):
@@ -114,7 +114,8 @@ def distance_ij(i, atoms):
     return R
 
 # calculate anlges with neighbours
-def cosine_ijk(i, atoms, n_neighb):
+def cosine_ijk(i, atoms):
+    n_neighb = atoms.n_neighbours(i+1)
     cosine = np.zeros((n_neighb,n_neighb))
     for j in range(n_neighb):
         for k in range(n_neighb):
