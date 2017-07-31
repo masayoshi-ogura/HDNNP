@@ -12,7 +12,6 @@
 #        the number of atoms in the cell
 # Rcs, Rss, etas: list of float
 #                 parameter of symmetric functions
-#                 Rcs is determined automatically in main.py
 # lams, zetas: list of int
 #              lams is -1 or 1
 #              zetas is 1,2,4,...
@@ -31,7 +30,7 @@
 class hp:
     # about symmetric functions
     natom          = 
-    Rcs            = [] # don't change
+    Rcs            = []
     Rss            = []
     etas           = []
     lams           = []
