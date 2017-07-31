@@ -31,21 +31,21 @@ def symmetric_func(comm, rank, atoms_objs, natom, nsample, ninput, Rcs, Rss, eta
             # prepare just slightly deviated R and cosine for numerical derivatives
             # assume that neighbour atoms are not changed after displacing since dr is too small
             R_array,fc_array,cosine_array = [],[],[]
-            R_array[0] = R; fc_array[0] = fc; cosine_array[0] = cosine
-            dr = 0.0001
+            R_array.append(R); fc_array.append(fc); cosine_array.append(cosine)
+            dr = 0.01
             for r in range(3*natom):
                 k=r/3; alpha=r%3
                 # prepare displaced R and cosine
                 atoms_plus = atoms.copy(); atoms_plus.pos[k+1][alpha+1] += dr
                 atoms_plus.calc_connect()
-                R_array[2*r+1] = distance_ij(rank, atoms_plus)
-                fc_array[2*r+1] = cutoff_func(R_array[2*r+1], Rc)
-                cosine_array[2*r+1] = cosine_ijk(rank, atoms_plus)
+                R_array.append(distance_ij(rank, atoms_plus))
+                fc_array.append(cutoff_func(R_array[2*r+1], Rc))
+                cosine_array.append(cosine_ijk(rank, atoms_plus))
                 atoms_minus = atoms.copy(); atoms_minus.pos[k+1][alpha+1] -= dr
                 atoms_minus.calc_connect()
-                R_array[2*r+2] = distance_ij(rank, atoms_minus)
-                fc_array[2*r+2] = cutoff_func(R_array[2*r+2], Rc)
-                cosine_array[2*r+2] = cosine_ijk(rank, atoms_minus)
+                R_array.append(distance_ij(rank, atoms_minus))
+                fc_array.append(cutoff_func(R_array[2*r+2], Rc))
+                cosine_array.append(cosine_ijk(rank, atoms_minus))
             
             # G1
             G[n] = G1(comm, rank, natom, fc_array[0])
@@ -104,7 +104,7 @@ def G4(comm, i, R, cosine, natom, fc, eta, lam, zeta):
     gi = ((1+lam*cosine)**zeta) * np.dot(gauss, gauss.T) * np.dot(cutoff, cutoff.T)
     filter = np.identity(len(R), dtype=bool)
     gi[filter] = 0.0
-    Gi[i] = (2 ** (1-zeta)) * np.sum
+    Gi[i] = (2 ** (1-zeta)) * np.sum(gi)
     comm.Allreduce(Gi, G, op=MPI.SUM)
     return G
 
