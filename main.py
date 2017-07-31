@@ -26,6 +26,11 @@ size = comm.Get_size()
 weight_dir = 'weight_params/'
 train_dir = 'training_data/'
 
+if rank == 0:
+    datestr = datetime.now().strftime('%m%d-%H%M%S')
+    file = open('progress-'+datestr+'.out', 'w')
+    stime = time.time()
+
 if bool.LOAD_TRAINING_DATA:
     train_npy_dir = train_dir+'npy/'
     Es = np.load(train_npy_dir+other.name+'-Es.npy') # nsample
@@ -50,9 +55,6 @@ else:
 dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
 
 if rank == 0:
-    datestr = datetime.now().strftime('%m%d-%H%M%S')
-    file = open('progress-'+datestr+'.out', 'w')
-    stime = time.time()
     if not bool.LOAD_TRAINING_DATA:
         file.write('Rc: '+','.join(map(str,hp.Rcs))+'\n')
         file.write('Rs: '+','.join(map(str,hp.Rss))+'\n')
