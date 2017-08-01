@@ -81,6 +81,7 @@ else:
 # training
 for m in range(hp.nepoch):
     subdataset = random.sample(dataset, hp.nsubset)
+    subdataset = comm.bcast(subdataset, root=0)
     nnp.train(comm, rank, hp.natom, hp.nsubset, subdataset)
     if (m+1) % other.output_interval == 0:
         E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
