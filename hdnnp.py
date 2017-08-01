@@ -47,7 +47,9 @@ class single_nnp:
     ### output
     # w_grad: list of weight_parameters(numpy array)
     # b_grad: list of bias_parameters(numpy array)
-    def gradient(self, Gi, dGi, E_error, F_errors):
+    
+    #def gradient(self, Gi, dGi, E_error, F_errors):
+    def gradient(self, Gi, dGi, E_error):
         # feed_forward
         self.energy(Gi)
         
@@ -164,11 +166,12 @@ class single_nnp:
             G = subdataset[n][2]
             dG = subdataset[n][3]
             E = self.query_E(comm, G[rank], natom)
-            Fr = self.query_F(comm, G[rank], dG[rank], natom)
+            #Fr = self.query_F(comm, G[rank], dG[rank], natom)
             E_error = (Et - E)
-            F_errors = (Frt - Fr)
+            #F_errors = (Frt - Fr)
 
-            w_grad,b_grad = self.gradient(G[rank], dG[rank], E_error, F_errors)
+            #w_grad,b_grad = self.gradient(G[rank], dG[rank], E_error, F_errors)
+            w_grad,b_grad = self.gradient(G[rank], dG[rank], E_error)
 
             for i in range(3):
                 w_recv = np.zeros_like(w_grad[i])
@@ -234,11 +237,13 @@ class single_nnp:
             G = dataset[n][2]
             dG = dataset[n][3]
             E_out = self.query_E(comm, G[rank], natom)
-            F_rout = self.query_F(comm, G[rank], dG[rank], natom)
+            #F_rout = self.query_F(comm, G[rank], dG[rank], natom)
             E_MSE += (Et - E_out) ** 2
-            F_MSE += np.sum((Frt - F_rout)**2)
+            #F_MSE += np.sum((Frt - F_rout)**2)
         E_RMSE = math.sqrt(E_MSE / nsample)
-        F_RMSE = math.sqrt(F_MSE / (nsample * natom * 3))
-        RMSE = E_RMSE + beta * F_RMSE
+        #F_RMSE = math.sqrt(F_MSE / (nsample * natom * 3))
+        #RMSE = E_RMSE + beta * F_RMSE
+        RMSE = E_RMSE
         
-        return E_RMSE, F_RMSE, RMSE
+        return E_RMSE, 0, RMSE
+        #return E_RMSE, F_RMSE, RMSE
