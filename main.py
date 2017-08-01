@@ -50,6 +50,13 @@ else:
     Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((hp.nsample,3*hp.natom))
     hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.Rss)*len(hp.etas) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
     Gs,dGs = my_func.symmetric_func(comm, rank, cordinates, hp.natom, hp.nsample, hp.ninput, hp.Rcs, hp.Rss, hp.etas, hp.lams, hp.zetas)
+    if rank == 0 and bool.SAVE_TRAINING_DATA:
+        train_save_dir = train_npy_dir+datestr+'/'
+        os.mkdir(train_save_dir)
+        np.save(train_save_dir+other.name+'-Es.npy', Es)
+        np.save(train_save_dir+other.name+'-Fs.npy', Fs)
+        np.save(train_save_dir+other.name+'-Gs.npy', Gs)
+        np.save(train_save_dir+other.name+'-dGs.npy', dGs)
 dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
 
 if rank == 0:
@@ -81,6 +88,7 @@ else:
 # training
 for m in range(hp.nepoch):
     subdataset = random.sample(dataset, hp.nsubset)
+    subdataset = comm.bcast(subdataset, root=0)
     nnp.train(comm, rank, hp.natom, hp.nsubset, subdataset)
     if (m+1) % other.output_interval == 0:
         E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
@@ -95,10 +103,3 @@ if rank == 0:
         weight_save_dir = weight_dir+datestr+'/'
         os.mkdir(weight_save_dir)
         nnp.save_w(weight_save_dir, other.name)
-    if bool.SAVE_TRAINING_DATA:
-        train_save_dir = train_npy_dir+datestr+'/'
-        os.mkdir(train_save_dir)
-        np.save(train_save_dir+other.name+'-Es.npy', Es)
-        np.save(train_save_dir+other.name+'-Fs.npy', Fs)
-        np.save(train_save_dir+other.name+'-Gs.npy', Gs)
-        np.save(train_save_dir+other.name+'-dGs.npy', dGs)

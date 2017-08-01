@@ -47,6 +47,7 @@ class single_nnp:
     ### output
     # w_grad: list of weight_parameters(numpy array)
     # b_grad: list of bias_parameters(numpy array)
+    
     def gradient(self, Gi, dGi, E_error, F_errors):
         # feed_forward
         self.energy(Gi)
@@ -94,14 +95,13 @@ class single_nnp:
     
     def energy(self, Gi):
         # feed_forward
-        bias = np.ones(1)
-        self.hidden1_inputs = np.dot(self.w[0], Gi) + (self.b[0] * bias)
+        self.hidden1_inputs = np.dot(self.w[0], Gi) + self.b[0]
         self.hidden1_outputs = self.activation_func(self.hidden1_inputs)
         
-        self.hidden2_inputs = np.dot(self.w[1], self.hidden1_outputs) + (self.b[1] * bias)
+        self.hidden2_inputs = np.dot(self.w[1], self.hidden1_outputs) + self.b[1]
         self.hidden2_outputs = self.activation_func(self.hidden2_inputs)
         
-        self.final_inputs = np.dot(self.w[2], self.hidden2_outputs) + (self.b[2] * bias)
+        self.final_inputs = np.dot(self.w[2], self.hidden2_outputs) + self.b[2]
         final_outputs = self.final_inputs
         
         return final_outputs
