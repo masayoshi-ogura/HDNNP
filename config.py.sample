@@ -10,7 +10,7 @@
 # define hyper parameters
 # natom: int
 #        the number of atoms in the cell
-# Rcs, Rss, etas: list of float
+# Rcs, etas, Rss: list of float
 #                 parameter of symmetric functions
 # lams, zetas: list of int
 #              lams is -1 or 1
@@ -31,8 +31,8 @@ class hp:
     # about symmetric functions
     natom          = 
     Rcs            = []
-    Rss            = []
     etas           = []
+    Rss            = []
     lams           = []
     zetas          = []
     # about training
@@ -47,14 +47,13 @@ class hp:
 # IMPORT_QUIPPY: boolean
 #          whether start from scratch or restart trianing
 #          when True, load weight parameters from npy file
+# LOAD_TRAINING_XYZ_DATA: boolean
 # LOAD_WEIGHT_PARAMS, SAVE_WEIGHT_PARAMS: boolean
-# LOAD_TRAINING_DATA, SAVE_TRAINING_DATA: boolean
 class bool:
-    IMPORT_QUIPPY      = 
-    LOAD_WEIGHT_PARAMS = 
-    LOAD_TRAINING_DATA = 
-    SAVE_WEIGHT_PARAMS = 
-    SAVE_TRAINING_DATA = 
+    IMPORT_QUIPPY          = 
+    LOAD_TRAINING_XYZ_DATA = 
+    LOAD_WEIGHT_PARAMS     = 
+    SAVE_WEIGHT_PARAMS     = 
 
 # define other vairables
 # name: string
