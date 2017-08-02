@@ -66,26 +66,28 @@ if rank == 0:
     file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
     file.flush()
 
-# initialize single NNP
-nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
-# load weight parameters when restart
-if bool.LOAD_WEIGHT_PARAMS:
-    nnp.load_w(weight_dir, other.name)
-else:
-    for i in range(3):
-        comm.Bcast(nnp.w[i], root=0)
-        comm.Bcast(nnp.b[i], root=0)
+# use only "natom" nodes for NN
+if rank < natom:
+    # initialize single NNP
+    nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
+    # load weight parameters when restart
+    if bool.LOAD_WEIGHT_PARAMS:
+        nnp.load_w(weight_dir, other.name)
+    else:
+        for i in range(3):
+            comm.Bcast(nnp.w[i], root=0)
+            comm.Bcast(nnp.b[i], root=0)
 
-# training
-for m in range(hp.nepoch):
-    subdataset = random.sample(dataset, hp.nsubset)
-    subdataset = comm.bcast(subdataset, root=0)
-    nnp.train(comm, rank, hp.natom, hp.nsubset, subdataset)
-    if (m+1) % other.output_interval == 0:
-        E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
-        if rank == 0:
-            file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time.time()-stime, E_RMSE, F_RMSE, RMSE))
-            file.flush()
+    # training
+    for m in range(hp.nepoch):
+        subdataset = random.sample(dataset, hp.nsubset)
+        subdataset = comm.bcast(subdataset, root=0)
+        nnp.train(comm, rank, hp.natom, hp.nsubset, subdataset)
+        if (m+1) % other.output_interval == 0:
+            E_RMSE,F_RMSE,RMSE = nnp.calc_RMSE(comm, rank, hp.natom, hp.nsample, dataset, hp.beta)
+            if rank == 0:
+                file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time.time()-stime, E_RMSE, F_RMSE, RMSE))
+                file.flush()
 
 # save
 if rank == 0:
