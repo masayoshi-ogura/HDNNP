@@ -213,7 +213,7 @@ def G4(R, fc, cosine, eta, lam, zeta, natom):
         gauss = np.exp(- eta * (R[i]**2)).reshape((-1,1))
         cutoff = fc[i].reshape((-1,1))
         gi = ((1+lam*cosine[i])**zeta) * np.dot(gauss, gauss.T) * np.dot(cutoff, cutoff.T)
-        filter = np.identity(len(R), dtype=bool)
+        filter = np.identity(len(R[i]), dtype=bool)
         gi[filter] = 0.0
         G[i] = (2 ** (1-zeta)) * np.sum(gi)
     return G
