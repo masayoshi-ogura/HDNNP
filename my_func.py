@@ -28,7 +28,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
     for Rc in Rcs:
         # G1
         prefix = train_npy_dir+name+'-G1-'+str(Rc)
-        if path.exists(prefix+'-Gs.npy'):
+        if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
             Gs_T[n] = np.load(prefix+'-Gs.npy').T
             dGs_T[n] = np.load(prefix+'-dGs.npy').T
         else:
@@ -42,7 +42,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
             # G2
             for Rs in Rss:
                 prefix = train_npy_dir+name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs)
-                if path.exists(prefix+'-Gs.npy'):
+                if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
                     Gs_T[n] = np.load(prefix+'-Gs.npy').T
                     dGs_T[n] = np.load(prefix+'-dGs.npy').T
                 else:
@@ -56,7 +56,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
             for lam in lams:
                 for zeta in zetas:
                     prefix = train_npy_dir+name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta)
-                    if path.exists(prefix+'-Gs.npy'):
+                    if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
                         Gs_T[n] = np.load(prefix+'-Gs.npy').T
                         dGs_T[n] = np.load(prefix+'-dGs.npy').T
                     else:
