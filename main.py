@@ -25,6 +25,8 @@ size = comm.Get_size()
 # set variables to all procs
 weight_dir = 'weight_params/'
 train_dir = 'training_data/'
+train_xyz_dir = train_dir+'xyz/'
+train_npy_dir = train_dir+'npy/'
 
 if rank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
@@ -32,21 +34,15 @@ if rank == 0:
     stime = time.time()
 
 if bool.LOAD_TRAINING_XYZ_DATA:
-    train_xyz_dir = train_dir+'xyz/'
-    train_npy_dir = train_dir+'npy/'
     alldataset = AtomsReader(train_xyz_dir+'AllSiGe.xyz')
-    rawdataset = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
-    cordinates = [data for data in rawdataset]
-    hp.nsample = len(rawdataset)
-    Es = np.array([data.cohesive_energy for data in rawdataset])
-    Fs = np.array([np.array(data.force).T for data in rawdataset]).reshape((hp.nsample,3*hp.natom))
+    coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
+    hp.nsample = len(coordinates)
+    Es,Fs = my_func.calc_EF(coordinates, train_npy_dir, other.name, hp.natom, hp.nsample)
     hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-    Gs,dGs = my_func.load_or_calc_G(comm, size, rank, cordinates, train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas, hp.natom, hp.nsample, hp.ninput)
+    Gs,dGs = my_func.load_or_calc_G(comm, size, rank, coordinates, train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas, hp.natom, hp.nsample, hp.ninput)
 else:
-    train_npy_dir = train_dir+'npy/'
-    Es = np.load(train_npy_dir+other.name+'-Es.npy')
-    Fs = np.load(train_npy_dir+other.name+'-Fs.npy')
-    Gs,dGs = my_func.load_G(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas) # もしなかったらつど削除する(あとでパラメータ一覧をファイルに出力するため)
+    Es,Fs = my_func.load_EF(train_npy_dir, other.name)
+    Gs,dGs = my_func.load_G(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
     hp.nsample = len(Es)
     hp.ninput = len(Gs[0][0])
 dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]

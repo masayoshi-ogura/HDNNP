@@ -4,6 +4,18 @@ from mpi4py import MPI
 import numpy as np
 import os.path as path
 
+def calc_EF(atoms_objs, train_npy_dir, name, natom, nsample):
+    Es = np.array([data.cohesive_energy for data in atoms_objs])
+    Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((hp.nsample,3*hp.natom))
+    np.save(train_npy_dir+name+'-Es.npy', Es)
+    np.save(train_npy_dir+name+'-Fs.npy', Fs)
+    return Es,Fs
+
+def load_EF(train_npy_dir, name):
+    Es = np.load(train_npy_dir+name+'-Es.npy')
+    Fs = np.load(train_npy_dir+name+'-Fs.npy')
+    return Es,Fs
+
 # calculate the symmetry functions and derivatives of it
 ### input
 # comm,size,rank: MPI object
