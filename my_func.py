@@ -6,7 +6,7 @@ import os.path as path
 
 def calc_EF(atoms_objs, train_npy_dir, name, natom, nsample):
     Es = np.array([data.cohesive_energy for data in atoms_objs])
-    Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((hp.nsample,3*hp.natom))
+    Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample,3*natom))
     np.save(train_npy_dir+name+'-Es.npy', Es)
     np.save(train_npy_dir+name+'-Fs.npy', Fs)
     return Es,Fs

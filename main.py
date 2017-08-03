@@ -21,9 +21,6 @@ import my_func
 allcomm = MPI.COMM_WORLD
 allrank = allcomm.Get_rank()
 allsize = allcomm.Get_size()
-allgroup = allcomm.Get_group()
-NNcomm = allcomm.Create(allgroup.Incl(range(hp.natom)))
-NNrank = NNcomm.Get_rank()
 
 # set variables to all procs
 weight_dir = 'weight_params/'
@@ -66,7 +63,11 @@ if allrank == 0:
     file.flush()
 
 # use only "natom" nodes for NN
+allgroup = allcomm.Get_group()
+NNcomm = allcomm.Create(allgroup.Incl(range(hp.natom)))
 if allrank < hp.natom:
+    NNrank = NNcomm.Get_rank()
+    
     # initialize single NNP
     nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
     # load weight parameters when restart
