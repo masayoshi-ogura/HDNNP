@@ -9,3 +9,5 @@
 *.pe[0-9]*
 
 config.py
+
+*.DS_Store
