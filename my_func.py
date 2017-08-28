@@ -28,7 +28,6 @@ def load_EF(train_npy_dir, name):
 # Gs: numpy array (nsample x natom x ninput)
 # dGs: numpy array (nsample x natom x 3*natom * ninput)
 def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas, Rss, lams, zetas, natom, nsample, ninput):
-    dr = 0.01
     quo,rem = nsample/size,nsample%size
     if rank < rem:
         min,max = rank*(quo+1),(rank+1)*(quo+1)
@@ -44,7 +43,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
             Gs_T[n] = np.load(prefix+'-Gs.npy').T
             dGs_T[n] = np.load(prefix+'-dGs.npy').T
         else:
-            G,dG = calc_G1(comm, atoms_objs, min, max, dr, Rc, natom, nsample) # calc R and fc, and then G
+            G,dG = calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample) # calc R and fc, and then G
             np.save(prefix+'-Gs.npy', G)
             np.save(prefix+'-dGs.npy', dG)
             Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -58,7 +57,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
                     Gs_T[n] = np.load(prefix+'-Gs.npy').T
                     dGs_T[n] = np.load(prefix+'-dGs.npy').T
                 else:
-                    G,dG = calc_G2(comm, atoms_objs, min, max, dr, Rc, eta, Rs, natom, nsample) # calc R and fc, and then G
+                    G,dG = calc_G2(comm, atoms_objs, min, max, Rc, eta, Rs, natom, nsample) # calc R and fc, and then G
                     np.save(prefix+'-Gs.npy', G)
                     np.save(prefix+'-dGs.npy', dG)
                     Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -72,7 +71,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
                         Gs_T[n] = np.load(prefix+'-Gs.npy').T
                         dGs_T[n] = np.load(prefix+'-dGs.npy').T
                     else:
-                        G,dG = calc_G4(comm, atoms_objs, min, max, dr, Rc, eta, lam, zeta, natom, nsample) # calc R and cosine and fc, and then G
+                        G,dG = calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample) # calc R and cosine and fc, and then G
                         np.save(prefix+'-Gs.npy', G)
                         np.save(prefix+'-dGs.npy', dG)
                         Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -117,85 +116,50 @@ def load_G(train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
 ### input
 # atoms: Atoms Object
 # m: int
-# dr,Rc: float
+# Rc: float
 # natom: int
 ### output
 # R_array,fc_array,cosine_array: list of list of numpy array
-def calc_geometry(atoms, m, dr, Rc, natom):
-    R_array,fc_array,cosine_array = [],[],[]
-    # prepare R and cosine
+def calc_geometry(atoms, m, Rc, natom):
     atoms.set_cutoff(Rc)
     atoms.calc_connect()
     R,fc = distance_ij(atoms, m, 0, Rc, natom)
     cosine = cosine_ijk(atoms, m, 0, Rc, natom)
     
-    # prepare just slightly deviated R and cosine for numerical derivatives
-    # assume that neighbour atoms are not changed after displacing since dr is too small
-    R_array.append(R); fc_array.append(fc); cosine_array.append(cosine),
-    dr = 0.01
-    for r in range(3*natom):
-        k=r/3; alpha=r%3
-        # prepare displaced R and cosine
-        atoms_plus = atoms.copy(); atoms_plus.pos[k+1][alpha+1] += dr
-        atoms_plus.calc_connect()
-        R_plus,fc_plus = distance_ij(atoms_plus, m, 2*r+1, Rc, natom)
-        R_array.append(R_plus); fc_array.append(fc_plus)
-        cosine_array.append(cosine_ijk(atoms_plus, m, 2*r+1, Rc, natom))
-        atoms_minus = atoms.copy(); atoms_minus.pos[k+1][alpha+1] -= dr
-        atoms_minus.calc_connect()
-        R_minus,fc_minus = distance_ij(atoms_minus, m, 2*r+2, Rc, natom)
-        R_array.append(R_minus); fc_array.append(fc_minus)
-        cosine_array.append(cosine_ijk(atoms_minus, m, 2*r+2, Rc, natom))
-        
-    return R_array,fc_array,cosine_array
+    return R,fc,cosine
 
-def calc_G1(comm, atoms_objs, min, max, dr, Rc, natom, nsample):
+def calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
     for m in range(min,max):
         atoms = atoms_objs[m]
-        R,fc,cosine = calc_geometry(atoms, m, dr, Rc, natom)
+        R,fc,cosine = calc_geometry(atoms, m, Rc, natom)
         G_para[m] = G1(fc[0], natom)
-        tmp = np.empty((3*natom,natom))
-        for r in range(3*natom):
-            G1_plus = G1(fc[2*r+1], natom)
-            G1_minus = G1(fc[2*r+2], natom)
-            tmp[r] = (G1_plus - G1_minus) / (2 * dr)
-        dG_para[m] = tmp.T
+        dG_para[m] = 
     comm.Allreduce(G_para, G, op=MPI.SUM)
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
 
-def calc_G2(comm, atoms_objs, min, max, dr, Rc, eta, Rs, natom, nsample):
+def calc_G2(comm, atoms_objs, min, max, Rc, eta, Rs, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
     for m in range(min,max):
         atoms = atoms_objs[m]
-        R,fc,cosine = calc_geometry(atoms, m, dr, Rc, natom)
+        R,fc,cosine = calc_geometry(atoms, m, Rc, natom)
         G_para[m] = G2(R[0], fc[0], eta, Rs, natom)
-        tmp = np.empty((3*natom,natom))
-        for r in range(3*natom):
-            G2_plus = G2(R[2*r+1], fc[2*r+1], eta, Rs, natom)
-            G2_minus = G2(R[2*r+2], fc[2*r+2], eta, Rs, natom)
-            tmp[r] = (G2_plus - G2_minus) / (2 * dr)
-        dG_para[m] = tmp.T
+        dG_para[m] = 
     comm.Allreduce(G_para, G, op=MPI.SUM)
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
 
-def calc_G4(comm, atoms_objs, min, max, dr, Rc, eta, lam, zeta, natom, nsample):
+def calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
     for m in range(min,max):
         atoms = atoms_objs[m]
-        R,fc,cosine = calc_geometry(atoms, m, dr, Rc, natom)
+        R,fc,cosine = calc_geometry(atoms, m, Rc, natom)
         G_para[m] = G4(R[0], fc[0], cosine[0], eta, lam, zeta, natom)
-        tmp = np.empty((3*natom,natom))
-        for r in range(3*natom):
-            G4_plus = G4(R[2*r+1], fc[2*r+1], cosine[2*r+1], eta, lam, zeta, natom)
-            G4_minus = G4(R[2*r+2], fc[2*r+2], cosine[2*r+2], eta, lam, zeta, natom)
-            tmp[r] = (G4_plus - G4_minus) / (2 * dr)
-        dG_para[m] = tmp.T
+        dG_para[m] = 
     comm.Allreduce(G_para, G, op=MPI.SUM)
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
