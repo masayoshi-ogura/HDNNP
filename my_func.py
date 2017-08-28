@@ -112,22 +112,6 @@ def load_G(train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
     dG = np.c_[loaded_dG].T
     return G,dG
 
-# calculate interatomic distances, cutoff function, and cosine of triplet angle
-### input
-# atoms: Atoms Object
-# m: int
-# Rc: float
-# natom: int
-### output
-# R,fc,cosine: list of numpy array
-def calc_geometry(atoms, m, Rc, natom):
-    atoms.set_cutoff(Rc)
-    atoms.calc_connect()
-    R,fc = distance_ij(atoms, m, Rc, natom)
-    cosine = cosine_ijk(atoms, m, Rc, natom)
-    
-    return R,fc,cosine
-
 def calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
@@ -196,20 +180,29 @@ def G4(R, fc, cosine, eta, lam, zeta, natom):
 
 # memorize variables
 def memorize(f):
-    if f.func_name == 'distance_ij':
-        cache = {}
-        def helper(atoms, m, Rc, natom):
-            if (m,Rc) not in cache:
-                cache[(m,Rc)] = f(atoms, m, Rc, natom)
-            return cache[(m,Rc)]
-        return helper
-    elif f.func_name == 'cosine_ijk':
-        cache = {}
-        def helper(atoms, m, Rc, natom):
-            if (m,r,Rc) not in cache:
-                cache[(m,Rc)] = f(atoms, m, Rc, natom)
-            return cache[(m,Rc)]
-        return helper
+    cache = {}
+    def helper(atoms, m, Rc, natom):
+        if (m,Rc) not in cache:
+            cache[(m,Rc)] = f(atoms, m, Rc, natom)
+        return cache[(m,Rc)]
+    return helper
+
+# calculate interatomic distances, cutoff function, and cosine of triplet angle
+### input
+# atoms: Atoms Object
+# m: int
+# Rc: float
+# natom: int
+### output
+# R,fc,cosine: list of numpy array
+@memorize
+def calc_geometry(atoms, m, Rc, natom):
+    atoms.set_cutoff(Rc)
+    atoms.calc_connect()
+    R,fc = distance_ij(atoms, m, Rc, natom)
+    cosine = cosine_ijk(atoms, m, Rc, natom)
+    
+    return R,fc,cosine
 
 # calculate interatomic distances with neighbours
 ### input
@@ -222,8 +215,7 @@ def memorize(f):
 # natom: int
 ### output
 # R,fc: list of numpy array
-@memorize
-def distance_ij(atoms, m, Rc, natom):
+def distance_ij(atoms, Rc, natom):
     R,fc = [],[]
     for i in range(natom):
         R.append(np.array([con.distance for con in atoms.connect[i+1]]))
@@ -241,8 +233,7 @@ def distance_ij(atoms, m, Rc, natom):
 # natom: int
 ### output
 # R,fc: list of numpy array
-@memorize
-def cosine_ijk(atoms, m, Rc, natom):
+def cosine_ijk(atoms, Rc, natom):
     cosine_ret = []
     for i in range(natom):
         n_neighb = atoms.n_neighbours(i+1)
