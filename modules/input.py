@@ -31,14 +31,14 @@ class Generator:
 
     def calc_G(self, comm, size, rank, atoms_objs, natom, nsample, ninput):
         # set instance variables
-        quo,rem = self.nsample/size,self.nsample%size
-        if rank < rem:
-            self.atoms_objs = atoms_objs[rank*(quo+1),(rank+1)*(quo+1)]
-        else:
-            self.atoms_objs = atoms_objs[rank*quo+rem,(rank+1)*quo+rem]
         self.comm = comm
         self.natom = natom
         self.nsample = nsample
+        quo,rem = self.nsample/size,self.nsample%size
+        if rank < rem:
+            self.atoms_objs = atoms_objs[rank*(quo+1):(rank+1)*(quo+1)]
+        else:
+            self.atoms_objs = atoms_objs[rank*quo+rem:(rank+1)*quo+rem]
         
         Gs_T = np.empty((ninput, self.natom, self.nsample))
         dGs_T = np.empty((ninput, 3*natom, self.natom, self.nsample))
@@ -188,23 +188,23 @@ class Generator:
     def memorize(f):
         if f.__name__ == 'calc_geometry':
             cache = {}
-            def helper(self, atoms, m, Rc, natom):
+            def helper(self, m, atoms, Rc):
                 if (m,Rc) not in cache:
-                    cache[(m,Rc)] = f(atoms, m, Rc, natom)
+                    cache[(m,Rc)] = f(self, m, atoms, Rc)
                 return cache[(m,Rc)]
             return helper
         elif f.__name__ == 'deriv_R':
             cache = {}
-            def helper(self, m, Rc, index, r, R, natom):
+            def helper(self, m, index, r, R, Rc):
                 if (m,Rc) not in cache:
-                    cache[(m,Rc)] = f(m, Rc, index, r, R, natom)
+                    cache[(m,Rc)] = f(self, m, index, r, R, Rc)
                 return cache[(m,Rc)]
             return helper
         elif f.__name__ == 'deriv_cosine':
             cache = {}
-            def helper(self, m, Rc, index, r, R, cosine, natom):
+            def helper(self, m, index, r, R, cosine, Rc):
                 if (m,Rc) not in cache:
-                    cache[(m,Rc)] = f(m, Rc, index, r, R, cosine, natom)
+                    cache[(m,Rc)] = f(self, m, index, r, R, cosine, Rc)
                 return cache[(m,Rc)]
             return helper
 
