@@ -44,7 +44,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
             Gs_T[n] = np.load(prefix+'-Gs.npy').T
             dGs_T[n] = np.load(prefix+'-dGs.npy').T
         else:
-            G,dG = calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample) # calc R and fc, and then G
+            G,dG = calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample)
             np.save(prefix+'-Gs.npy', G)
             np.save(prefix+'-dGs.npy', dG)
             Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -58,7 +58,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
                     Gs_T[n] = np.load(prefix+'-Gs.npy').T
                     dGs_T[n] = np.load(prefix+'-dGs.npy').T
                 else:
-                    G,dG = calc_G2(comm, atoms_objs, min, max, Rc, eta, Rs, natom, nsample) # calc R and fc, and then G
+                    G,dG = calc_G2(comm, atoms_objs, min, max, Rc, eta, Rs, natom, nsample)
                     np.save(prefix+'-Gs.npy', G)
                     np.save(prefix+'-dGs.npy', dG)
                     Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -72,7 +72,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
                         Gs_T[n] = np.load(prefix+'-Gs.npy').T
                         dGs_T[n] = np.load(prefix+'-dGs.npy').T
                     else:
-                        G,dG = calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample) # calc R and cosine and fc, and then G
+                        G,dG = calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample)
                         np.save(prefix+'-Gs.npy', G)
                         np.save(prefix+'-dGs.npy', dG)
                         Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -113,6 +113,7 @@ def load_G(train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
     dG = np.c_[loaded_dG].T
     return G,dG
 
+# calculate G and dG for all structure
 def calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
@@ -150,6 +151,7 @@ def calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample):
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
 
+# calculate G and dG for each one structure
 # calculate symmetric function type-1
 # 2-bodies
 def G1(fc, tanh, dR, Rc, natom):
@@ -183,7 +185,7 @@ def G4(R, fc, tanh, cosine, dR, dcos, Rc, eta, lam, zeta, natom):
     for i in range(natom):
         angular = (1+lam*cosine[i])
         gi_ = (2**(1-zeta)) * (angular**(zeta-1)) * np.exp(-eta*(R[i][:,None]**2+R[i][None,:]**2)) * fc[i][:,None] * fc[i][None,:]
-        gi = gi_ * angular # in order to prevent zero division
+        gi = gi_ * angular # separate calculation in order to prevent zero division
         filter = np.identity(len(R[i]), dtype=bool)
         gi[filter] = 0.0
         G[i]  = np.sum(gi)
@@ -218,14 +220,16 @@ def memorize(f):
             return cache[(m,Rc)]
         return helper
 
-# calculate interatomic distances, cutoff function, and cosine of triplet angle
+# get various neighbours data(index, vector, distance), and calculate cutoff function, tanh, and cosine
 ### input
 # atoms: Atoms Object
-# m: int
+# m:  int
 # Rc: float
+#     m,Rc is used for the key of memorization
 # natom: int
 ### output
-# R,fc,cosine: list of numpy array
+# index,r,R,fc,tanh,cosine: list of numpy array
+#                           can't use numpy array because the number of the neighbours of each atoms is different
 @memorize
 def calc_geometry(atoms, m, Rc, natom):
     atoms.set_cutoff(Rc)
@@ -236,17 +240,12 @@ def calc_geometry(atoms, m, Rc, natom):
     
     return index,r,R,fc,tanh,cosine
 
-# calculate interatomic distances with neighbours
 ### input
 # atoms: Atoms Object
-# m: int
-#      used for indexing cache with nsample index and displacement index
-#      m ... different for each nodes
 # Rc: float
-#     used for the same reason
 # natom: int
 ### output
-# R,fc: list of numpy array
+# r,R,fc,tanh: list of numpy array
 def distance_ij(atoms, Rc, natom):
     r,R,fc,tanh = [],[],[],[]
     for i in frange(natom):
@@ -263,41 +262,38 @@ def distance_ij(atoms, Rc, natom):
         tanh.append(np.tanh(1-R[i-1]/Rc))
     return r,R,fc,tanh
 
-# calculate anlges with neighbours
-### input
 # atoms: Atoms Object
-# m: int
-#      used for indexing cache with nsample index and displacement index
-#      m ... different for each nodes
 # Rc: float
-#     used for the same reason
 # natom: int
 ### output
-# R,fc: list of numpy array
+# cosine: list of numpy array
 def cosine_ijk(atoms, Rc, natom):
-    cosine_ret = []
+    cosine = []
     for i in frange(natom):
         n_neighb = atoms.n_neighbours(i)
-        cosine = np.zeros((n_neighb,n_neighb))
+        cosi = np.zeros((n_neighb,n_neighb))
         for j in frange(n_neighb):
             for k in frange(n_neighb):
                 if k == j:
                     pass
                 else:
-                    cosine[j-1][k-1] = atoms.cosine_neighbour(i,j,k)
-        cosine_ret.append(cosine)
-    return cosine_ret
+                    cosi[j-1][k-1] = atoms.cosine_neighbour(i,j,k)
+        cosine.append(cosi)
+    return cosine
 
 # calculate derivative of atomic distance between focused atom i and its neighbour atom j
 ### input
+# m: int
+# Rc: float
+#     m,Rc is used for the key of memorization
+# index: list of numpy array(n_neighb)
+# r:     list of numpy array(n_neighb,3)
+# R:     list of numpy array(n_neighb)
+# natom: int
 ### output
+# dR:    list of numpy array(n_neighb,3*natom)
 @memorize
 def deriv_R(m, Rc, index, r, R, natom):
-    # quippyの機能を使えば、calc_connectしてatoms.neighbourするだけでいろんな情報が手に入る
-    # 返り値はneighbour原子の(fortran)indexで、距離やベクトルなどを知りたい場合はあらかじめFortranArray(quippyの実装)
-    # を用意して適当な引数に渡してあげるとそれに入れてくれる。
-    # これを使えば、あらかじめrを計算しなくても、
-    # この関数内でforでatoms.neigbourを回して最小限の計算で終わらせることもできそう
     dR = []
     for i in range(natom):
         n_neighb = len(R[i])
@@ -313,6 +309,18 @@ def deriv_R(m, Rc, index, r, R, natom):
         dR.append(dRi)
     return dR
 
+# calculate derivative of cosine of triplet between focused atom i and its neighbour atom j,k
+### input
+# m: int
+# Rc: float
+#     m,Rc is used for the key of memorization
+# index:  list of numpy array(n_neighb)
+# r:      list of numpy array(n_neighb,3)
+# R:      list of numpy array(n_neighb)
+# cosine: list of numpy array(n_neighb,n_neighb)
+# natom: int
+### output
+# dcos:   list of numpy array(n_neighb,n_neighb,3*natom)
 @memorize
 def deriv_cosine(m, Rc, index, r, R, cosine, natom):
     dcos = []
