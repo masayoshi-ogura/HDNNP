@@ -8,7 +8,6 @@ import time
 import os
 from datetime import datetime
 from mpi4py import MPI
-import numpy as np
 import random
 if bool.IMPORT_QUIPPY:
     from quippy import AtomsReader
@@ -34,7 +33,7 @@ if allrank == 0:
     stime = time.time()
 
 if bool.LOAD_TRAINING_XYZ_DATA:
-    alldataset = AtomsReader(train_xyz_dir+'AllSiGe.xyz')
+    alldataset = AtomsReader(train_xyz_dir+other.xyzfile)
     coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
     hp.nsample = len(coordinates)
     Es,Fs = my_func.calc_EF(coordinates, train_npy_dir, other.name, hp.natom, hp.nsample)

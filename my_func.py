@@ -181,14 +181,16 @@ def G4(R, fc, tanh, cosine, dR, dcos, Rc, eta, lam, zeta, natom):
     G = np.empty(natom)
     dG = np.empty((natom,3*natom))
     for i in range(natom):
-        gi = (2**(1-zeta)) * ((1+lam*cosine[i])**zeta) * np.exp(-eta*(R[i][:,None]**2+R[i][None,:]**2)) * fc[i][:,None] * fc[i][None,:]
+        angular = (1+lam*cosine[i])
+        gi_ = (2**(1-zeta)) * (angular**(zeta-1)) * np.exp(-eta*(R[i][:,None]**2+R[i][None,:]**2)) * fc[i][:,None] * fc[i][None,:]
+        gi = gi_ * angular # in order to prevent zero division
         filter = np.identity(len(R[i]), dtype=bool)
         gi[filter] = 0.0
         G[i]  = np.sum(gi)
         
         dgi_R   = ((-2*Rc*eta*R[i][:,None]*tanh[i][:,None] + 3*tanh[i][:,None]**2 - 3) / (Rc * tanh[i][:,None])) * dR[i]
-        dgi_cos = (zeta*lam / (lam*cosine[i]+1)) * dcos[i]
-        dgi = gi[:,:,None] * (dgi_R[None,:,:] + dgi_R[:,None,:] + dgi_cos)
+        dgi_cos = zeta * lam * dcos[i]
+        dgi = gi_[:,:,None] * (angular[:,:,None] * (dgi_R[None,:,:] + dgi_R[:,None,:]) + dgi_cos)
         dG[i] = np.sum(dgi, axis=(0,1))
     return G,dG
 
@@ -228,9 +230,9 @@ def memorize(f):
 def calc_geometry(atoms, m, Rc, natom):
     atoms.set_cutoff(Rc)
     atoms.calc_connect()
-    index = [ atoms.connect.get_neighbours(i)[0] for i in frange(natom) ]
-    r,R,fc,tanh = distance_ij(atoms, m, Rc, natom)
-    cosine = cosine_ijk(atoms, m, Rc, natom)
+    index = [ atoms.connect.get_neighbours(i)[0] - 1 for i in frange(natom) ]
+    r,R,fc,tanh = distance_ij(atoms, Rc, natom)
+    cosine = cosine_ijk(atoms, Rc, natom)
     
     return index,r,R,fc,tanh,cosine
 
@@ -300,14 +302,14 @@ def deriv_R(m, Rc, index, r, R, natom):
     for i in range(natom):
         n_neighb = len(R[i])
         dRi = np.zeros((n_neighb,3*natom))
-        for j in index:
-            for r in range(natom):
-                if r == i:
+        for j in index[i]:
+            for l in range(natom):
+                if l == i:
                     for alpha in range(3):
-                        dRi[j][3*r+alpha] = - r[i][j][alpha] / R[i][j]
-                elif r == j:
+                        dRi[j][3*l+alpha] = - r[i][j][alpha] / R[i][j]
+                elif l == j:
                     for alpha in range(3):
-                        dRi[j][3*r+alpha] = + r[i][j][alpha] / R[i][j]
+                        dRi[j][3*l+alpha] = + r[i][j][alpha] / R[i][j]
         dR.append(dRi)
     return dR
 
@@ -317,21 +319,21 @@ def deriv_cosine(m, Rc, index, r, R, cosine, natom):
     for i in range(natom):
         n_neighb = len(R[i])
         dcosi = np.zeros((n_neighb,n_neighb,3*natom))
-        for j in index:
-            for k in index:
-                for r in range(natom):
-                    if r == i:
+        for j in index[i]:
+            for k in index[i]:
+                for l in range(natom):
+                    if l == i:
                         for alpha in range(3):
-                            dcosi[j][k][3*r+alpha] = (+ r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
+                            dcosi[j][k][3*l+alpha] = (+ r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
                                                      (+ r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
                                                      (- (r[i][j][alpha] + r[i][k][alpha])) / (R[i][j] * R[i][k])
-                    elif r == j :
+                    elif l == j :
                         for alpha in range(3):
-                            dcosi[j][k][3*r+alpha] = (- r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
+                            dcosi[j][k][3*l+alpha] = (- r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
                                                      (+ r[i][k][alpha]) / (R[i][j] * R[i][k])
-                    elif r == k :
+                    elif l == k :
                         for alpha in range(3):
-                            dcosi[j][k][3*r+alpha] = (- r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
+                            dcosi[j][k][3*l+alpha] = (- r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
                                                      (+ r[i][j][alpha]) / (R[i][j] * R[i][k])
         dcos.append(dcosi)
     return dcos
