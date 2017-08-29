@@ -13,8 +13,8 @@ if bool.IMPORT_QUIPPY:
     from quippy import AtomsReader
 
 # import own modules
-import hdnnp
-import my_func
+from modules.input import Generator
+from modules.model import single_nnp
 
 # set MPI variables
 allcomm = MPI.COMM_WORLD
@@ -29,6 +29,8 @@ train_npy_dir  = path.join(train_dir, 'npy', other.name)
 if not path.exists(train_npy_dir):
     mkdir(train_npy_dir)
 
+generator = Generator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
+
 if allrank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     file = open('progress-'+datestr+'.out', 'w')
@@ -38,12 +40,12 @@ if bool.LOAD_TRAINING_XYZ_DATA:
     alldataset = AtomsReader(train_xyz_file)
     coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
     hp.nsample = len(coordinates)
-    Es,Fs = my_func.calc_EF(coordinates, train_npy_dir, other.name, hp.natom, hp.nsample)
+    Es,Fs = generator.calc_EF(coordinates, hp.natom, hp.nsample)
     hp.ninput = len(hp.Rcs) + len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-    Gs,dGs = my_func.load_or_calc_G(allcomm, allsize, allrank, coordinates, train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas, hp.natom, hp.nsample, hp.ninput)
+    Gs,dGs = generator.calc_G(allcomm, allsize, allrank, coordinates, hp.natom, hp.nsample, hp.ninput)
 else:
-    Es,Fs = my_func.load_EF(train_npy_dir, other.name)
-    Gs,dGs = my_func.load_G(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
+    Es,Fs = generator.load_EF()
+    Gs,dGs = generator.load_G()
     hp.nsample = len(Es)
     hp.ninput = len(Gs[0][0])
 dataset = [[Es[i],Fs[i],Gs[i],dGs[i]] for i in range(hp.nsample)]
@@ -71,7 +73,7 @@ if allrank < hp.natom:
     NNrank = NNcomm.Get_rank()
     
     # initialize single NNP
-    nnp = hdnnp.single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
+    nnp = single_nnp(hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma)
     # load weight parameters when restart
     if bool.LOAD_WEIGHT_PARAMS:
         nnp.load_w(weight_dir, other.name)
