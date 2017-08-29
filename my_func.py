@@ -3,9 +3,10 @@
 from mpi4py import MPI
 import numpy as np
 import os.path as path
+from quippy import farray,fzeros,frange
 
 def calc_EF(atoms_objs, train_npy_dir, name, natom, nsample):
-    Es = np.array([data.cohesive_energy for data in atoms_objs])
+    Es = np.array([data.cohesive_energy for data in atoms_objs]) 
     Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample,3*natom))
     np.save(train_npy_dir+name+'-Es.npy', Es)
     np.save(train_npy_dir+name+'-Fs.npy', Fs)
@@ -28,7 +29,6 @@ def load_EF(train_npy_dir, name):
 # Gs: numpy array (nsample x natom x ninput)
 # dGs: numpy array (nsample x natom x 3*natom * ninput)
 def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas, Rss, lams, zetas, natom, nsample, ninput):
-    dr = 0.01
     quo,rem = nsample/size,nsample%size
     if rank < rem:
         min,max = rank*(quo+1),(rank+1)*(quo+1)
@@ -44,7 +44,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
             Gs_T[n] = np.load(prefix+'-Gs.npy').T
             dGs_T[n] = np.load(prefix+'-dGs.npy').T
         else:
-            G,dG = calc_G1(comm, atoms_objs, min, max, dr, Rc, natom, nsample) # calc R and fc, and then G
+            G,dG = calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample)
             np.save(prefix+'-Gs.npy', G)
             np.save(prefix+'-dGs.npy', dG)
             Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -58,7 +58,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
                     Gs_T[n] = np.load(prefix+'-Gs.npy').T
                     dGs_T[n] = np.load(prefix+'-dGs.npy').T
                 else:
-                    G,dG = calc_G2(comm, atoms_objs, min, max, dr, Rc, eta, Rs, natom, nsample) # calc R and fc, and then G
+                    G,dG = calc_G2(comm, atoms_objs, min, max, Rc, eta, Rs, natom, nsample)
                     np.save(prefix+'-Gs.npy', G)
                     np.save(prefix+'-dGs.npy', dG)
                     Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -72,7 +72,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
                         Gs_T[n] = np.load(prefix+'-Gs.npy').T
                         dGs_T[n] = np.load(prefix+'-dGs.npy').T
                     else:
-                        G,dG = calc_G4(comm, atoms_objs, min, max, dr, Rc, eta, lam, zeta, natom, nsample) # calc R and cosine and fc, and then G
+                        G,dG = calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample)
                         np.save(prefix+'-Gs.npy', G)
                         np.save(prefix+'-dGs.npy', dG)
                         Gs_T[n] = G.T; dGs_T[n] = dG.T
@@ -113,183 +113,235 @@ def load_G(train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
     dG = np.c_[loaded_dG].T
     return G,dG
 
-# calculate interatomic distances, cutoff function, and cosine of triplet angle
-### input
-# atoms: Atoms Object
-# m: int
-# dr,Rc: float
-# natom: int
-### output
-# R_array,fc_array,cosine_array: list of list of numpy array
-def calc_geometry(atoms, m, dr, Rc, natom):
-    R_array,fc_array,cosine_array = [],[],[]
-    # prepare R and cosine
-    atoms.set_cutoff(Rc)
-    atoms.calc_connect()
-    R,fc = distance_ij(atoms, m, 0, Rc, natom)
-    cosine = cosine_ijk(atoms, m, 0, Rc, natom)
-    
-    # prepare just slightly deviated R and cosine for numerical derivatives
-    # assume that neighbour atoms are not changed after displacing since dr is too small
-    R_array.append(R); fc_array.append(fc); cosine_array.append(cosine),
-    dr = 0.01
-    for r in range(3*natom):
-        k=r/3; alpha=r%3
-        # prepare displaced R and cosine
-        atoms_plus = atoms.copy(); atoms_plus.pos[k+1][alpha+1] += dr
-        atoms_plus.calc_connect()
-        R_plus,fc_plus = distance_ij(atoms_plus, m, 2*r+1, Rc, natom)
-        R_array.append(R_plus); fc_array.append(fc_plus)
-        cosine_array.append(cosine_ijk(atoms_plus, m, 2*r+1, Rc, natom))
-        atoms_minus = atoms.copy(); atoms_minus.pos[k+1][alpha+1] -= dr
-        atoms_minus.calc_connect()
-        R_minus,fc_minus = distance_ij(atoms_minus, m, 2*r+2, Rc, natom)
-        R_array.append(R_minus); fc_array.append(fc_minus)
-        cosine_array.append(cosine_ijk(atoms_minus, m, 2*r+2, Rc, natom))
-        
-    return R_array,fc_array,cosine_array
-
-def calc_G1(comm, atoms_objs, min, max, dr, Rc, natom, nsample):
+# calculate G and dG for all structure
+def calc_G1(comm, atoms_objs, min, max, Rc, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
     for m in range(min,max):
         atoms = atoms_objs[m]
-        R,fc,cosine = calc_geometry(atoms, m, dr, Rc, natom)
-        G_para[m] = G1(fc[0], natom)
-        tmp = np.empty((3*natom,natom))
-        for r in range(3*natom):
-            G1_plus = G1(fc[2*r+1], natom)
-            G1_minus = G1(fc[2*r+2], natom)
-            tmp[r] = (G1_plus - G1_minus) / (2 * dr)
-        dG_para[m] = tmp.T
+        index,r,R,fc,tanh,cosine = calc_geometry(atoms, m, Rc, natom)
+        dR = deriv_R(m, Rc, index, r, R, natom)
+        G_para[m],dG_para[m] = G1(fc, tanh, dR, Rc, natom)
     comm.Allreduce(G_para, G, op=MPI.SUM)
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
 
-def calc_G2(comm, atoms_objs, min, max, dr, Rc, eta, Rs, natom, nsample):
+def calc_G2(comm, atoms_objs, min, max, Rc, eta, Rs, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
     for m in range(min,max):
         atoms = atoms_objs[m]
-        R,fc,cosine = calc_geometry(atoms, m, dr, Rc, natom)
-        G_para[m] = G2(R[0], fc[0], eta, Rs, natom)
-        tmp = np.empty((3*natom,natom))
-        for r in range(3*natom):
-            G2_plus = G2(R[2*r+1], fc[2*r+1], eta, Rs, natom)
-            G2_minus = G2(R[2*r+2], fc[2*r+2], eta, Rs, natom)
-            tmp[r] = (G2_plus - G2_minus) / (2 * dr)
-        dG_para[m] = tmp.T
+        index,r,R,fc,tanh,cosine = calc_geometry(atoms, m, Rc, natom)
+        dR = deriv_R(m, Rc, index, r, R, natom)
+        G_para[m],dG_para[m] = G2(R, fc, tanh, dR, Rc, eta, Rs, natom)
     comm.Allreduce(G_para, G, op=MPI.SUM)
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
 
-def calc_G4(comm, atoms_objs, min, max, dr, Rc, eta, lam, zeta, natom, nsample):
+def calc_G4(comm, atoms_objs, min, max, Rc, eta, lam, zeta, natom, nsample):
     G,dG = np.empty((nsample,natom)),np.empty((nsample,natom,3*natom))
     G_para,dG_para = np.zeros((nsample,natom)),np.zeros((nsample,natom,3*natom))
     for m in range(min,max):
         atoms = atoms_objs[m]
-        R,fc,cosine = calc_geometry(atoms, m, dr, Rc, natom)
-        G_para[m] = G4(R[0], fc[0], cosine[0], eta, lam, zeta, natom)
-        tmp = np.empty((3*natom,natom))
-        for r in range(3*natom):
-            G4_plus = G4(R[2*r+1], fc[2*r+1], cosine[2*r+1], eta, lam, zeta, natom)
-            G4_minus = G4(R[2*r+2], fc[2*r+2], cosine[2*r+2], eta, lam, zeta, natom)
-            tmp[r] = (G4_plus - G4_minus) / (2 * dr)
-        dG_para[m] = tmp.T
+        index,r,R,fc,tanh,cosine = calc_geometry(atoms, m, Rc, natom)
+        dR = deriv_R(m, Rc, index, r, R, natom)
+        dcos = deriv_cosine(m, Rc, index, r, R, cosine, natom)
+        G_para[m],dG_para[m] = G4(R, fc, tanh, cosine, dR, dcos, Rc, eta, lam, zeta, natom)
     comm.Allreduce(G_para, G, op=MPI.SUM)
     comm.Allreduce(dG_para, dG, op=MPI.SUM)
     return G,dG
 
+# calculate G and dG for each one structure
 # calculate symmetric function type-1
 # 2-bodies
-def G1(fc, natom):
+def G1(fc, tanh, dR, Rc, natom):
     G = np.empty(natom)
+    dG = np.empty((natom,3*natom))
     for i in range(natom):
         G[i] = np.sum(fc[i])
-    return G
+        
+        dgi = - 3/Rc * (1 - tanh[i][:,None]**2) * tanh[i][:,None]**2 * dR[i]
+        dG[i] = np.sum(dgi, axis=0)
+    return G,dG
 
 # calculate symmetric function type-2
 # 2-bodies
-def G2(R, fc, eta, Rs, natom):
+def G2(R, fc, tanh, dR, Rc, eta, Rs, natom):
     G = np.empty(natom)
+    dG = np.empty((natom,3*natom))
     for i in range(natom):
         gi = np.exp(- eta * (R[i] - Rs) ** 2) * fc[i]
         G[i] = np.sum(gi)
-    return G
+        
+        dgi = gi[:,None] * ((-2*Rc*eta*(R[i][:,None]-Rs)*tanh[i][:,None] + 3*tanh[i][:,None]**2 - 3) / (Rc * tanh[i][:,None])) * dR[i]
+        dG[i] = np.sum(dgi, axis=0)
+    return G,dG
 
 # calculate symmetric function type-4
 # 3-bodies
-def G4(R, fc, cosine, eta, lam, zeta, natom):
+def G4(R, fc, tanh, cosine, dR, dcos, Rc, eta, lam, zeta, natom):
     G = np.empty(natom)
+    dG = np.empty((natom,3*natom))
     for i in range(natom):
-        gauss = np.exp(- eta * (R[i]**2)).reshape((-1,1))
-        cutoff = fc[i].reshape((-1,1))
-        gi = ((1+lam*cosine[i])**zeta) * np.dot(gauss, gauss.T) * np.dot(cutoff, cutoff.T)
+        angular = (1+lam*cosine[i])
+        gi_ = (2**(1-zeta)) * (angular**(zeta-1)) * np.exp(-eta*(R[i][:,None]**2+R[i][None,:]**2)) * fc[i][:,None] * fc[i][None,:]
+        gi = gi_ * angular # separate calculation in order to prevent zero division
         filter = np.identity(len(R[i]), dtype=bool)
         gi[filter] = 0.0
-        G[i] = (2 ** (1-zeta)) * np.sum(gi)
-    return G
+        G[i]  = np.sum(gi)
+        
+        dgi_R   = ((-2*Rc*eta*R[i][:,None]*tanh[i][:,None] + 3*tanh[i][:,None]**2 - 3) / (Rc * tanh[i][:,None])) * dR[i]
+        dgi_cos = zeta * lam * dcos[i]
+        dgi = gi_[:,:,None] * (angular[:,:,None] * (dgi_R[None,:,:] + dgi_R[:,None,:]) + dgi_cos)
+        dG[i] = np.sum(dgi, axis=(0,1))
+    return G,dG
 
 # memorize variables
 def memorize(f):
-    if f.func_name == 'distance_ij':
+    if f.__name__ == 'calc_geometry':
         cache = {}
-        def helper(atoms, m, r, Rc, natom):
-            if (m,r,Rc) not in cache:
-                cache[(m,r,Rc)] = f(atoms, m, r, Rc, natom)
-            return cache[(m,r,Rc)]
+        def helper(atoms, m, Rc, natom):
+            if (m,Rc) not in cache:
+                cache[(m,Rc)] = f(atoms, m, Rc, natom)
+            return cache[(m,Rc)]
         return helper
-    elif f.func_name == 'cosine_ijk':
+    elif f.__name__ == 'deriv_R':
         cache = {}
-        def helper(atoms, m, r, Rc, natom):
-            if (m,r,Rc) not in cache:
-                cache[(m,r,Rc)] = f(atoms, m, r, Rc, natom)
-            return cache[(m,r,Rc)]
+        def helper(m, Rc, index, r, R, natom):
+            if (m,Rc) not in cache:
+                cache[(m,Rc)] = f(m, Rc, index, r, R, natom)
+            return cache[(m,Rc)]
+        return helper
+    elif f.__name__ == 'deriv_cosine':
+        cache = {}
+        def helper(m, Rc, index, r, R, cosine, natom):
+            if (m,Rc) not in cache:
+                cache[(m,Rc)] = f(m, Rc, index, r, R, cosine, natom)
+            return cache[(m,Rc)]
         return helper
 
-# calculate interatomic distances with neighbours
+# get various neighbours data(index, vector, distance), and calculate cutoff function, tanh, and cosine
 ### input
 # atoms: Atoms Object
-# m,r: int
-#      used for indexing cache with nsample index and displacement index
-#      m ... different for each nodes
-#      r ... 0..2*3*natom
+# m:  int
 # Rc: float
-#     used for the same reason
+#     m,Rc is used for the key of memorization
 # natom: int
 ### output
-# R,fc: list of numpy array
+# index,r,R,fc,tanh,cosine: list of numpy array
+#                           can't use numpy array because the number of the neighbours of each atoms is different
 @memorize
-def distance_ij(atoms, m, r, Rc, natom):
-    R,fc = [],[]
-    for i in range(natom):
-        R.append(np.array([con.distance for con in atoms.connect[i+1]]))
-        fc.append(np.tanh(1-R[i]/Rc)**3)
-    return R,fc
+def calc_geometry(atoms, m, Rc, natom):
+    atoms.set_cutoff(Rc)
+    atoms.calc_connect()
+    index = [ atoms.connect.get_neighbours(i)[0] - 1 for i in frange(natom) ]
+    r,R,fc,tanh = distance_ij(atoms, Rc, natom)
+    cosine = cosine_ijk(atoms, Rc, natom)
+    
+    return index,r,R,fc,tanh,cosine
 
-# calculate anlges with neighbours
 ### input
 # atoms: Atoms Object
-# m,r: int
-#      used for indexing cache with nsample index and displacement index
-#      m ... different for each nodes
-#      r ... 0..2*3*natom
 # Rc: float
-#     used for the same reason
 # natom: int
 ### output
-# R,fc: list of numpy array
-@memorize
-def cosine_ijk(atoms, m, r, Rc, natom):
-    cosine_ret = []
-    for i in range(natom):
-        n_neighb = atoms.n_neighbours(i+1)
-        cosine = np.zeros((n_neighb,n_neighb))
-        for j in range(n_neighb):
-            for k in range(n_neighb):
+# r,R,fc,tanh: list of numpy array
+def distance_ij(atoms, Rc, natom):
+    r,R,fc,tanh = [],[],[],[]
+    for i in frange(natom):
+        ri,Ri = [],[]
+        for n in frange(atoms.n_neighbours(i)):
+            dist = farray(0.0)
+            diff = fzeros(3)
+            atoms.neighbour(i,n,distance=dist,diff=diff)
+            ri.append(diff)
+            Ri.append(dist)
+        r.append(np.array(ri))
+        R.append(np.array(Ri))
+        fc.append(np.tanh(1-R[i-1]/Rc)**3)
+        tanh.append(np.tanh(1-R[i-1]/Rc))
+    return r,R,fc,tanh
+
+# atoms: Atoms Object
+# Rc: float
+# natom: int
+### output
+# cosine: list of numpy array
+def cosine_ijk(atoms, Rc, natom):
+    cosine = []
+    for i in frange(natom):
+        n_neighb = atoms.n_neighbours(i)
+        cosi = np.zeros((n_neighb,n_neighb))
+        for j in frange(n_neighb):
+            for k in frange(n_neighb):
                 if k == j:
                     pass
                 else:
-                    cosine[j][k] = atoms.cosine_neighbour(i+1,j+1,k+1)
-        cosine_ret.append(cosine)
-    return cosine_ret
+                    cosi[j-1][k-1] = atoms.cosine_neighbour(i,j,k)
+        cosine.append(cosi)
+    return cosine
+
+# calculate derivative of atomic distance between focused atom i and its neighbour atom j
+### input
+# m: int
+# Rc: float
+#     m,Rc is used for the key of memorization
+# index: list of numpy array(n_neighb)
+# r:     list of numpy array(n_neighb,3)
+# R:     list of numpy array(n_neighb)
+# natom: int
+### output
+# dR:    list of numpy array(n_neighb,3*natom)
+@memorize
+def deriv_R(m, Rc, index, r, R, natom):
+    dR = []
+    for i in range(natom):
+        n_neighb = len(R[i])
+        dRi = np.zeros((n_neighb,3*natom))
+        for j in index[i]:
+            for l in range(natom):
+                if l == i:
+                    for alpha in range(3):
+                        dRi[j][3*l+alpha] = - r[i][j][alpha] / R[i][j]
+                elif l == j:
+                    for alpha in range(3):
+                        dRi[j][3*l+alpha] = + r[i][j][alpha] / R[i][j]
+        dR.append(dRi)
+    return dR
+
+# calculate derivative of cosine of triplet between focused atom i and its neighbour atom j,k
+### input
+# m: int
+# Rc: float
+#     m,Rc is used for the key of memorization
+# index:  list of numpy array(n_neighb)
+# r:      list of numpy array(n_neighb,3)
+# R:      list of numpy array(n_neighb)
+# cosine: list of numpy array(n_neighb,n_neighb)
+# natom: int
+### output
+# dcos:   list of numpy array(n_neighb,n_neighb,3*natom)
+@memorize
+def deriv_cosine(m, Rc, index, r, R, cosine, natom):
+    dcos = []
+    for i in range(natom):
+        n_neighb = len(R[i])
+        dcosi = np.zeros((n_neighb,n_neighb,3*natom))
+        for j in index[i]:
+            for k in index[i]:
+                for l in range(natom):
+                    if l == i:
+                        for alpha in range(3):
+                            dcosi[j][k][3*l+alpha] = (+ r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
+                                                     (+ r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
+                                                     (- (r[i][j][alpha] + r[i][k][alpha])) / (R[i][j] * R[i][k])
+                    elif l == j :
+                        for alpha in range(3):
+                            dcosi[j][k][3*l+alpha] = (- r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
+                                                     (+ r[i][k][alpha]) / (R[i][j] * R[i][k])
+                    elif l == k :
+                        for alpha in range(3):
+                            dcosi[j][k][3*l+alpha] = (- r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
+                                                     (+ r[i][j][alpha]) / (R[i][j] * R[i][k])
+        dcos.append(dcosi)
+    return dcos

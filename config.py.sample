@@ -20,7 +20,7 @@
 # beta: float
 #       mixing parameter between energy and force
 # gamma: float
-#       momentum rate for updating weight parameters
+#        momentum rate for updating weight parameters
 # hidden_nodes: int
 #               the number of nodes for each hidden layers in NN
 # nepoch: int
@@ -56,10 +56,11 @@ class bool:
     SAVE_WEIGHT_PARAMS     = 
 
 # define other vairables
-# name: string
-#       used for saving numpy array as npy file
+# xyzfile,name: string
+#               filename and specific structure 
 # output_interval: int
 #                  the number of interval to output RMSE to progress file
 class other:
+    xyzfile         = 
     name            = 
     output_interval = 
