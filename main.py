@@ -5,7 +5,7 @@ from config import hp,bool,other
 
 # import python modules
 import time
-import os
+from os import path, mkdir
 from datetime import datetime
 from mpi4py import MPI
 import random
@@ -22,10 +22,12 @@ allrank = allcomm.Get_rank()
 allsize = allcomm.Get_size()
 
 # set variables to all procs
-weight_dir = 'weight_params/'
-train_dir = 'training_data/'
-train_xyz_dir = train_dir+'xyz/'
-train_npy_dir = train_dir+'npy/'
+weight_dir = 'weight_params'
+train_dir  = 'training_data'
+train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
+train_npy_dir  = path.join(train_dir, 'npy', other.name)
+if not path.exists(train_npy_dir):
+    mkdir(train_npy_dir)
 
 if allrank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
@@ -33,7 +35,7 @@ if allrank == 0:
     stime = time.time()
 
 if bool.LOAD_TRAINING_XYZ_DATA:
-    alldataset = AtomsReader(train_xyz_dir+other.xyzfile)
+    alldataset = AtomsReader(train_xyz_file)
     coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
     hp.nsample = len(coordinates)
     Es,Fs = my_func.calc_EF(coordinates, train_npy_dir, other.name, hp.natom, hp.nsample)
@@ -57,6 +59,7 @@ if allrank == 0:
     file.write('beta: '+str(hp.beta)+'\n')
     file.write('gamma: '+str(hp.gamma)+'\n')
     file.write('nepoch: '+str(hp.nepoch)+'\n')
+    file.write('nsample: '+str(hp.nsample)+'\n')
     file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
     file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
     file.flush()
@@ -92,6 +95,6 @@ if allrank < hp.natom:
     if allrank == 0:
         file.close()
         if bool.SAVE_WEIGHT_PARAMS:
-            weight_save_dir = weight_dir+datestr+'/'
-            os.mkdir(weight_save_dir)
+            weight_save_dir = path.join(weight_dir, datestr)
+            mkdir(weight_save_dir)
             nnp.save_w(weight_save_dir, other.name)

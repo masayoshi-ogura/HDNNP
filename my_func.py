@@ -2,19 +2,19 @@
 
 from mpi4py import MPI
 import numpy as np
-import os.path as path
+from os import path
 from quippy import farray,fzeros,frange
 
 def calc_EF(atoms_objs, train_npy_dir, name, natom, nsample):
     Es = np.array([data.cohesive_energy for data in atoms_objs]) 
     Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample,3*natom))
-    np.save(train_npy_dir+name+'-Es.npy', Es)
-    np.save(train_npy_dir+name+'-Fs.npy', Fs)
+    np.save(path.join(train_npy_dir, name+'-Es.npy'), Es)
+    np.save(path.join(train_npy_dir, name+'-Fs.npy'), Fs)
     return Es,Fs
 
 def load_EF(train_npy_dir, name):
-    Es = np.load(train_npy_dir+name+'-Es.npy')
-    Fs = np.load(train_npy_dir+name+'-Fs.npy')
+    Es = np.load(path.join(train_npy_dir, name+'-Es.npy'))
+    Fs = np.load(path.join(train_npy_dir, name+'-Fs.npy'))
     return Es,Fs
 
 # calculate the symmetry functions and derivatives of it
@@ -39,7 +39,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
     n = 0
     for Rc in Rcs:
         # G1
-        prefix = train_npy_dir+name+'-G1-'+str(Rc)
+        prefix = path.join(train_npy_dir, name+'-G1-'+str(Rc))
         if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
             Gs_T[n] = np.load(prefix+'-Gs.npy').T
             dGs_T[n] = np.load(prefix+'-dGs.npy').T
@@ -53,7 +53,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
         for eta in etas:
             # G2
             for Rs in Rss:
-                prefix = train_npy_dir+name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs)
+                prefix = path.join(train_npy_dir, name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs))
                 if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
                     Gs_T[n] = np.load(prefix+'-Gs.npy').T
                     dGs_T[n] = np.load(prefix+'-dGs.npy').T
@@ -67,7 +67,7 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
             # G4
             for lam in lams:
                 for zeta in zetas:
-                    prefix = train_npy_dir+name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta)
+                    prefix = path.join(train_npy_dir, name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta))
                     if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
                         Gs_T[n] = np.load(prefix+'-Gs.npy').T
                         dGs_T[n] = np.load(prefix+'-dGs.npy').T
@@ -90,21 +90,21 @@ def load_or_calc_G(comm, size, rank, atoms_objs, train_npy_dir, name, Rcs, etas,
 def load_G(train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
     loaded_G,loaded_dG = [],[]
     for Rc in Rcs:
-        prefix = train_npy_dir+name+'-G1-'+str(Rc)
+        prefix = path.join(train_npy_dir, name+'-G1-'+str(Rc))
         if path.exists(prefix+'-Gs.npy'):
             loaded_G.append(np.load(prefix+'-Gs.npy').T)
             loaded_dG.append(np.load(prefix+'-dGs.npy').T)
         
         for eta in etas:
             for Rs in Rss:
-                prefix = train_npy_dir+name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs)
+                prefix = path.join(train_npy_dir, name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs))
                 if path.exists(prefix+'-Gs.npy'):
                     loaded_G.append(np.load(prefix+'-Gs.npy').T)
                     loaded_dG.append(np.load(prefix+'-dGs.npy').T)
                 
             for lam in lams:
                 for zeta in zetas:
-                    prefix = train_npy_dir+name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta)
+                    prefix = path.join(train_npy_dir, name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta))
                     if path.exists(prefix+'-Gs.npy'):
                         loaded_G.append(np.load(prefix+'-Gs.npy').T)
                         loaded_dG.append(np.load(prefix+'-dGs.npy').T)

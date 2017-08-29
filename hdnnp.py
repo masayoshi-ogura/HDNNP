@@ -4,6 +4,7 @@ from mpi4py import MPI
 import numpy as np
 import scipy.special as sp
 import math
+from os import path
 
 class single_nnp:
     def __init__(self, input_nodes, hidden1_nodes, hidden2_nodes, output_nodes, learning_rate, beta, gamma):
@@ -120,20 +121,20 @@ class single_nnp:
         return final_outputs.reshape(-1)
     
     def save_w(self, dire, name):
-        np.save(dire+name+'_wih1.npy', self.w[0])
-        np.save(dire+name+'_wh1h2.npy', self.w[1])
-        np.save(dire+name+'_wh2o.npy', self.w[2])
-        np.save(dire+name+'_bih1.npy', self.b[0])
-        np.save(dire+name+'_bh1h2.npy', self.b[1])
-        np.save(dire+name+'_bh2o.npy', self.b[2])
+        np.save(path.join(dire, name+'_wih1.npy'), self.w[0])
+        np.save(path.join(dire, name+'_wh1h2.npy'), self.w[1])
+        np.save(path.join(dire, name+'_wh2o.npy'), self.w[2])
+        np.save(path.join(dire, name+'_bih1.npy'), self.b[0])
+        np.save(path.join(dire, name+'_bh1h2.npy'), self.b[1])
+        np.save(path.join(dire, name+'_bh2o.npy'), self.b[2])
     
     def load_w(self, dire, name):
-        self.w[0] = np.load(dire+name+'_wih1.npy')
-        self.w[1] = np.load(dire+name+'_wh1h2.npy')
-        self.w[2] = np.load(dire+name+'_wh2o.npy')
-        self.b[0] = np.load(dire+name+'_bih1.npy')
-        self.b[1] = np.load(dire+name+'_bh1h2.npy')
-        self.b[2] = np.load(dire+name+'_bh2o.npy')
+        self.w[0] = np.load(path.join(dire, name+'_wih1.npy'))
+        self.w[1] = np.load(path.join(dire, name+'_wh1h2.npy'))
+        self.w[2] = np.load(path.join(dire, name+'_wh2o.npy'))
+        self.b[0] = np.load(path.join(dire, name+'_bih1.npy'))
+        self.b[1] = np.load(path.join(dire, name+'_bh1h2.npy'))
+        self.b[2] = np.load(path.join(dire, name+'_bh2o.npy'))
 
     ### input
     # comm, rank: MPI communicator, rank of the processor
