@@ -32,161 +32,197 @@ class Generator:
     def calc_G(self, comm, size, rank, atoms_objs, natom, nsample, ninput):
         # set instance variables
         self.comm = comm
+        self.atoms_objs = atoms_objs
         self.natom = natom
         self.nsample = nsample
         quo,rem = self.nsample/size,self.nsample%size
         if rank < rem:
-            self.atoms_objs = atoms_objs[rank*(quo+1):(rank+1)*(quo+1)]
+            self.min,self.max = rank*(quo+1),(rank+1)*(quo+1)
         else:
-            self.atoms_objs = atoms_objs[rank*quo+rem:(rank+1)*quo+rem]
+            self.min,self.max = rank*quo+rem,(rank+1)*quo+rem
         
-        Gs_T = np.empty((ninput, self.natom, self.nsample))
-        dGs_T = np.empty((ninput, 3*natom, self.natom, self.nsample))
+        Gs  = np.empty((ninput,self.nsample,self.natom))
+        dGs = np.empty((ninput,self.nsample,self.natom,3*self.natom))
+
         n = 0
         for Rc in self.Rcs:
-            # G1
             prefix = path.join(self.train_npy_dir, self.name+'-G1-'+str(Rc))
-            if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
-                Gs_T[n] = np.load(prefix+'-Gs.npy').T
-                dGs_T[n] = np.load(prefix+'-dGs.npy').T
+            if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
+                Gs[n] = np.load(prefix+'-Gs.npy')
+                dGs[n] = np.load(prefix+'-dGs.npy')
             else:
-                G,dG = self.calc_G1(Rc)
+                G,dG  = self.calc_G1(Rc)
                 np.save(prefix+'-Gs.npy', G)
                 np.save(prefix+'-dGs.npy', dG)
-                Gs_T[n] = G.T; dGs_T[n] = dG.T
+                Gs[n]  = G
+                dGs[n] = dG
             n += 1
-            
+
             for eta in self.etas:
-                # G2
                 for Rs in self.Rss:
                     prefix = path.join(self.train_npy_dir, self.name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs))
-                    if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
-                        Gs_T[n] = np.load(prefix+'-Gs.npy').T
-                        dGs_T[n] = np.load(prefix+'-dGs.npy').T
+                    if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
+                        Gs[n]  = np.load(prefix+'-Gs.npy')
+                        dGs[n] = np.load(prefix+'-dGs.npy')
                     else:
-                        G,dG = self.calc_G2(Rc, eta, Rs)
+                        G,dG  = self.calc_G2(Rc, eta, Rs)
                         np.save(prefix+'-Gs.npy', G)
                         np.save(prefix+'-dGs.npy', dG)
-                        Gs_T[n] = G.T; dGs_T[n] = dG.T
+                        Gs[n]  = G
+                        dGs[n] = dG
                     n += 1
-                
-                # G4
+
                 for lam in self.lams:
                     for zeta in self.zetas:
                         prefix = path.join(self.train_npy_dir, self.name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta))
-                        if path.exists(prefix+'-Gs.npy') and Gs_T[n].shape == np.load(prefix+'-Gs.npy').T.shape:
-                            Gs_T[n] = np.load(prefix+'-Gs.npy').T
-                            dGs_T[n] = np.load(prefix+'-dGs.npy').T
+                        if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
+                            Gs[n]  = np.load(prefix+'-Gs.npy')
+                            dGs[n] = np.load(prefix+'-dGs.npy')
                         else:
-                            G,dG = self.calc_G4(Rc, eta, lam, zeta)
+                            G,dG  = self.calc_G4(Rc, eta, lam, zeta)
                             np.save(prefix+'-Gs.npy', G)
                             np.save(prefix+'-dGs.npy', dG)
-                            Gs_T[n] = G.T; dGs_T[n] = dG.T
+                            Gs[n]  = G
+                            dGs[n] = dG
                         n += 1
-        return Gs_T.T, dGs_T.T
+        return Gs.transpose(1,2,0),dGs.transpose(1,2,3,0)
 
     def load_G(self):
         loaded_G,loaded_dG = [],[]
         for Rc in self.Rcs:
             prefix = path.join(self.train_npy_dir, self.name+'-G1-'+str(Rc))
             if path.exists(prefix+'-Gs.npy'):
-                loaded_G.append(np.load(prefix+'-Gs.npy').T)
-                loaded_dG.append(np.load(prefix+'-dGs.npy').T)
+                loaded_G.append(np.load(prefix+'-Gs.npy'))
+                loaded_dG.append(np.load(prefix+'-dGs.npy'))
             
             for eta in self.etas:
                 for Rs in self.Rss:
                     prefix = path.join(self.train_npy_dir, self.name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs))
                     if path.exists(prefix+'-Gs.npy'):
-                        loaded_G.append(np.load(prefix+'-Gs.npy').T)
-                        loaded_dG.append(np.load(prefix+'-dGs.npy').T)
+                        loaded_G.append(np.load(prefix+'-Gs.npy'))
+                        loaded_dG.append(np.load(prefix+'-dGs.npy'))
                     
                 for lam in self.lams:
                     for zeta in self.zetas:
                         prefix = path.join(self.train_npy_dir, self.name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta))
                         if path.exists(prefix+'-Gs.npy'):
-                            loaded_G.append(np.load(prefix+'-Gs.npy').T)
-                            loaded_dG.append(np.load(prefix+'-dGs.npy').T)
+                            loaded_G.append(np.load(prefix+'-Gs.npy'))
+                            loaded_dG.append(np.load(prefix+'-dGs.npy'))
         
-        G = np.c_[loaded_G].T
-        dG = np.c_[loaded_dG].T
-        return G,dG
+        Gs  = np.c_[loaded_G].transpose(1,2,0)
+        dGs = np.c_[loaded_dG].transpose(1,2,3,0)
+        return Gs,dGs
 
     def calc_G1(self, Rc):
         G,dG = np.empty((self.nsample,self.natom)),np.empty((self.nsample,self.natom,3*self.natom))
         G_para,dG_para = np.zeros((self.nsample,self.natom)),np.zeros((self.nsample,self.natom,3*self.natom))
-        for m,atoms in enumerate(self.atoms_objs):
-            index,r,R,fc,tanh,cosine = self.calc_geometry(m, atoms, Rc)
-            dR = self.deriv_R(m, index, r, R, Rc)
-            G_para[m],dG_para[m] = self.G1(fc, tanh, dR, Rc)
+        for m in range(self.min,self.max):
+            atoms = self.atoms_objs[m]
+            G1_generator = self.G1(self, m, atoms, Rc)
+            G_para[m]  = G1_generator.calc()
+            dG_para[m] = G1_generator.deriv()
         self.comm.Allreduce(G_para, G, op=MPI.SUM)
         self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
         return G,dG
+
+    class G1:
+        def __init__(self, generator, m, atoms, Rc):
+            self.natom = generator.natom
+            self.Rc = Rc
+            self.index,self.r,self.R,self.tanh,self.fc,self.cosine = generator.neighbour(m, atoms, Rc)
+            self.dR = generator.deriv_R(m, self.index, self.r, self.R)
+
+        def calc(self):
+            G = np.empty((self.natom))
+            for i in range(self.natom):
+                G[i] = np.sum(self.fc[i])
+            return G
+        
+        def deriv(self):
+            dG = np.empty((self.natom,3*self.natom))
+            for i in range(self.natom):
+                dgi = - 3/self.Rc * (1 - self.tanh[i][:,None]**2) * self.tanh[i][:,None]**2 * self.dR[i]
+                dG[i] = np.sum(dgi, axis=0)
+            return dG
 
     def calc_G2(self, Rc, eta, Rs):
         G,dG = np.empty((self.nsample,self.natom)),np.empty((self.nsample,self.natom,3*self.natom))
         G_para,dG_para = np.zeros((self.nsample,self.natom)),np.zeros((self.nsample,self.natom,3*self.natom))
-        for m,atoms in enumerate(self.atoms_objs):
-            index,r,R,fc,tanh,cosine = self.calc_geometry(m, atoms, Rc)
-            dR = self.deriv_R(m, index, r, R, Rc)
-            G_para[m],dG_para[m] = self.G2(R, fc, tanh, dR, Rc, eta, Rs)
+        for m in range(self.min,self.max):
+            atoms = self.atoms_objs[m]
+            G2_generator = self.G2(self, m, atoms, Rc, eta, Rs)
+            G_para[m]  = G2_generator.calc()
+            dG_para[m] = G2_generator.deriv()
         self.comm.Allreduce(G_para, G, op=MPI.SUM)
         self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
         return G,dG
+
+    class G2:
+        def __init__(self, generator, m, atoms, Rc, eta, Rs):
+            self.natom = generator.natom
+            self.Rc,self.eta,self.Rs = Rc,eta,Rs
+            self.index,self.r,self.R,self.tanh,self.fc,self.cosine = generator.neighbour(m, atoms, Rc)
+            self.dR = generator.deriv_R(m, self.index, self.r, self.R)
+        
+        def calc(self):
+            G = np.empty((self.natom))
+            for i in range(self.natom):
+                gi = np.exp(- self.eta * (self.R[i] - self.Rs) ** 2) * self.fc[i]
+                G[i] = np.sum(gi)
+            return G
+        
+        def deriv(self):
+            dG = np.empty((self.natom,3*self.natom))
+            for i in range(self.natom):
+                gi = np.exp(- self.eta * (self.R[i] - self.Rs) ** 2) * self.fc[i]
+                dgi = gi[:,None] * ((-2*self.Rc*self.eta*(self.R[i][:,None]-self.Rs)*self.tanh[i][:,None] + 3*self.tanh[i][:,None]**2 - 3) / (self.Rc * self.tanh[i][:,None])) * self.dR[i]
+                dG[i] = np.sum(dgi, axis=0)
+            return dG
 
     def calc_G4(self, Rc, eta, lam, zeta):
         G,dG = np.empty((self.nsample,self.natom)),np.empty((self.nsample,self.natom,3*self.natom))
         G_para,dG_para = np.zeros((self.nsample,self.natom)),np.zeros((self.nsample,self.natom,3*self.natom))
-        for m,atoms in enumerate(self.atoms_objs):
-            index,r,R,fc,tanh,cosine = self.calc_geometry(m, atoms, Rc)
-            dR = self.deriv_R(m, index, r, R, Rc)
-            dcos = self.deriv_cosine(m, index, r, R, cosine, Rc)
-            G_para[m],dG_para[m] = self.G4(R, fc, tanh, cosine, dR, dcos, Rc, eta, lam, zeta)
+        for m in range(self.min,self.max):
+            atoms = self.atoms_objs[m]
+            G4_generator = self.G4(self, m, atoms, Rc, eta, lam, zeta)
+            G_para[m]  = G4_generator.calc()
+            dG_para[m] = G4_generator.deriv()
         self.comm.Allreduce(G_para, G, op=MPI.SUM)
         self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
         return G,dG
 
-    def G1(self, fc, tanh, dR, Rc):
-        G = np.empty(self.natom)
-        dG = np.empty((self.natom,3*self.natom))
-        for i in range(self.natom):
-            G[i] = np.sum(fc[i])
-            
-            dgi = - 3/Rc * (1 - tanh[i][:,None]**2) * tanh[i][:,None]**2 * dR[i]
-            dG[i] = np.sum(dgi, axis=0)
-        return G,dG
-
-    def G2(self, R, fc, tanh, dR, Rc, eta, Rs):
-        G = np.empty(self.natom)
-        dG = np.empty((self.natom,3*self.natom))
-        for i in range(self.natom):
-            gi = np.exp(- eta * (R[i] - Rs) ** 2) * fc[i]
-            G[i] = np.sum(gi)
-            
-            dgi = gi[:,None] * ((-2*Rc*eta*(R[i][:,None]-Rs)*tanh[i][:,None] + 3*tanh[i][:,None]**2 - 3) / (Rc * tanh[i][:,None])) * dR[i]
-            dG[i] = np.sum(dgi, axis=0)
-        return G,dG
-
-# calculate symmetric function type-4
-# 3-bodies
-    def G4(self, R, fc, tanh, cosine, dR, dcos, Rc, eta, lam, zeta):
-        G = np.empty(self.natom)
-        dG = np.empty((self.natom,3*self.natom))
-        for i in range(self.natom):
-            angular = (1+lam*cosine[i])
-            gi_ = (2**(1-zeta)) * (angular**(zeta-1)) * np.exp(-eta*(R[i][:,None]**2+R[i][None,:]**2)) * fc[i][:,None] * fc[i][None,:]
-            gi = gi_ * angular # separate calculation in order to prevent zero division
-            filter = np.identity(len(R[i]), dtype=bool)
-            gi[filter] = 0.0
-            G[i]  = np.sum(gi)
-            
-            dgi_R   = ((-2*Rc*eta*R[i][:,None]*tanh[i][:,None] + 3*tanh[i][:,None]**2 - 3) / (Rc * tanh[i][:,None])) * dR[i]
-            dgi_cos = zeta * lam * dcos[i]
-            dgi = gi_[:,:,None] * (angular[:,:,None] * (dgi_R[None,:,:] + dgi_R[:,None,:]) + dgi_cos)
-            dG[i] = np.sum(dgi, axis=(0,1))
-        return G,dG
+    class G4:
+        def __init__(self, generator, m, atoms, Rc, eta, lam, zeta):
+            self.natom = generator.natom
+            self.Rc,self.eta,self.lam,self.zeta = Rc,eta,lam,zeta
+            self.index,self.r,self.R,self.tanh,self.fc,self.cosine = generator.neighbour(m, atoms, Rc)
+            self.dR = generator.deriv_R(m, self.index, self.r, self.R)
+            self.dcos = generator.deriv_cosine(m, self.index, self.r, self.R, self.cosine)
+        
+        def calc(self):
+            G = np.empty((self.natom))
+            for i in range(self.natom):
+                gi = (2**(1-self.zeta)) * ((1+self.lam*self.cosine[i])**self.zeta) * np.exp(-self.eta*(self.R[i][:,None]**2+self.R[i][None,:]**2)) * self.fc[i][:,None] * self.fc[i][None,:]
+                filter = np.identity(len(self.index[i]), dtype=bool)
+                gi[filter] = 0.0
+                G[i]  = np.sum(gi)
+            return G
+        
+        def deriv(self):
+            dG = np.empty((self.natom,3*self.natom))
+            for i in range(self.natom):
+                angular = (1+self.lam*self.cosine[i])
+                common  = (2**(1-self.zeta)) * (angular**(self.zeta-1)) * np.exp(-self.eta*(self.R[i][:,None]**2+self.R[i][None,:]**2)) * self.fc[i][:,None] * self.fc[i][None,:]
+                dgi_R   = ((-2*self.Rc*self.eta*self.R[i][:,None]*self.tanh[i][:,None] + 3*self.tanh[i][:,None]**2 - 3) / (self.Rc * self.tanh[i][:,None])) * self.dR[i]
+                dgi_cos = self.zeta * self.lam * self.dcos[i]
+                dgi = common[:,:,None] * (angular[:,:,None] * (dgi_R[None,:,:] + dgi_R[:,None,:]) + dgi_cos)
+                filter = np.identity(len(self.index[i]), dtype=bool)[:,:,None].repeat(3*self.natom, axis=2)
+                dgi[filter] = 0.0
+                dG[i] = np.sum(dgi, axis=(0,1))
+            return dG
 
     def memorize(f):
-        if f.__name__ == 'calc_geometry':
+        if f.__name__ == 'neighbour':
             cache = {}
             def helper(self, m, atoms, Rc):
                 if (m,Rc) not in cache:
@@ -195,21 +231,21 @@ class Generator:
             return helper
         elif f.__name__ == 'deriv_R':
             cache = {}
-            def helper(self, m, index, r, R, Rc):
-                if (m,Rc) not in cache:
-                    cache[(m,Rc)] = f(self, m, index, r, R, Rc)
-                return cache[(m,Rc)]
+            def helper(self, m, index, r, R):
+                if m not in cache:
+                    cache[m] = f(self, m, index, r, R)
+                return cache[m]
             return helper
         elif f.__name__ == 'deriv_cosine':
             cache = {}
-            def helper(self, m, index, r, R, cosine, Rc):
-                if (m,Rc) not in cache:
-                    cache[(m,Rc)] = f(self, m, index, r, R, cosine, Rc)
-                return cache[(m,Rc)]
+            def helper(self, m, index, r, R, cosine):
+                if m not in cache:
+                    cache[m] = f(self, m, index, r, R, cosine)
+                return cache[m]
             return helper
 
     @memorize
-    def calc_geometry(self, m, atoms, Rc):
+    def neighbour(self, m, atoms, Rc):
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
         index = [ atoms.connect.get_neighbours(i)[0] - 1 for i in frange(self.natom) ]
@@ -249,7 +285,7 @@ class Generator:
         return cosine
 
     @memorize
-    def deriv_R(self, m, index, r, R, Rc):
+    def deriv_R(self, m, index, r, R):
         dR = []
         for i in range(self.natom):
             n_neighb = len(R[i])
@@ -266,7 +302,7 @@ class Generator:
         return dR
 
     @memorize
-    def deriv_cosine(self, m, index, r, R, cosine, Rc):
+    def deriv_cosine(self, m, index, r, R, cosine):
         dcos = []
         for i in range(self.natom):
             n_neighb = len(R[i])
