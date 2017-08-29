@@ -22,10 +22,10 @@ allrank = allcomm.Get_rank()
 allsize = allcomm.Get_size()
 
 # set variables to all procs
-weight_dir = 'weight_params/'
-train_dir = 'training_data/'
-train_xyz_dir = train_dir+'xyz/'
-train_npy_dir = train_dir+'npy/'
+weight_dir = 'weight_params'
+train_dir  = 'training_data'
+train_xyz_file = os.path.join(train_dir, 'xyz', other.xyzfile)
+train_npy_dir  = os.path.join(train_dir, 'npy', other.name)
 
 if allrank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
@@ -33,7 +33,7 @@ if allrank == 0:
     stime = time.time()
 
 if bool.LOAD_TRAINING_XYZ_DATA:
-    alldataset = AtomsReader(train_xyz_dir+other.xyzfile)
+    alldataset = AtomsReader(train_xyz_file)
     coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
     hp.nsample = len(coordinates)
     Es,Fs = my_func.calc_EF(coordinates, train_npy_dir, other.name, hp.natom, hp.nsample)
@@ -57,6 +57,7 @@ if allrank == 0:
     file.write('beta: '+str(hp.beta)+'\n')
     file.write('gamma: '+str(hp.gamma)+'\n')
     file.write('nepoch: '+str(hp.nepoch)+'\n')
+    file.write('nsample: '+str(hp.nsample)+'\n')
     file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
     file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
     file.flush()

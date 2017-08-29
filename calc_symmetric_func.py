@@ -4,6 +4,7 @@
 from config import hp,other
 
 # import python modules
+import os
 from mpi4py import MPI
 from quippy import AtomsReader
 
@@ -16,12 +17,11 @@ allrank = allcomm.Get_rank()
 allsize = allcomm.Get_size()
 
 # set variables to all procs
-weight_dir = 'weight_params/'
-train_dir = 'training_data/'
-train_xyz_dir = train_dir+'xyz/'
-train_npy_dir = train_dir+'npy/'
+train_dir = 'training_data'
+train_xyz_file = os.path.join(train_dir, 'xyz', other.xyzfile)
+train_npy_dir  = os.path.join(train_dir, 'npy', other.name)
 
-alldataset = AtomsReader(train_xyz_dir+other.xyzfile)
+alldataset = AtomsReader(train_xyz_file)
 coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
 hp.nsample = len(coordinates)
 Es,Fs = my_func.calc_EF(coordinates, train_npy_dir, other.name, hp.natom, hp.nsample)
