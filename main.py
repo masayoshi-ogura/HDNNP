@@ -5,7 +5,7 @@ from config import hp,bool,other
 
 # import python modules
 import time
-import os
+from os import path, mkdir
 from datetime import datetime
 from mpi4py import MPI
 import random
@@ -24,8 +24,10 @@ allsize = allcomm.Get_size()
 # set variables to all procs
 weight_dir = 'weight_params'
 train_dir  = 'training_data'
-train_xyz_file = os.path.join(train_dir, 'xyz', other.xyzfile)
-train_npy_dir  = os.path.join(train_dir, 'npy', other.name)
+train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
+train_npy_dir  = path.join(train_dir, 'npy', other.name)
+if not path.exists(train_npy_dir):
+    mkdir(train_npy_dir)
 
 if allrank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
@@ -93,6 +95,6 @@ if allrank < hp.natom:
     if allrank == 0:
         file.close()
         if bool.SAVE_WEIGHT_PARAMS:
-            weight_save_dir = weight_dir+datestr+'/'
-            os.mkdir(weight_save_dir)
+            weight_save_dir = path.join(weight_dir, datestr)
+            mkdir(weight_save_dir)
             nnp.save_w(weight_save_dir, other.name)

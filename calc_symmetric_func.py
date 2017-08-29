@@ -4,7 +4,7 @@
 from config import hp,other
 
 # import python modules
-import os
+from os import path, mkdir
 from mpi4py import MPI
 from quippy import AtomsReader
 
@@ -18,8 +18,10 @@ allsize = allcomm.Get_size()
 
 # set variables to all procs
 train_dir = 'training_data'
-train_xyz_file = os.path.join(train_dir, 'xyz', other.xyzfile)
-train_npy_dir  = os.path.join(train_dir, 'npy', other.name)
+train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
+train_npy_dir  = path.join(train_dir, 'npy', other.name)
+if not path.exists(train_npy_dir):
+    mkdir(train_npy_dir)
 
 alldataset = AtomsReader(train_xyz_file)
 coordinates = [data for data in alldataset if data.config_type == other.name and data.cohesive_energy < 0.0]
