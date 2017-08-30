@@ -1,15 +1,48 @@
 # -*- coding: utf-8 -*-
 
+# define variables
+from config import hp
+from config import bool
+from config import other
+
+# import python modules
 from os import path
+from os import mkdir
 import numpy as np
 from mpi4py import MPI
-from quippy import farray
-from quippy import fzeros
-from quippy import frange
+try:
+    from quippy import AtomsReader
+    from quippy import farray
+    from quippy import fzeros
+    from quippy import frange
+except ImportError:
+    print 'Warning: can\'t import quippy, so can\'t calculate symmetric functions, but load them.'
+    bool.CALC_SF = False
 
 
-class Generator(object):
-    """Energy, Force, and Symmetric Fuction generator"""
+class LabelGenerator(object):
+    def __init__(self, train_npy_dir, name):
+        self.train_npy_dir = train_npy_dir
+        self.name = name
+
+    def make(self, atoms_objs, natom, nsample):
+        Es = np.array([data.cohesive_energy for data in atoms_objs])
+        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*natom))
+        np.save(path.join(self.train_npy_dir, self.name+'-Es.npy'), Es)
+        np.save(path.join(self.train_npy_dir, self.name+'-Fs.npy'), Fs)
+        return Es, Fs
+
+    def load(self):
+        Es = np.load(path.join(self.train_npy_dir, self.name+'-Es.npy'))
+        Fs = np.load(path.join(self.train_npy_dir, self.name+'-Fs.npy'))
+        return Es, Fs
+
+
+class EFGenerator(LabelGenerator):
+    pass
+
+
+class InputGenerator(object):
     def __init__(self, train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
         self.train_npy_dir = train_npy_dir
         self.name = name
@@ -19,19 +52,7 @@ class Generator(object):
         self.lams = lams
         self.zetas = zetas
 
-    def calc_EF(self, atoms_objs, natom, nsample):
-        Es = np.array([data.cohesive_energy for data in atoms_objs])
-        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*natom))
-        np.save(path.join(self.train_npy_dir, self.name+'-Es.npy'), Es)
-        np.save(path.join(self.train_npy_dir, self.name+'-Fs.npy'), Fs)
-        return Es, Fs
-
-    def load_EF(self):
-        Es = np.load(path.join(self.train_npy_dir, self.name+'-Es.npy'))
-        Fs = np.load(path.join(self.train_npy_dir, self.name+'-Fs.npy'))
-        return Es, Fs
-
-    def calc_G(self, comm, size, rank, atoms_objs, natom, nsample, ninput):
+    def make(self, comm, size, rank, atoms_objs, natom, nsample, ninput):
         self.comm = comm
         self.atoms_objs = atoms_objs
         self.natom = natom
@@ -88,7 +109,7 @@ class Generator(object):
                         n += 1
         return Gs.transpose(1, 2, 0), dGs.transpose(1, 2, 3, 0)
 
-    def load_G(self):
+    def load(self):
         loaded_G, loaded_dG = [], []
         for Rc in self.Rcs:
             prefix = path.join(self.train_npy_dir, '{}-G1-{}'.format(self.name, Rc))
@@ -304,3 +325,49 @@ class Generator(object):
                                                          (+ r[i][j][alpha]) / (R[i][j] * R[i][k])
             dcos.append(dcosi)
         return dcos
+
+
+class SFGenerator(InputGenerator):
+    pass
+
+
+def make_dataset(allcomm, allrank, allsize):
+    train_dir = 'training_data'
+    train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
+    train_npy_dir = path.join(train_dir, 'npy', other.name)
+    if not path.exists(train_npy_dir):
+        mkdir(train_npy_dir)
+    label = LabelGenerator(train_npy_dir, other.name)
+    input = InputGenerator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
+
+    if bool.CALC_SF:
+        alldataset = AtomsReader(train_xyz_file)
+        coordinates = []
+        for data in alldataset:
+            if data.config_type == other.name and data.cohesive_energy < 0.0:
+                coordinates.append(data)
+        nsample = len(coordinates)
+        Es, Fs = label.make(coordinates, hp.natom, nsample)
+        ninput = len(hp.Rcs) + \
+            len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
+            len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
+        Gs, dGs = input.make(allcomm, allsize, allrank, coordinates, hp.natom, nsample, ninput)
+    else:
+        Es, Fs = label.load()
+        Gs, dGs = input.load()
+        nsample = len(Es)
+        ninput = len(Gs[0][0])
+
+    dataset = [[Es[i], Fs[i], Gs[i], dGs[i]] for i in range(nsample)]
+    return dataset, nsample, ninput
+
+
+def main():
+    allcomm = MPI.COMM_WORLD
+    allrank = allcomm.Get_rank()
+    allsize = allcomm.Get_size()
+    make_dataset(allcomm, allrank, allsize)
+
+
+if __name__ == '__main__':
+    main()

@@ -14,48 +14,21 @@ from random import sample
 from mpi4py import MPI
 
 # import own modules
-from modules.input import Generator
+from modules.generator import make_dataset
 from modules.model import SingleNNP
 
-# set MPI variables
 allcomm = MPI.COMM_WORLD
 allrank = allcomm.Get_rank()
 allsize = allcomm.Get_size()
 
-# set variables to all procs
 weight_dir = 'weight_params'
-train_dir = 'training_data'
-train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
-train_npy_dir = path.join(train_dir, 'npy', other.name)
-if not path.exists(train_npy_dir):
-    mkdir(train_npy_dir)
-
-generator = Generator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
 
 if allrank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     file = open('progress-'+datestr+'.out', 'w')
     stime = time()
 
-if bool.LOAD_TRAINING_XYZ_DATA:
-    from quippy import AtomsReader
-    alldataset = AtomsReader(train_xyz_file)
-    coordinates = []
-    for data in alldataset:
-        if data.config_type == other.name and data.cohesive_energy < 0.0:
-            coordinates.append(data)
-    hp.nsample = len(coordinates)
-    Es, Fs = generator.calc_EF(coordinates, hp.natom, hp.nsample)
-    hp.ninput = len(hp.Rcs) + \
-        len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
-        len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-    Gs, dGs = generator.calc_G(allcomm, allsize, allrank, coordinates, hp.natom, hp.nsample, hp.ninput)
-else:
-    Es, Fs = generator.load_EF()
-    Gs, dGs = generator.load_G()
-    hp.nsample = len(Es)
-    hp.ninput = len(Gs[0][0])
-dataset = [[Es[i], Fs[i], Gs[i], dGs[i]] for i in range(hp.nsample)]
+dataset, hp.nsample, hp.ninput = make_dataset(allcomm, allrank, allsize)
 
 if allrank == 0:
     file.write('Rc:   '+','.join(map(str, hp.Rcs))+'\n')
@@ -69,6 +42,7 @@ if allrank == 0:
     file.write('gamma:   '+str(hp.gamma)+'\n')
     file.write('nepoch:  '+str(hp.nepoch)+'\n')
     file.write('nsample: '+str(hp.nsample)+'\n')
+    file.write('ninput:  '+str(hp.ninput)+'\n')
     file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
     file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
     file.flush()
