@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from mpi4py import MPI
-import numpy as np
 from os import path
-from quippy import farray, fzeros, frange
+import numpy as np
+from mpi4py import MPI
+from quippy import farray
+from quippy import fzeros
+from quippy import frange
 
 
 class Generator(object):

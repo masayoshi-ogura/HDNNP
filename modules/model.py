@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from mpi4py import MPI
-import numpy as np
-import scipy.special as sp
-import math
 from os import path
+from math import sqrt
+import numpy as np
+from mpi4py import MPI
+from scipy.special import expit
 
 
 class SingleNNP(object):
@@ -32,8 +32,8 @@ class SingleNNP(object):
         self.v_b = [np.zeros_like(self.b[0]), np.zeros_like(self.b[1]), np.zeros_like(self.b[2])]
 
         # define activation function and derivative
-        self.activation_func = lambda x: sp.expit(x)
-        self.dif_activation_func = lambda x: sp.expit(x) * (1 - sp.expit(x))
+        self.activation_func = lambda x: expit(x)
+        self.dif_activation_func = lambda x: expit(x) * (1 - expit(x))
 
     def train(self, nsubset, subdataset):
         w_grad_sum = [np.zeros_like(self.w[0]), np.zeros_like(self.w[1]), np.zeros_like(self.w[2])]
@@ -98,8 +98,8 @@ class SingleNNP(object):
             F_rout = self.__query_F(G[self.rank], dG[self.rank])
             E_MSE += (Et - E_out) ** 2
             F_MSE += np.sum((Frt - F_rout)**2)
-        E_RMSE = math.sqrt(E_MSE / self.nsample)
-        F_RMSE = math.sqrt(F_MSE / (self.nsample * self.natom * 3))
+        E_RMSE = sqrt(E_MSE / self.nsample)
+        F_RMSE = sqrt(F_MSE / (self.nsample * self.natom * 3))
         RMSE = E_RMSE + self.beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE
 

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
 # define variables
-from config import hp, other
+from config import hp
+from config import other
 
 # import python modules
-from os import path, mkdir
+from os import path
+from os import mkdir
 from mpi4py import MPI
 from quippy import AtomsReader
 

@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
 
 # define variables
-from config import hp, bool, other
+from config import hp
+from config import bool
+from config import other
+
+# import python modules
+from os import path
+from os import mkdir
+from time import time
+from datetime import datetime
+from random import sample
+from mpi4py import MPI
 
 # import own modules
 from modules.input import Generator
 from modules.model import SingleNNP
-
-# import python modules
-import time
-from os import path, mkdir
-from datetime import datetime
-from mpi4py import MPI
-import random
-if bool.IMPORT_QUIPPY:
-    from quippy import AtomsReader
 
 # set MPI variables
 allcomm = MPI.COMM_WORLD
@@ -34,9 +35,10 @@ generator = Generator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lam
 if allrank == 0:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     file = open('progress-'+datestr+'.out', 'w')
-    stime = time.time()
+    stime = time()
 
 if bool.LOAD_TRAINING_XYZ_DATA:
+    from quippy import AtomsReader
     alldataset = AtomsReader(train_xyz_file)
     coordinates = []
     for data in alldataset:
@@ -89,13 +91,13 @@ if allrank < hp.natom:
 
     # training
     for m in range(hp.nepoch):
-        subdataset = random.sample(dataset, hp.nsubset)
+        subdataset = sample(dataset, hp.nsubset)
         subdataset = NNcomm.bcast(subdataset, root=0)
         nnp.train(hp.nsubset, subdataset)
         if (m+1) % other.output_interval == 0:
             E_RMSE, F_RMSE, RMSE = nnp.calc_RMSE(dataset)
             if allrank == 0:
-                file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time.time()-stime, E_RMSE, F_RMSE, RMSE))
+                file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
                 file.flush()
 
     # save
