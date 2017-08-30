@@ -45,7 +45,7 @@ class Generator(object):
 
         n = 0
         for Rc in self.Rcs:
-            prefix = path.join(self.train_npy_dir, self.name+'-G1-'+str(Rc))
+            prefix = path.join(self.train_npy_dir, '{}-G1-{}'.format(self.name, Rc))
             if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
                 Gs[n] = np.load(prefix+'-Gs.npy')
                 dGs[n] = np.load(prefix+'-dGs.npy')
@@ -59,7 +59,7 @@ class Generator(object):
 
             for eta in self.etas:
                 for Rs in self.Rss:
-                    prefix = path.join(self.train_npy_dir, self.name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs))
+                    prefix = path.join(self.train_npy_dir, '{}-G2-{}-{}-{}'.format(self.name, Rc, eta, Rs))
                     if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
                         Gs[n] = np.load(prefix+'-Gs.npy')
                         dGs[n] = np.load(prefix+'-dGs.npy')
@@ -73,7 +73,7 @@ class Generator(object):
 
                 for lam in self.lams:
                     for zeta in self.zetas:
-                        prefix = path.join(self.train_npy_dir, self.name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta))
+                        prefix = path.join(self.train_npy_dir, '{}-G4-{}-{}-{}-{}'.format(self.name, Rc, eta, lam, zeta))
                         if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
                             Gs[n] = np.load(prefix+'-Gs.npy')
                             dGs[n] = np.load(prefix+'-dGs.npy')
@@ -89,21 +89,21 @@ class Generator(object):
     def load_G(self):
         loaded_G, loaded_dG = [], []
         for Rc in self.Rcs:
-            prefix = path.join(self.train_npy_dir, self.name+'-G1-'+str(Rc))
+            prefix = path.join(self.train_npy_dir, '{}-G1-{}'.format(self.name, Rc))
             if path.exists(prefix+'-Gs.npy'):
                 loaded_G.append(np.load(prefix+'-Gs.npy'))
                 loaded_dG.append(np.load(prefix+'-dGs.npy'))
 
             for eta in self.etas:
                 for Rs in self.Rss:
-                    prefix = path.join(self.train_npy_dir, self.name+'-G2-'+str(Rc)+'-'+str(eta)+'-'+str(Rs))
+                    prefix = path.join(self.train_npy_dir, '{}-G2-{}-{}-{}'.format(self.name, Rc, eta, Rs))
                     if path.exists(prefix+'-Gs.npy'):
                         loaded_G.append(np.load(prefix+'-Gs.npy'))
                         loaded_dG.append(np.load(prefix+'-dGs.npy'))
 
                 for lam in self.lams:
                     for zeta in self.zetas:
-                        prefix = path.join(self.train_npy_dir, self.name+'-G4-'+str(Rc)+'-'+str(eta)+'-'+str(lam)+'-'+str(zeta))
+                        prefix = path.join(self.train_npy_dir, '{}-G4-{}-{}-{}-{}'.format(self.name, Rc, eta, lam, zeta))
                         if path.exists(prefix+'-Gs.npy'):
                             loaded_G.append(np.load(prefix+'-Gs.npy'))
                             loaded_dG.append(np.load(prefix+'-dGs.npy'))
