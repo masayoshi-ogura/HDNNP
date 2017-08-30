@@ -26,8 +26,7 @@ class hp:
 
 
 class bool:
-    IMPORT_QUIPPY =
-    LOAD_TRAINING_XYZ_DATA =
+    CALC_INPUT =
     LOAD_WEIGHT_PARAMS =
     SAVE_WEIGHT_PARAMS =
 

@@ -31,20 +31,25 @@ if allrank == 0:
 dataset, hp.nsample, hp.ninput = make_dataset(allcomm, allrank, allsize)
 
 if allrank == 0:
-    file.write('Rc:   '+','.join(map(str, hp.Rcs))+'\n')
-    file.write('eta:  '+','.join(map(str, hp.etas))+'\n')
-    file.write('Rs:   '+','.join(map(str, hp.Rss))+'\n')
-    file.write('lam:  '+','.join(map(str, hp.lams))+'\n')
-    file.write('zeta: '+','.join(map(str, hp.zetas))+'\n')
-    file.write('NN_figure:     '+str(hp.ninput)+'x'+str(hp.hidden_nodes)+'x'+str(hp.hidden_nodes)+'x1\n')
-    file.write('learning_rate: '+str(hp.learning_rate)+'\n')
-    file.write('beta:    '+str(hp.beta)+'\n')
-    file.write('gamma:   '+str(hp.gamma)+'\n')
-    file.write('nepoch:  '+str(hp.nepoch)+'\n')
-    file.write('nsample: '+str(hp.nsample)+'\n')
-    file.write('ninput:  '+str(hp.ninput)+'\n')
-    file.write('data_num_of_subset: '+str(hp.nsubset)+'\n\n')
-    file.write('iteration      spent time     energy RMSE    force RMSE     RMSE\n')
+    file.write("""
+    Rc:   {}
+    eta:  {}
+    Rs:   {}
+    lam:  {}
+    zeta: {}
+    NN_figure:     {}x{}x{}x{}
+    learning_rate: {}
+    beta:          {}
+    gamma:         {}
+    nepoch:        {}
+    nsample:       {}
+    ninput:        {}
+    data_num_of_subset: {}
+
+    iteration      spent time     energy RMSE    force RMSE     RMSE
+    """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)), ','.join(map(str, hp.lams)),
+               ','.join(map(str, hp.zetas)), hp.input, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma,
+               hp.nepoch, hp.nsample, hp.ninput, hp.nsubset))
     file.flush()
 
 # use only "natom" nodes for NN
@@ -71,7 +76,7 @@ if allrank < hp.natom:
         if (m+1) % other.output_interval == 0:
             E_RMSE, F_RMSE, RMSE = nnp.calc_RMSE(dataset)
             if allrank == 0:
-                file.write('%-15i%-15f%-15f%-15f%-15f\n' % (m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
+                file.write('{:<15}{:<15}{:<15}{:<15}{:<15}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
                 file.flush()
 
     # save

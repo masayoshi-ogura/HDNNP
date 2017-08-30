@@ -17,7 +17,7 @@ try:
     from quippy import frange
 except ImportError:
     print 'Warning: can\'t import quippy, so can\'t calculate symmetric functions, but load them.'
-    bool.CALC_SF = False
+    bool.CALC_INPUT = False
 
 
 class LabelGenerator(object):
@@ -340,7 +340,7 @@ def make_dataset(allcomm, allrank, allsize):
     label = LabelGenerator(train_npy_dir, other.name)
     input = InputGenerator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
 
-    if bool.CALC_SF:
+    if bool.CALC_INPUT:
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:
