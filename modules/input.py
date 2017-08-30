@@ -51,7 +51,7 @@ class Generator:
                 Gs[n] = np.load(prefix+'-Gs.npy')
                 dGs[n] = np.load(prefix+'-dGs.npy')
             else:
-                G,dG  = self.calc_G1(Rc)
+                G,dG  = self.__calc_G1(Rc)
                 np.save(prefix+'-Gs.npy', G)
                 np.save(prefix+'-dGs.npy', dG)
                 Gs[n]  = G
@@ -65,7 +65,7 @@ class Generator:
                         Gs[n]  = np.load(prefix+'-Gs.npy')
                         dGs[n] = np.load(prefix+'-dGs.npy')
                     else:
-                        G,dG  = self.calc_G2(Rc, eta, Rs)
+                        G,dG  = self.__calc_G2(Rc, eta, Rs)
                         np.save(prefix+'-Gs.npy', G)
                         np.save(prefix+'-dGs.npy', dG)
                         Gs[n]  = G
@@ -79,7 +79,7 @@ class Generator:
                             Gs[n]  = np.load(prefix+'-Gs.npy')
                             dGs[n] = np.load(prefix+'-dGs.npy')
                         else:
-                            G,dG  = self.calc_G4(Rc, eta, lam, zeta)
+                            G,dG  = self.__calc_G4(Rc, eta, lam, zeta)
                             np.save(prefix+'-Gs.npy', G)
                             np.save(prefix+'-dGs.npy', dG)
                             Gs[n]  = G
@@ -113,19 +113,19 @@ class Generator:
         dGs = np.c_[loaded_dG].transpose(1,2,3,0)
         return Gs,dGs
 
-    def calc_G1(self, Rc):
+    def __calc_G1(self, Rc):
         G,dG = np.empty((self.nsample,self.natom)),np.empty((self.nsample,self.natom,3*self.natom))
         G_para,dG_para = np.zeros((self.nsample,self.natom)),np.zeros((self.nsample,self.natom,3*self.natom))
         for m in range(self.min,self.max):
             atoms = self.atoms_objs[m]
-            G1_generator = self.G1(self, m, atoms, Rc)
+            G1_generator = self.__G1(self, m, atoms, Rc)
             G_para[m]  = G1_generator.calc()
             dG_para[m] = G1_generator.deriv()
         self.comm.Allreduce(G_para, G, op=MPI.SUM)
         self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
         return G,dG
 
-    class G1:
+    class __G1:
         def __init__(self, generator, m, atoms, Rc):
             self.natom = generator.natom
             self.Rc = Rc
@@ -145,19 +145,19 @@ class Generator:
                 dG[i] = np.sum(dgi, axis=0)
             return dG
 
-    def calc_G2(self, Rc, eta, Rs):
+    def __calc_G2(self, Rc, eta, Rs):
         G,dG = np.empty((self.nsample,self.natom)),np.empty((self.nsample,self.natom,3*self.natom))
         G_para,dG_para = np.zeros((self.nsample,self.natom)),np.zeros((self.nsample,self.natom,3*self.natom))
         for m in range(self.min,self.max):
             atoms = self.atoms_objs[m]
-            G2_generator = self.G2(self, m, atoms, Rc, eta, Rs)
+            G2_generator = self.__G2(self, m, atoms, Rc, eta, Rs)
             G_para[m]  = G2_generator.calc()
             dG_para[m] = G2_generator.deriv()
         self.comm.Allreduce(G_para, G, op=MPI.SUM)
         self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
         return G,dG
 
-    class G2:
+    class __G2:
         def __init__(self, generator, m, atoms, Rc, eta, Rs):
             self.natom = generator.natom
             self.Rc,self.eta,self.Rs = Rc,eta,Rs
@@ -179,19 +179,19 @@ class Generator:
                 dG[i] = np.sum(dgi, axis=0)
             return dG
 
-    def calc_G4(self, Rc, eta, lam, zeta):
+    def __calc_G4(self, Rc, eta, lam, zeta):
         G,dG = np.empty((self.nsample,self.natom)),np.empty((self.nsample,self.natom,3*self.natom))
         G_para,dG_para = np.zeros((self.nsample,self.natom)),np.zeros((self.nsample,self.natom,3*self.natom))
         for m in range(self.min,self.max):
             atoms = self.atoms_objs[m]
-            G4_generator = self.G4(self, m, atoms, Rc, eta, lam, zeta)
+            G4_generator = self.__G4(self, m, atoms, Rc, eta, lam, zeta)
             G_para[m]  = G4_generator.calc()
             dG_para[m] = G4_generator.deriv()
         self.comm.Allreduce(G_para, G, op=MPI.SUM)
         self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
         return G,dG
 
-    class G4:
+    class __G4:
         def __init__(self, generator, m, atoms, Rc, eta, lam, zeta):
             self.natom = generator.natom
             self.Rc,self.eta,self.lam,self.zeta = Rc,eta,lam,zeta
@@ -249,12 +249,12 @@ class Generator:
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
         index = [ atoms.connect.get_neighbours(i)[0] - 1 for i in frange(self.natom) ]
-        r,R,fc,tanh = self.distance_ij(atoms, Rc)
-        cosine = self.cosine_ijk(atoms, Rc)
+        r,R,fc,tanh = self.__distance_ij(atoms, Rc)
+        cosine = self.__cosine_ijk(atoms, Rc)
         
         return index,r,R,fc,tanh,cosine
 
-    def distance_ij(self, atoms, Rc):
+    def __distance_ij(self, atoms, Rc):
         r,R,fc,tanh = [],[],[],[]
         for i in frange(self.natom):
             ri,Ri = [],[]
@@ -270,7 +270,7 @@ class Generator:
             tanh.append(np.tanh(1-R[i-1]/Rc))
         return r,R,fc,tanh
 
-    def cosine_ijk(self, atoms, Rc):
+    def __cosine_ijk(self, atoms, Rc):
         cosine = []
         for i in frange(self.natom):
             n_neighb = atoms.n_neighbours(i)
