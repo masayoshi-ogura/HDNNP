@@ -2,7 +2,7 @@
 
 # define variables
 from config import hp
-from config import bool
+from config import bool_
 from config import other
 
 # import python modules
@@ -17,7 +17,7 @@ try:
     from quippy import frange
 except ImportError:
     print 'Warning: can\'t import quippy, so can\'t calculate symmetric functions, but load them.'
-    bool.CALC_INPUT = False
+    bool_.CALC_INPUT = False
 
 
 class LabelGenerator(object):
@@ -136,15 +136,15 @@ class InputGenerator(object):
         return Gs, dGs
 
     def __calc_G1(self, Rc):
-        G, dG = np.empty((self.nsample, self.natom)), np.empty((self.nsample, self.natom, 3*self.natom))
-        G_para, dG_para = np.zeros((self.nsample, self.natom)), np.zeros((self.nsample, self.natom, 3*self.natom))
+        Gs, dGs = np.empty((self.nsample, self.natom)), np.empty((self.nsample, self.natom, 3*self.natom))
+        Gs_para, dGs_para = np.zeros((self.nsample, self.natom)), np.zeros((self.nsample, self.natom, 3*self.natom))
         generator = self.__G1_generator(Rc)
         for m, G, dG in generator:
-            G_para[m] = G
-            dG_para[m] = dG
-        self.comm.Allreduce(G_para, G, op=MPI.SUM)
-        self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
-        return G, dG
+            Gs_para[m] = G
+            dGs_para[m] = dG
+        self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
+        self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        return Gs, dGs
 
     def __G1_generator(self, Rc):
         for m in range(self.min, self.max):
@@ -160,15 +160,15 @@ class InputGenerator(object):
             yield m, G, dG
 
     def __calc_G2(self, Rc, eta, Rs):
-        G, dG = np.empty((self.nsample, self.natom)), np.empty((self.nsample, self.natom, 3*self.natom))
-        G_para, dG_para = np.zeros((self.nsample, self.natom)), np.zeros((self.nsample, self.natom, 3*self.natom))
+        Gs, dGs = np.empty((self.nsample, self.natom)), np.empty((self.nsample, self.natom, 3*self.natom))
+        Gs_para, dGs_para = np.zeros((self.nsample, self.natom)), np.zeros((self.nsample, self.natom, 3*self.natom))
         generator = self.__G2_generator(Rc, eta, Rs)
         for m, G, dG in generator:
-            G_para[m] = G
-            dG_para[m] = dG
-        self.comm.Allreduce(G_para, G, op=MPI.SUM)
-        self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
-        return G, dG
+            Gs_para[m] = G
+            dGs_para[m] = dG
+        self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
+        self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        return Gs, dGs
 
     def __G2_generator(self, Rc, eta, Rs):
         for m in range(self.min, self.max):
@@ -185,15 +185,15 @@ class InputGenerator(object):
             yield m, G, dG
 
     def __calc_G4(self, Rc, eta, lam, zeta):
-        G, dG = np.empty((self.nsample, self.natom)), np.empty((self.nsample, self.natom, 3*self.natom))
-        G_para, dG_para = np.zeros((self.nsample, self.natom)), np.zeros((self.nsample, self.natom, 3*self.natom))
+        Gs, dGs = np.empty((self.nsample, self.natom)), np.empty((self.nsample, self.natom, 3*self.natom))
+        Gs_para, dGs_para = np.zeros((self.nsample, self.natom)), np.zeros((self.nsample, self.natom, 3*self.natom))
         generator = self.__G4_generator(Rc, eta, lam, zeta)
         for m, G, dG in generator:
-            G_para[m] = G
-            dG_para[m] = dG
-        self.comm.Allreduce(G_para, G, op=MPI.SUM)
-        self.comm.Allreduce(dG_para, dG, op=MPI.SUM)
-        return G, dG
+            Gs_para[m] = G
+            dGs_para[m] = dG
+        self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
+        self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        return Gs, dGs
 
     def __G4_generator(self, Rc, eta, lam, zeta):
         for m in range(self.min, self.max):
@@ -340,7 +340,7 @@ def make_dataset(allcomm, allrank, allsize):
     label = LabelGenerator(train_npy_dir, other.name)
     input = InputGenerator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
 
-    if bool.CALC_INPUT:
+    if bool_.CALC_INPUT:
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:

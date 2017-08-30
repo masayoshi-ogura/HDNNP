@@ -113,9 +113,9 @@ class SingleNNP(object):
         e_hidden2_errors = self.dif_activation_func(self.hidden2_inputs) * np.dot(self.w[2].T, e_output_errors)
         e_hidden1_errors = self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[1].T, e_hidden2_errors)
 
-        e_grad_output_cost = np.dot(e_output_errors[None, :], self.hidden2_outputs[:, None])
-        e_grad_hidden2_cost = np.dot(e_hidden2_errors[None, :], self.hidden1_outputs[:, None])
-        e_grad_hidden1_cost = np.dot(e_hidden1_errors[None, :], Gi[:, None])
+        e_grad_output_cost = np.dot(e_output_errors[:, None], self.hidden2_outputs[None, :])
+        e_grad_hidden2_cost = np.dot(e_hidden2_errors[:, None], self.hidden1_outputs[None, :])
+        e_grad_hidden1_cost = np.dot(e_hidden1_errors[:, None], Gi[None, :])
 
         # forces
         R = len(dGi)

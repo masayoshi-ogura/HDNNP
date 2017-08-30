@@ -2,7 +2,7 @@
 
 # define variables
 from config import hp
-from config import bool
+from config import bool_
 from config import other
 
 # import python modules
@@ -32,24 +32,24 @@ dataset, hp.nsample, hp.ninput = make_dataset(allcomm, allrank, allsize)
 
 if allrank == 0:
     file.write("""
-    Rc:   {}
-    eta:  {}
-    Rs:   {}
-    lam:  {}
-    zeta: {}
-    NN_figure:     {}x{}x{}x{}
-    learning_rate: {}
-    beta:          {}
-    gamma:         {}
-    nepoch:        {}
-    nsample:       {}
-    ninput:        {}
-    data_num_of_subset: {}
+Rc:   {}
+eta:  {}
+Rs:   {}
+lam:  {}
+zeta: {}
+NN_figure:     {}x{}x{}x{}
+learning_rate: {}
+beta:          {}
+gamma:         {}
+nepoch:        {}
+nsample:       {}
+ninput:        {}
+data_num_of_subset: {}
 
-    iteration      spent time     energy RMSE    force RMSE     RMSE
-    """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)), ','.join(map(str, hp.lams)),
-               ','.join(map(str, hp.zetas)), hp.input, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma,
-               hp.nepoch, hp.nsample, hp.ninput, hp.nsubset))
+iteration      spent time     energy RMSE    force RMSE     RMSE
+""".format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)), ','.join(map(str, hp.lams)),
+           ','.join(map(str, hp.zetas)), hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma,
+           hp.nepoch, hp.nsample, hp.ninput, hp.nsubset))
     file.flush()
 
 # use only "natom" nodes for NN
@@ -61,7 +61,7 @@ if allrank < hp.natom:
     # initialize single NNP
     nnp = SingleNNP(NNcomm, NNrank, (hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1), hp.learning_rate, hp.beta, hp.gamma, hp.natom, hp.nsample)
     # load weight parameters when restart
-    if bool.LOAD_WEIGHT_PARAMS:
+    if bool_.LOAD_WEIGHT_PARAMS:
         nnp.load_w(weight_dir, other.name)
     else:
         for i in range(3):
@@ -82,7 +82,7 @@ if allrank < hp.natom:
     # save
     if allrank == 0:
         file.close()
-        if bool.SAVE_WEIGHT_PARAMS:
+        if bool_.SAVE_WEIGHT_PARAMS:
             weight_save_dir = path.join(weight_dir, datestr)
             mkdir(weight_save_dir)
             nnp.save_w(weight_save_dir, other.name)
