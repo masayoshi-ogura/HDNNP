@@ -147,7 +147,7 @@ class InputGenerator(object):
     def __G1_generator(self, Rc):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
-            index, r, R, tanh, fc, cosine = self.__neighbour(m, atoms, Rc)
+            index, r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
             dR = self.__deriv_R(m, index, r, R, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
@@ -171,7 +171,7 @@ class InputGenerator(object):
     def __G2_generator(self, Rc, eta, Rs):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
-            index, r, R, tanh, fc, cosine = self.__neighbour(m, atoms, Rc)
+            index, r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
             dR = self.__deriv_R(m, index, r, R, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
@@ -196,7 +196,7 @@ class InputGenerator(object):
     def __G4_generator(self, Rc, eta, lam, zeta):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
-            index, r, R, tanh, fc, cosine = self.__neighbour(m, atoms, Rc)
+            index, r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
             dR = self.__deriv_R(m, index, r, R, Rc)
             dcos = self.__deriv_cosine(m, index, r, R, cosine, Rc)
             G = np.empty((self.natom))
