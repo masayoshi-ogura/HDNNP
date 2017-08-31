@@ -57,8 +57,8 @@ class SingleNNP(object):
             dG = subdataset[n][3]
             E = self.__query_E(G[self.rank])
             Fr = self.__query_F(G[self.rank], dG[self.rank])
-            E_error = (Et - E)
-            F_errors = (Frt - Fr)
+            E_error = Et - E
+            F_errors = Frt - Fr
             w_grad, b_grad = self.__gradient(G[self.rank], dG[self.rank], E_error, F_errors)
             for i in range(3):
                 w_recv = np.zeros_like(w_grad[i])
@@ -130,12 +130,12 @@ class SingleNNP(object):
         f_grad_hidden2_cost = np.zeros((self.hidden2_nodes, self.hidden1_nodes))
         f_grad_hidden1_cost = np.zeros((self.hidden1_nodes, self.input_nodes))
         for r in range(3*self.natom):
-            f_output_error = F_errors[r]
+            f_output_error = np.array([F_errors[r]])
             coef = np.dot(self.w[1], self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[0], dGi[r]))
             f_hidden2_error = self.dif_activation_func(self.hidden2_inputs) * \
-                np.dot(- self.w[2], (1 - 2 * self.hidden2_outputs) * coef) * f_output_errors
+                np.dot(- self.w[2], (1 - 2 * self.hidden2_outputs) * coef) * f_output_error
             f_hidden1_error = self.dif_activation_func(self.hidden1_inputs) * \
-                np.dot(self.w[1].T, f_hidden2_errors)
+                np.dot(self.w[1].T, f_hidden2_error)
 
             f_output_errors += f_output_error
             f_hidden2_errors += f_hidden2_error
@@ -165,13 +165,13 @@ class SingleNNP(object):
         return final_outputs
 
     def __force(self, Gi, dGi):
-        self.__energy(Gi)
-        hidden1_outputs = np.dot(self.w[0], dGi.T)
+        #self.__energy(Gi) 他で一度計算してるのでいらない？
+        hidden1_outputs = np.dot(self.w[0], dGi)
         hidden2_inputs = self.dif_activation_func(self.hidden1_inputs) * hidden1_outputs
         hidden2_outputs = np.dot(self.w[1], hidden2_inputs)
         final_inputs = self.dif_activation_func(self.hidden2_inputs) * hidden2_outputs
         final_outputs = -1 * np.dot(self.w[2], final_inputs)
-        return final_outputs.reshape(-1)
+        return final_outputs.reshape(-1) # convert shape(1,1) to shape(1)
 
     def __query_E(self, Gi):
         Ei = self.__energy(Gi)
