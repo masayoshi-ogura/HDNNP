@@ -150,7 +150,7 @@ class InputGenerator(object):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
             index, r, R, tanh, fc, cosine = self.__neighbour(m, atoms, Rc)
-            dR = self.__deriv_R(m, index, r, R)
+            dR = self.__deriv_R(m, index, r, R, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
             for i in range(self.natom):
@@ -174,7 +174,7 @@ class InputGenerator(object):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
             index, r, R, tanh, fc, cosine = self.__neighbour(m, atoms, Rc)
-            dR = self.__deriv_R(m, index, r, R)
+            dR = self.__deriv_R(m, index, r, R, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
             for i in range(self.natom):
@@ -199,8 +199,8 @@ class InputGenerator(object):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
             index, r, R, tanh, fc, cosine = self.__neighbour(m, atoms, Rc)
-            dR = self.__deriv_R(m, index, r, R)
-            dcos = self.__deriv_cosine(m, index, r, R, cosine)
+            dR = self.__deriv_R(m, index, r, R, Rc)
+            dcos = self.__deriv_cosine(m, index, r, R, cosine, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
             for i in range(self.natom):
@@ -230,18 +230,18 @@ class InputGenerator(object):
         elif f.__name__ == '__deriv_R':
             cache = {}
 
-            def helper(self, m, index, r, R):
-                if m not in cache:
-                    cache[m] = f(self, m, index, r, R)
-                return cache[m]
+            def helper(self, m, index, r, R, Rc):
+                if (m, Rc) not in cache:
+                    cache[(m, Rc)] = f(self, m, index, r, R, Rc)
+                return cache[(m, Rc)]
             return helper
         elif f.__name__ == '__deriv_cosine':
             cache = {}
 
-            def helper(self, m, index, r, R, cosine):
-                if m not in cache:
-                    cache[m] = f(self, m, index, r, R, cosine)
-                return cache[m]
+            def helper(self, m, index, r, R, cosine, Rc):
+                if (m, Rc) not in cache:
+                    cache[(m, Rc)] = f(self, m, index, r, R, cosine, Rc)
+                return cache[(m, Rc)]
             return helper
 
     @memorize
@@ -285,7 +285,7 @@ class InputGenerator(object):
         return cosine
 
     @memorize
-    def __deriv_R(self, m, index, r, R):
+    def __deriv_R(self, m, index, r, R, Rc):
         dR = []
         for i in range(self.natom):
             n_neighb = len(R[i])
@@ -302,7 +302,7 @@ class InputGenerator(object):
         return dR
 
     @memorize
-    def __deriv_cosine(self, m, index, r, R, cosine):
+    def __deriv_cosine(self, m, index, r, R, cosine, Rc):
         dcos = []
         for i in range(self.natom):
             n_neighb = len(R[i])
@@ -335,7 +335,7 @@ def make_dataset(allcomm, allrank, allsize):
     train_dir = 'training_data'
     train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
     train_npy_dir = path.join(train_dir, 'npy', other.name)
-    if not path.exists(train_npy_dir):
+    if allrank == 0 and not path.exists(train_npy_dir):
         mkdir(train_npy_dir)
     label = LabelGenerator(train_npy_dir, other.name)
     input = InputGenerator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
