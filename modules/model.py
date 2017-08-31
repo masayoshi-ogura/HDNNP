@@ -123,14 +123,13 @@ class SingleNNP(object):
         e_grad_hidden1_cost = np.dot(e_hidden1_errors[:, None], Gi[None, :])
 
         # forces
-        R = len(dGi)
         f_output_errors = np.zeros(1)
         f_hidden2_errors = np.zeros(self.hidden2_nodes)
         f_hidden1_errors = np.zeros(self.hidden1_nodes)
         f_grad_output_cost = np.zeros((self.output_nodes, self.hidden2_nodes))
         f_grad_hidden2_cost = np.zeros((self.hidden2_nodes, self.hidden1_nodes))
         f_grad_hidden1_cost = np.zeros((self.hidden1_nodes, self.input_nodes))
-        for r in range(R):
+        for r in range(3*self.natom):
             f_output_error = F_errors[r]
             coef = np.dot(self.w[1], self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[0], dGi[r]))
             f_hidden2_error = self.dif_activation_func(self.hidden2_inputs) * \
@@ -141,18 +140,18 @@ class SingleNNP(object):
             f_output_errors += f_output_error
             f_hidden2_errors += f_hidden2_error
             f_hidden1_errors += f_hidden1_error
-            f_grad_output_cost += np.dot(f_output_error.reshape((-1, 1)), (- self.dif_activation_func(self.hidden2_inputs) * coef).reshape((1, -1)))
-            f_grad_hidden2_cost += np.dot(f_hidden2_error.reshape((-1, 1)), self.hidden1_outputs.reshape((1, -1)))
-            f_grad_hidden1_cost += np.dot(f_hidden1_error.reshape((-1, 1)), Gi.reshape((1, -1)))
+            f_grad_output_cost += np.dot(f_output_error[:, None], (- self.dif_activation_func(self.hidden2_inputs) * coef)[None, :])
+            f_grad_hidden2_cost += np.dot(f_hidden2_error[:, None], self.hidden1_outputs[None, :])
+            f_grad_hidden1_cost += np.dot(f_hidden1_error[:, None], Gi[None, :])
 
     # modify weight parameters
         w_grad, b_grad = [], []
-        w_grad.append(self.learning_rate * (e_grad_hidden1_cost - self.beta * f_grad_hidden1_cost / R))
-        w_grad.append(self.learning_rate * (e_grad_hidden2_cost - self.beta * f_grad_hidden2_cost / R))
-        w_grad.append(self.learning_rate * (e_grad_output_cost - self.beta * f_grad_output_cost / R))
-        b_grad.append(self.learning_rate * (e_hidden1_errors - self.beta * f_hidden1_errors / R))
-        b_grad.append(self.learning_rate * (e_hidden2_errors - self.beta * f_hidden2_errors / R))
-        b_grad.append(self.learning_rate * (e_output_errors - self.beta * f_output_errors / R))
+        w_grad.append(self.learning_rate * (e_grad_hidden1_cost - self.beta * f_grad_hidden1_cost / (3*self.natom)))
+        w_grad.append(self.learning_rate * (e_grad_hidden2_cost - self.beta * f_grad_hidden2_cost / (3*self.natom)))
+        w_grad.append(self.learning_rate * (e_grad_output_cost - self.beta * f_grad_output_cost / (3*self.natom)))
+        b_grad.append(self.learning_rate * (e_hidden1_errors - self.beta * f_hidden1_errors / (3*self.natom)))
+        b_grad.append(self.learning_rate * (e_hidden2_errors - self.beta * f_hidden2_errors / (3*self.natom)))
+        b_grad.append(self.learning_rate * (e_output_errors - self.beta * f_output_errors / (3*self.natom)))
         return w_grad, b_grad
 
     def __energy(self, Gi):
