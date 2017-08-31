@@ -7,60 +7,31 @@
 #
 ###########################################################
 
-# define hyper parameters
-# natom: int
-#        the number of atoms in the cell
-# Rcs, etas, Rss: list of float
-#                 parameter of symmetric functions
-# lams, zetas: list of int
-#              lams is -1 or 1
-#              zetas is 1,2,4,...
-# learning_rate: float
-#                learning rate for each training
-# beta: float
-#       mixing parameter between energy and force
-# gamma: float
-#        momentum rate for updating weight parameters
-# hidden_nodes: int
-#               the number of nodes for each hidden layers in NN
-# nepoch: int
-#         the number of epochs
-# nsubset: int
-#          the number of datas in the subset which is selected from all training data set
+
 class hp:
     # about symmetric functions
-    natom          = 
-    Rcs            = []
-    etas           = []
-    Rss            = []
-    lams           = []
-    zetas          = []
+    natom =
+    Rcs = []
+    etas = []
+    Rss = []
+    lams = []
+    zetas = []
     # about training
-    learning_rate  = 
-    beta           = 
-    gamma          = 
-    hidden_nodes   = 
-    nepoch         = 
-    nsubset        = 
+    learning_rate =
+    beta =
+    gamma =
+    hidden_nodes =
+    nepoch =
+    nsubset =
 
-# define boolean
-# IMPORT_QUIPPY: boolean
-#          whether start from scratch or restart trianing
-#          when True, load weight parameters from npy file
-# LOAD_TRAINING_XYZ_DATA: boolean
-# LOAD_WEIGHT_PARAMS, SAVE_WEIGHT_PARAMS: boolean
+
 class bool:
-    IMPORT_QUIPPY          = 
-    LOAD_TRAINING_XYZ_DATA = 
-    LOAD_WEIGHT_PARAMS     = 
-    SAVE_WEIGHT_PARAMS     = 
+    CALC_INPUT =
+    LOAD_WEIGHT_PARAMS =
+    SAVE_WEIGHT_PARAMS =
 
-# define other vairables
-# xyzfile,name: string
-#               filename and specific structure 
-# output_interval: int
-#                  the number of interval to output RMSE to progress file
+
 class other:
-    xyzfile         = 
-    name            = 
-    output_interval = 
+    xyzfile =
+    name =
+    output_interval =
