@@ -21,20 +21,19 @@ except ImportError:
 
 
 class LabelGenerator(object):
-    def __init__(self, train_npy_dir, name):
+    def __init__(self, train_npy_dir):
         self.train_npy_dir = train_npy_dir
-        self.name = name
 
-    def make(self, atoms_objs, natom, nsample):
+    def make(self, atoms_objs, nsample):
         Es = np.array([data.cohesive_energy for data in atoms_objs])
-        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*natom))
-        np.save(path.join(self.train_npy_dir, self.name+'-Es.npy'), Es)
-        np.save(path.join(self.train_npy_dir, self.name+'-Fs.npy'), Fs)
+        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*hp.natom))
+        np.save(path.join(self.train_npy_dir, 'Es.npy'), Es)
+        np.save(path.join(self.train_npy_dir, 'Fs.npy'), Fs)
         return Es, Fs
 
     def load(self):
-        Es = np.load(path.join(self.train_npy_dir, self.name+'-Es.npy'))
-        Fs = np.load(path.join(self.train_npy_dir, self.name+'-Fs.npy'))
+        Es = np.load(path.join(self.train_npy_dir, 'Es.npy'))
+        Fs = np.load(path.join(self.train_npy_dir, 'Fs.npy'))
         return Es, Fs
 
 
@@ -43,19 +42,18 @@ class EFGenerator(LabelGenerator):
 
 
 class InputGenerator(object):
-    def __init__(self, train_npy_dir, name, Rcs, etas, Rss, lams, zetas):
+    def __init__(self, train_npy_dir):
         self.train_npy_dir = train_npy_dir
-        self.name = name
-        self.Rcs = Rcs
-        self.etas = etas
-        self.Rss = Rss
-        self.lams = lams
-        self.zetas = zetas
+        self.natom = hp.natom
+        self.Rcs = hp.Rcs
+        self.etas = hp.etas
+        self.Rss = hp.Rss
+        self.lams = hp.lams
+        self.zetas = hp.zetas
 
-    def make(self, comm, size, rank, atoms_objs, natom, nsample, ninput):
+    def make(self, comm, size, rank, atoms_objs, nsample, ninput):
         self.comm = comm
         self.atoms_objs = atoms_objs
-        self.natom = natom
         self.nsample = nsample
         quo, rem = self.nsample/size, self.nsample % size
         if rank < rem:
@@ -68,7 +66,7 @@ class InputGenerator(object):
 
         n = 0
         for Rc in self.Rcs:
-            prefix = path.join(self.train_npy_dir, '{}-G1-{}'.format(self.name, Rc))
+            prefix = path.join(self.train_npy_dir, 'G1-{}'.format(Rc))
             if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
                 Gs[n] = np.load(prefix+'-Gs.npy')
                 dGs[n] = np.load(prefix+'-dGs.npy')
@@ -82,7 +80,7 @@ class InputGenerator(object):
 
             for eta in self.etas:
                 for Rs in self.Rss:
-                    prefix = path.join(self.train_npy_dir, '{}-G2-{}-{}-{}'.format(self.name, Rc, eta, Rs))
+                    prefix = path.join(self.train_npy_dir, 'G2-{}-{}-{}'.format(Rc, eta, Rs))
                     if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
                         Gs[n] = np.load(prefix+'-Gs.npy')
                         dGs[n] = np.load(prefix+'-dGs.npy')
@@ -96,7 +94,7 @@ class InputGenerator(object):
 
                 for lam in self.lams:
                     for zeta in self.zetas:
-                        prefix = path.join(self.train_npy_dir, '{}-G4-{}-{}-{}-{}'.format(self.name, Rc, eta, lam, zeta))
+                        prefix = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}'.format(Rc, eta, lam, zeta))
                         if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
                             Gs[n] = np.load(prefix+'-Gs.npy')
                             dGs[n] = np.load(prefix+'-dGs.npy')
@@ -112,21 +110,21 @@ class InputGenerator(object):
     def load(self):
         loaded_G, loaded_dG = [], []
         for Rc in self.Rcs:
-            prefix = path.join(self.train_npy_dir, '{}-G1-{}'.format(self.name, Rc))
+            prefix = path.join(self.train_npy_dir, 'G1-{}'.format(Rc))
             if path.exists(prefix+'-Gs.npy'):
                 loaded_G.append(np.load(prefix+'-Gs.npy'))
                 loaded_dG.append(np.load(prefix+'-dGs.npy'))
 
             for eta in self.etas:
                 for Rs in self.Rss:
-                    prefix = path.join(self.train_npy_dir, '{}-G2-{}-{}-{}'.format(self.name, Rc, eta, Rs))
+                    prefix = path.join(self.train_npy_dir, 'G2-{}-{}-{}'.format(Rc, eta, Rs))
                     if path.exists(prefix+'-Gs.npy'):
                         loaded_G.append(np.load(prefix+'-Gs.npy'))
                         loaded_dG.append(np.load(prefix+'-dGs.npy'))
 
                 for lam in self.lams:
                     for zeta in self.zetas:
-                        prefix = path.join(self.train_npy_dir, '{}-G4-{}-{}-{}-{}'.format(self.name, Rc, eta, lam, zeta))
+                        prefix = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}'.format(Rc, eta, lam, zeta))
                         if path.exists(prefix+'-Gs.npy'):
                             loaded_G.append(np.load(prefix+'-Gs.npy'))
                             loaded_dG.append(np.load(prefix+'-dGs.npy'))
@@ -337,8 +335,8 @@ def make_dataset(allcomm, allrank, allsize):
     train_npy_dir = path.join(train_dir, 'npy', other.name)
     if allrank == 0 and not path.exists(train_npy_dir):
         mkdir(train_npy_dir)
-    label = LabelGenerator(train_npy_dir, other.name)
-    input = InputGenerator(train_npy_dir, other.name, hp.Rcs, hp.etas, hp.Rss, hp.lams, hp.zetas)
+    label = LabelGenerator(train_npy_dir)
+    input = InputGenerator(train_npy_dir)
 
     if bool_.CALC_INPUT:
         alldataset = AtomsReader(train_xyz_file)
@@ -347,11 +345,11 @@ def make_dataset(allcomm, allrank, allsize):
             if data.config_type == other.name and data.cohesive_energy < 0.0:
                 coordinates.append(data)
         nsample = len(coordinates)
-        Es, Fs = label.make(coordinates, hp.natom, nsample)
+        Es, Fs = label.make(coordinates, nsample)
         ninput = len(hp.Rcs) + \
             len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-        Gs, dGs = input.make(allcomm, allsize, allrank, coordinates, hp.natom, nsample, ninput)
+        Gs, dGs = input.make(allcomm, allsize, allrank, coordinates, nsample, ninput)
     else:
         Es, Fs = label.load()
         Gs, dGs = input.load()

@@ -6,17 +6,22 @@ import numpy as np
 from mpi4py import MPI
 from scipy.special import expit
 
+from config import hp
+
 
 class SingleNNP(object):
-    def __init__(self, comm, rank, network_shape, learning_rate, beta, gamma, natom, nsample):
+    def __init__(self, comm, rank, nsample, ninput):
         self.comm = comm
         self.rank = rank
-        self.natom = natom
+        self.natom = hp.natom
         self.nsample = nsample
-        self.input_nodes, self.hidden1_nodes, self.hidden2_nodes, self.output_nodes = network_shape
-        self.learning_rate = learning_rate
-        self.beta = beta
-        self.gamma = gamma
+        self.input_nodes = ninput
+        self.hidden1_nodes = hp.hidden_nodes
+        self.hidden2_nodes = hp.hidden_nodes
+        self.output_nodes = 1
+        self.learning_rate = hp.learning_rate
+        self.beta = hp.beta
+        self.gamma = hp.gamma
 
         # initialize weight parameters
         self.w, self.b = [], []

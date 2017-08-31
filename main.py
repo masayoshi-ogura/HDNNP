@@ -28,7 +28,7 @@ if allrank == 0:
     file = open('progress-'+datestr+'.out', 'w')
     stime = time()
 
-dataset, hp.nsample, hp.ninput = make_dataset(allcomm, allrank, allsize)
+dataset, nsample, ninput = make_dataset(allcomm, allrank, allsize)
 
 if allrank == 0:
     file.write("""
@@ -48,8 +48,8 @@ data_num_of_subset: {}
 
 iteration      spent time     energy RMSE    force RMSE     RMSE
 """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)), ','.join(map(str, hp.lams)),
-           ','.join(map(str, hp.zetas)), hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma,
-           hp.nepoch, hp.nsample, hp.ninput, hp.nsubset))
+           ','.join(map(str, hp.zetas)), ninput, hp.hidden_nodes, hp.hidden_nodes, 1, hp.learning_rate, hp.beta, hp.gamma,
+           hp.nepoch, nsample, ninput, hp.nsubset))
     file.flush()
 
 # use only "natom" nodes for NN
@@ -59,7 +59,7 @@ if allrank < hp.natom:
     NNrank = NNcomm.Get_rank()
 
     # initialize single NNP
-    nnp = SingleNNP(NNcomm, NNrank, (hp.ninput, hp.hidden_nodes, hp.hidden_nodes, 1), hp.learning_rate, hp.beta, hp.gamma, hp.natom, hp.nsample)
+    nnp = SingleNNP(NNcomm, NNrank, nsample, ninput)
     # load weight parameters when restart
     if bool_.LOAD_WEIGHT_PARAMS:
         nnp.load_w(weight_dir, other.name)
