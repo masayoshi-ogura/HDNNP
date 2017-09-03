@@ -54,8 +54,8 @@ class SingleNNP(object):
             outputs.append(self.activation(inputs[i+1]))
             deriv_inputs.append(np.tensordot(deriv_outputs[i], self.weights[i], ((1,), (1,))))
             deriv_outputs.append(self.deriv_activation(inputs[i+1])[None, :] * deriv_inputs[i+1])
-        Ei = np.dot(self.weights[-1], outputs) + self.bias[-1]
-        Fi = - np.tensordot(deriv_outputs, self.weights[-1], ((1,), (1,)))
+        Ei = np.dot(self.weights[-1], outputs[-1]) + self.bias[-1]
+        Fi = - np.tensordot(deriv_outputs[-1], self.weights[-1], ((1,), (1,)))
         inputs.append(Ei)
         outputs.append(None)
         deriv_inputs.append(Fi)
@@ -68,11 +68,11 @@ class SingleNNP(object):
 
         # backprop
         # energy
-        weight_grads = [np.zeros_like(weights) for weights in self.weights]
+        weight_grads = [np.zeros_like(weight) for weight in self.weights]
         bias_grads = [np.zeros_like(bias) for bias in self.bias]
         for i in reversed(range(self.nweight)):
             delta = self.deriv_activation(inputs[i+1]) * np.dot(delta, self.weights[i+1]) \
-                    if 'delta' in locals() else np.array([E_error])
+                    if 'delta' in locals() else E_error
             weight_grads[i] += delta[:, None] * outputs[i][None, :]
             bias_grads[i] += delta
     #
@@ -108,8 +108,8 @@ class HDNNP(object):
         self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp.weights, self.nnp.bias)
         self.nsample = nsample
 
-    def inference(self):
-        inputs, _, deriv_inputs, _ = self.nnp.feedforward()
+    def inference(self, Gi, dGi):
+        inputs, _, deriv_inputs, _ = self.nnp.feedforward(Gi, dGi)
         Ei = inputs[-1]
         Fi = deriv_inputs[-1]
         E, F = np.zeros_like(Ei), np.zeros_like(Fi)
@@ -117,31 +117,40 @@ class HDNNP(object):
         self.comm.Allreduce(Fi, F, op=MPI.SUM)
         return E, F
 
-    def training(self, alldataset):
-        if hp.optimizer in ['SGD', 'Adam']:
-            # TODO: random sample from alldataset
-            subdataset = sample(alldataset, hp.batch_size)
-            self.comm.bcast(subdataset, root=0)
-            for n in range():
-                # TODO: calc grad in subset and get average and update
-                E_true, F_true, G, dG = subdataset[n]
-                E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-                E_error = E_pred - E_true
-                F_error = F_pred - F_true
-                weight_grads, bias_grads = self.nnp.backprop(G[self.rank], dG[self.rank], E_error, F_error)
+    def training(self, dataset):
+        if hp.optimizer in ['sgd', 'adam']:
+            for m in range(self.nsample / hp.batch_size):
+                subdataset = sample(dataset, hp.batch_size)
+                self.comm.bcast(subdataset, root=0)
+
+                weight_grads = [np.zeros_like(weight) for weight in self.nnp.weights]
+                bias_grads = [np.zeros_like(bias) for bias in self.nnp.bias]
+                w_para = [np.zeros_like(weight) for weight in self.nnp.weights]
+                b_para = [np.zeros_like(bias) for bias in self.nnp.bias]
+                for E_true, F_true, G, dG in subdataset:
+                    E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
+                    E_error = E_pred - E_true
+                    F_error = F_pred - F_true
+                    w_tmp, b_tmp = self.nnp.backprop(G[self.rank], dG[self.rank], E_error, F_error)
+                    for w_p, b_p, w_t, b_t in zip(w_para, b_para, w_tmp, b_tmp):
+                        w_p += w_t / (self.nsample * hp.natom)
+                        b_p += b_t / (self.nsample * hp.natom)
+                for w_grad, b_grad, w_p, b_p in zip(weight_grads, bias_grads, w_para, b_para):
+                    self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
+                    self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)
+
                 self.optimizer.update_params(weight_grads, bias_grads)
-        elif hp.optimizer == 'BFGS':
+        elif hp.optimizer == 'bfgs':
             print 'Info: BFGS is off-line learning method. "batch_size" is ignored.'
             # TODO: BFGS optimize
             self.optimizer.update_params()
         else:
-            raise ValueError('invalid optimizer: select SGD or Adam or BFGS')
+            raise ValueError('invalid optimizer: select sgd or adam or bfgs')
 
     def calc_RMSE(self, dataset):
         E_MSE = 0.0
         F_MSE = 0.0
-        for n in range(self.nsample):
-            E_true, F_true, G, dG = dataset[n]
+        for E_true, F_true, G, dG in dataset:
             E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
             E_MSE += (E_pred - E_true) ** 2
             F_MSE += np.sum((F_pred - F_true)**2)

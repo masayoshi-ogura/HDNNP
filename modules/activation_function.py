@@ -2,12 +2,12 @@ import numpy as np
 from scipy.special import expit
 
 
-def sigmoid(x):
-    return expit(x)
-
-
 def tanh(x):
     return np.tanh(x)
+
+
+def sigmoid(x):
+    return expit(x)
 
 
 def relu(x):
@@ -18,19 +18,16 @@ def relu(x):
 ACTIVATIONS = {'tanh': tanh, 'sigmoid': sigmoid, 'relu': relu}
 
 
-def deriv_tanh(Z, delta):
-    # expit(x) * (1 - expit(x))
-    return
+def deriv_tanh(x):
+    return 1 - np.tanh(x)**2
 
 
-def deriv_sigmoid(Z, delta):
-    return
+def deriv_sigmoid(x):
+    return expit(x) * (1 - expit(x))
 
 
-def deriv_relu(Z, delta):
-    # 0 for x < 0
-    # 1 for x > 0
-    return
+def deriv_relu(x):
+    return (x > 0).astype(int)
 
 
 DERIVATIVES = {'tanh': deriv_tanh, 'sigmoid': deriv_sigmoid, 'relu': deriv_relu}
