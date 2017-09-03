@@ -3,7 +3,7 @@
 # define variables
 from config import hp
 from config import bool_
-from config import other
+from config import file_
 
 # import python modules
 from os import path
@@ -330,9 +330,8 @@ class SFGenerator(InputGenerator):
 
 
 def make_dataset(allcomm, allrank, allsize):
-    train_dir = 'training_data'
-    train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
-    train_npy_dir = path.join(train_dir, 'npy', other.name)
+    train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
+    train_npy_dir = path.join(file_.train_dir, 'npy', file_.name)
     if allrank == 0 and not path.exists(train_npy_dir):
         mkdir(train_npy_dir)
     label = LabelGenerator(train_npy_dir)
@@ -342,7 +341,7 @@ def make_dataset(allcomm, allrank, allsize):
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:
-            if data.config_type == other.name and data.cohesive_energy < 0.0:
+            if data.config_type == file_.name and data.cohesive_energy < 0.0:
                 coordinates.append(data)
         nsample = len(coordinates)
         Es, Fs = label.make(coordinates, nsample)
@@ -360,12 +359,8 @@ def make_dataset(allcomm, allrank, allsize):
     return dataset, nsample, ninput
 
 
-def main():
+if __name__ == '__main__':
     allcomm = MPI.COMM_WORLD
     allrank = allcomm.Get_rank()
     allsize = allcomm.Get_size()
     make_dataset(allcomm, allrank, allsize)
-
-
-if __name__ == '__main__':
-    main()
