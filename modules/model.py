@@ -9,7 +9,7 @@ from mpi4py import MPI
 
 from config import hp
 from config import file_
-from activation_function import ACTIVATIONS, DERIVATIVES
+from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
 from optimizer import OPTIMIZERS
 
 
@@ -25,6 +25,7 @@ class SingleNNP(object):
         self.beta = hp.beta
         self.activation = ACTIVATIONS[hp.activation]
         self.deriv_activation = DERIVATIVES[hp.activation]
+        self.second_deriv_activation = SECOND_DERIVATIVES[hp.activation]
 
         self.weights, self.bias = [], []
         for i in range(self.nweight):
@@ -67,36 +68,22 @@ class SingleNNP(object):
         inputs, outputs, deriv_inputs, deriv_outputs = self.feedforward(Gi, dGi)
 
         # backprop
-        # energy
         weight_grads = [np.zeros_like(weight) for weight in self.weights]
         bias_grads = [np.zeros_like(bias) for bias in self.bias]
+
         for i in reversed(range(self.nweight)):
-            delta = self.deriv_activation(inputs[i+1]) * np.dot(delta, self.weights[i+1]) \
-                    if 'delta' in locals() else E_error
-            weight_grads[i] += delta[:, None] * outputs[i][None, :]
-            bias_grads[i] += delta
-    #
-    #     # forces
-    #     f_output_errors = np.zeros(1)
-    #     f_hidden2_errors = np.zeros(self.hidden2_nodes)
-    #     f_hidden1_errors = np.zeros(self.hidden1_nodes)
-    #     f_grad_output_cost = np.zeros((self.output_nodes, self.hidden2_nodes))
-    #     f_grad_hidden2_cost = np.zeros((self.hidden2_nodes, self.hidden1_nodes))
-    #     f_grad_hidden1_cost = np.zeros((self.hidden1_nodes, self.input_nodes))
-    #     for r in range(3*self.natom):
-    #         f_output_error = np.array([F_errors[r]])
-    #         coef = np.dot(self.w[1], self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[0], dGi[r]))
-    #         f_hidden2_error = self.dif_activation_func(self.hidden2_inputs) * \
-    #             np.dot(- self.w[2], (1 - 2 * self.hidden2_outputs) * coef) * f_output_error
-    #         f_hidden1_error = self.dif_activation_func(self.hidden1_inputs) * \
-    #             np.dot(self.w[1].T, f_hidden2_error)
-    #
-    #         f_output_errors += f_output_error
-    #         f_hidden2_errors += f_hidden2_error
-    #         f_hidden1_errors += f_hidden1_error
-    #         f_grad_output_cost += np.dot(f_output_error[:, None], (- self.dif_activation_func(self.hidden2_inputs) * coef)[None, :])
-    #         f_grad_hidden2_cost += np.dot(f_hidden2_error[:, None], self.hidden1_outputs[None, :])
-    #         f_grad_hidden1_cost += np.dot(f_hidden1_error[:, None], Gi[None, :])
+            # energy
+            e_delta = self.deriv_activation(inputs[i+1]) * np.dot(e_delta, self.weights[i+1]) \
+                if 'e_delta' in locals() else E_error
+            weight_grads[i] += e_delta[:, None] * outputs[i][None, :]
+            bias_grads[i] += e_delta
+
+            # force
+            f_delta = (self.second_deriv_activation(inputs[i+1]) * np.dot(self.weights[i], outputs[i]) +
+                       self.deriv_activation(inputs[i+1]))[None, :] * np.dot(f_delta, self.weights[i+1]) \
+                if 'f_delta' in locals() else F_error
+            weight_grads[i] += hp.beta * np.tensordot(f_delta, -deriv_outputs[i], ((0,), (0,))) / (3 * hp.natom)
+
         return weight_grads, bias_grads
 
 
@@ -119,7 +106,7 @@ class HDNNP(object):
 
     def training(self, dataset):
         if hp.optimizer in ['sgd', 'adam']:
-            for m in range(self.nsample / hp.batch_size):
+            for m in range(self.nsample / hp.batch_size + 1):
                 subdataset = sample(dataset, hp.batch_size)
                 self.comm.bcast(subdataset, root=0)
 
@@ -152,7 +139,7 @@ class HDNNP(object):
         F_MSE = 0.0
         for E_true, F_true, G, dG in dataset:
             E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-            E_MSE += (E_pred - E_true) ** 2
+            E_MSE += np.sum((E_pred - E_true) ** 2)
             F_MSE += np.sum((F_pred - F_true)**2)
         E_RMSE = sqrt(E_MSE / self.nsample)
         F_RMSE = sqrt(F_MSE / (self.nsample * hp.natom * 3))

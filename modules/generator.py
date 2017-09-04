@@ -25,8 +25,8 @@ class LabelGenerator(object):
         self.train_npy_dir = train_npy_dir
 
     def make(self, atoms_objs, nsample):
-        Es = np.array([data.cohesive_energy for data in atoms_objs])
-        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*hp.natom))
+        Es = np.array([data.cohesive_energy for data in atoms_objs]).reshape((nsample, 1))
+        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*hp.natom, 1))
         np.save(path.join(self.train_npy_dir, 'Es.npy'), Es)
         np.save(path.join(self.train_npy_dir, 'Fs.npy'), Fs)
         return Es, Fs
