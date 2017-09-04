@@ -55,12 +55,13 @@ class AdamOptimizer(object):
         self.bias_vs = [hp.momentum2 * v + (1 - hp.momentum2) * (grad ** 2)
                         for v, grad in zip(self.bias_vs, bias_grads)]
 
-        hp.learning_rate = (hp.learning_rate *
-                            np.sqrt(1 - hp.momentum2 ** self.t) /
-                            (1 - hp.momentum1 ** self.t))
-        weight_updates = [-hp.learning_rate * m / (np.sqrt(v) + self.epsilon)
+        weight_updates = [- hp.learning_rate *
+                          (m / (1 - hp.momentum1**self.t)) /
+                          (np.sqrt(v / (1 - hp.momentum2**self.t)) + self.epsilon)
                           for m, v in zip(self.weight_ms, self.weight_vs)]
-        bias_updates = [-hp.learning_rate * m / (np.sqrt(v) + self.epsilon)
+        bias_updates = [- hp.learning_rate *
+                        (m / (1 - hp.momentum1**self.t)) /
+                        (np.sqrt(v / (1 - hp.momentum2**self.t)) + self.epsilon)
                         for m, v in zip(self.bias_ms, self.bias_vs)]
 
         for weight, bias, weight_update, bias_update in zip(self.weights, self.bias, weight_updates, bias_updates):
