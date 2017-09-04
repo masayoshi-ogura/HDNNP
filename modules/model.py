@@ -139,7 +139,7 @@ class HDNNP(object):
                     self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
                     self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)
 
-                self.optimizer.update_params(weight_grads, bias_grads)
+                self.nnp.weights, self.nnp.bias = self.optimizer.update_params(weight_grads, bias_grads)
         elif hp.optimizer == 'bfgs':
             print 'Info: BFGS is off-line learning method. "batch_size" is ignored.'
             # TODO: BFGS optimize

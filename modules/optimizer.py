@@ -28,6 +28,8 @@ class SGDOptimizer(object):
             weight += weight_update
             bias += bias_update
 
+        return self.weights, self.bias
+
 
 class AdamOptimizer(object):
     def __init__(self, weights, bias):
@@ -64,6 +66,8 @@ class AdamOptimizer(object):
         for weight, bias, weight_update, bias_update in zip(self.weights, self.bias, weight_updates, bias_updates):
             weight += weight_update
             bias += bias_update
+
+        return self.weights, self.bias
 
 
 class BFGSOptimizer(object):
