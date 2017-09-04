@@ -73,18 +73,18 @@ class SingleNNP(object):
         bias_grads = [np.zeros_like(bias) for bias in self.bias]
 
         for i in reversed(range(self.nweight)):
-            # energy
-            e_delta = self.deriv_activation(inputs[i+1]) * np.dot(e_delta, self.weights[i+1]) \
-                if 'e_delta' in locals() else E_error
-                # if 'e_delta' in locals() else np.clip(E_error, -10., 10.)
-            weight_grads[i] += e_delta[:, None] * outputs[i][None, :]
-            bias_grads[i] += e_delta
+            # # energy
+            # e_delta = self.deriv_activation(inputs[i+1]) * np.dot(e_delta, self.weights[i+1]) \
+            #     if 'e_delta' in locals() else np.clip(E_error, -10., 10.)  # Huber loss
+            #     # if 'e_delta' in locals() else E_erro  # squared loss
+            # weight_grads[i] += e_delta[:, None] * outputs[i][None, :]
+            # bias_grads[i] += e_delta
 
             # force
             f_delta = (self.second_deriv_activation(inputs[i+1]) * np.dot(self.weights[i], outputs[i]) +
                        self.deriv_activation(inputs[i+1]))[None, :] * np.dot(f_delta, self.weights[i+1]) \
-                if 'f_delta' in locals() else F_error
-                # if 'f_delta' in locals() else np.clip(F_error, -10., 10.)
+                if 'f_delta' in locals() else np.clip(F_error, -10., 10.)  # Huber loss
+                # if 'f_delta' in locals() else F_error  # squared loss
             weight_grads[i] += hp.beta * np.tensordot(f_delta, -deriv_outputs[i], ((0,), (0,))) / (3 * hp.natom)
 
         return weight_grads, bias_grads
@@ -128,8 +128,6 @@ class HDNNP(object):
                 for w_grad, b_grad, w_p, b_p in zip(weight_grads, bias_grads, w_para, b_para):
                     self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
                     self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)
-                if self.rank == 0:  # debug
-                    print E_pred, E_error  # debug
 
                 self.nnp.weights, self.nnp.bias = self.optimizer.update_params(weight_grads, bias_grads)
         elif hp.optimizer == 'bfgs':
@@ -140,18 +138,19 @@ class HDNNP(object):
             raise ValueError('invalid optimizer: select sgd or adam or bfgs')
 
     def calc_RMSE(self, dataset):
-        plt.clf()
+        plt.clf()  # debug
         E_MSE = 0.0
         F_MSE = 0.0
         for E_true, F_true, G, dG in dataset:
             E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-            plt.scatter(E_pred, E_true)  # debug
+            plt.scatter(F_pred[0], F_true[0])  # debug
             E_MSE += np.sum((E_pred - E_true) ** 2)
             F_MSE += np.sum((F_pred - F_true)**2)
         E_RMSE = sqrt(E_MSE / self.nsample)
         F_RMSE = sqrt(F_MSE / (self.nsample * hp.natom * 3))
         RMSE = E_RMSE + hp.beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE, plt  # debug
+        # return E_RMSE, F_RMSE, RMSE
 
     def save_w(self, datestr):
         weight_save_dir = path.join(file_.weight_dir, datestr)
