@@ -4,7 +4,6 @@ from os import path
 from os import mkdir
 from math import sqrt
 from random import sample
-import matplotlib.pyplot as plt  # debug
 import numpy as np
 from mpi4py import MPI
 
@@ -30,7 +29,7 @@ class SingleNNP(object):
 
         self.weights, self.bias = [], []
         for i in range(self.nweight):
-            self.weights.append(np.random.normal(0.0, 0.5, (self.shape[i+1], self.shape[i])))
+            self.weights.append(np.random.normal(0.0, 0.5, (self.shape[i], self.shape[i+1])))
             self.bias.append(np.random.normal(0.0, 0.5, (self.shape[i+1])))
 
     def loss_func(self, E_true, E_pred, F_true, F_pred):
@@ -47,45 +46,45 @@ class SingleNNP(object):
         return loss
 
     def feedforward(self, Gi, dGi):
-        inputs = [None]
-        outputs = [Gi]
-        deriv_inputs = [None]
-        deriv_outputs = [dGi]
-        for i in range(self.nlayer):
-            inputs.append(np.dot(self.weights[i], outputs[i]) + self.bias[i])
-            outputs.append(self.activation(inputs[i+1]))
-            deriv_inputs.append(np.tensordot(deriv_outputs[i], self.weights[i], ((1,), (1,))))
-            deriv_outputs.append(self.deriv_activation(inputs[i+1])[None, :] * deriv_inputs[i+1])
-        Ei = np.dot(self.weights[-1], outputs[-1]) + self.bias[-1]
-        Fi = - np.tensordot(deriv_outputs[-1], self.weights[-1], ((1,), (1,)))
-        inputs.append(Ei)
-        outputs.append(None)
-        deriv_inputs.append(Fi)
-        deriv_outputs.append(None)
-        return inputs, outputs, deriv_inputs, deriv_outputs
+        # "inputs" means "linear transformation's input", not "each layer's input"
+        # "outputs" means "linear transformation's output", not "each layer's output"
+        inputs, outputs, deriv_inputs, deriv_outputs = [], [], [], []
+        for i in range(self.nweight):
+            if i == 0:
+                inputs.append(Gi)
+                deriv_inputs.append(np.identity(self.shape[0]))
+            else:
+                inputs.append(self.activation(outputs[i-1]))
+                deriv_inputs.append(self.deriv_activation(outputs[i-1])[None, :] * deriv_outputs[i-1])
+            outputs.append(np.dot(inputs[i], self.weights[i]) + self.bias[i])
+            deriv_outputs.append(np.dot(deriv_inputs[i], self.weights[i]))
+        Ei = outputs[-1]
+        Fi = - np.dot(dGi, deriv_outputs[-1])
+        return Ei, Fi, inputs, outputs, deriv_inputs, deriv_outputs
 
     def backprop(self, Gi, dGi, E_error, F_error):
         # feedforward
-        inputs, outputs, deriv_inputs, deriv_outputs = self.feedforward(Gi, dGi)
+        _, _, inputs, outputs, deriv_inputs, deriv_outputs = self.feedforward(Gi, dGi)
 
         # backprop
         weight_grads = [np.zeros_like(weight) for weight in self.weights]
         bias_grads = [np.zeros_like(bias) for bias in self.bias]
 
         for i in reversed(range(self.nweight)):
-            # # energy
-            # e_delta = self.deriv_activation(inputs[i+1]) * np.dot(e_delta, self.weights[i+1]) \
-            #     if 'e_delta' in locals() else np.clip(E_error, -10., 10.)  # Huber loss
-            #     # if 'e_delta' in locals() else E_erro  # squared loss
-            # weight_grads[i] += e_delta[:, None] * outputs[i][None, :]
-            # bias_grads[i] += e_delta
+            # energy
+            e_delta = self.deriv_activation(outputs[i]) * np.dot(self.weights[i+1], e_delta) \
+                if 'e_delta' in locals() else np.clip(E_error, -10., 10.)  # Huber loss
+                # if 'e_delta' in locals() else E_error  # squared loss
+            weight_grads[i] += inputs[i][:, None] * e_delta[None, :]
+            bias_grads[i] += e_delta
 
             # force
-            f_delta = (self.second_deriv_activation(inputs[i+1]) * np.dot(self.weights[i], outputs[i]) +
-                       self.deriv_activation(inputs[i+1]))[None, :] * np.dot(f_delta, self.weights[i+1]) \
-                if 'f_delta' in locals() else np.clip(F_error, -10., 10.)  # Huber loss
+            f_delta = (self.second_deriv_activation(outputs[i]) * np.dot(inputs[i], self.weights[i]) +
+                       self.deriv_activation(outputs[i]))[None, :] * np.dot(f_delta, self.weights[i+1].T) \
+                if 'f_delta' in locals() else np.clip(F_error, -0.05, 0.05)  # Huber loss
                 # if 'f_delta' in locals() else F_error  # squared loss
-            weight_grads[i] += hp.beta * np.tensordot(f_delta, -deriv_outputs[i], ((0,), (0,))) / (3 * hp.natom)
+            weight_grads[i] += (hp.beta / (3 * hp.natom)) * \
+                np.tensordot(- np.dot(dGi, deriv_inputs[i]), f_delta, ((0,), (0,)))
 
         return weight_grads, bias_grads
 
@@ -99,9 +98,7 @@ class HDNNP(object):
         self.nsample = nsample
 
     def inference(self, Gi, dGi):
-        inputs, _, deriv_inputs, _ = self.nnp.feedforward(Gi, dGi)
-        Ei = inputs[-1]
-        Fi = deriv_inputs[-1]
+        Ei, Fi, _, _, _, _ = self.nnp.feedforward(Gi, dGi)
         E, F = np.zeros_like(Ei), np.zeros_like(Fi)
         self.comm.Allreduce(Ei, E, op=MPI.SUM)
         self.comm.Allreduce(Fi, F, op=MPI.SUM)
@@ -138,19 +135,16 @@ class HDNNP(object):
             raise ValueError('invalid optimizer: select sgd or adam or bfgs')
 
     def calc_RMSE(self, dataset):
-        plt.clf()  # debug
         E_MSE = 0.0
         F_MSE = 0.0
         for E_true, F_true, G, dG in dataset:
             E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-            plt.scatter(F_pred[0], F_true[0])  # debug
             E_MSE += np.sum((E_pred - E_true) ** 2)
-            F_MSE += np.sum((F_pred - F_true)**2)
+            F_MSE += np.sum((F_pred - F_true) ** 2)
         E_RMSE = sqrt(E_MSE / self.nsample)
         F_RMSE = sqrt(F_MSE / (self.nsample * hp.natom * 3))
         RMSE = E_RMSE + hp.beta * F_RMSE
-        return E_RMSE, F_RMSE, RMSE, plt  # debug
-        # return E_RMSE, F_RMSE, RMSE
+        return E_RMSE, F_RMSE, RMSE
 
     def save_w(self, datestr):
         weight_save_dir = path.join(file_.weight_dir, datestr)

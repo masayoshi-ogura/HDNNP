@@ -69,9 +69,7 @@ if allrank < hp.natom:
     # training
     for m in range(hp.nepoch):
         hdnnp.training(dataset)
-        # E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(dataset)
-        E_RMSE, F_RMSE, RMSE, plt = hdnnp.calc_RMSE(dataset)  # debug
-        plt.savefig('F0_RMSE_{}.png'.format(m+1))  # debug
+        E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(dataset)
         if allrank == 0:
             file.write('{:<15}{:<15}{:<15}{:<15}{:<15}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
             file.flush()

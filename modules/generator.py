@@ -142,6 +142,7 @@ class InputGenerator(object):
             dGs_para[m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        # sclaing
         Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
         dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
         return Gs, dGs
@@ -168,6 +169,7 @@ class InputGenerator(object):
             dGs_para[m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        # sclaing
         Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
         dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
         return Gs, dGs
@@ -195,6 +197,7 @@ class InputGenerator(object):
             dGs_para[m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        # sclaing
         Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
         dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
         return Gs, dGs
