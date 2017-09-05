@@ -1,188 +1,167 @@
 # -*- coding: utf-8 -*-
 
 from os import path
+from os import mkdir
 from math import sqrt
+from random import sample
 import numpy as np
 from mpi4py import MPI
-from scipy.special import expit
 
 from config import hp
+from config import file_
+from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
+from optimizer import OPTIMIZERS
 
 
 class SingleNNP(object):
+    def __init__(self, comm, nsample, ninput):
+        self.comm = comm
+        self.natom = hp.natom
+        self.nsample = nsample
+        self.shape = (ninput,) + hp.hidden_layer + (1,)
+        self.nlayer = len(hp.hidden_layer)
+        self.nweight = len(hp.hidden_layer) + 1
+        self.learning_rate = hp.learning_rate
+        self.beta = hp.beta
+        self.activation = ACTIVATIONS[hp.activation]
+        self.deriv_activation = DERIVATIVES[hp.activation]
+        self.second_deriv_activation = SECOND_DERIVATIVES[hp.activation]
+
+        self.weights, self.bias = [], []
+        for i in range(self.nweight):
+            self.weights.append(np.random.normal(0.0, 0.5, (self.shape[i], self.shape[i+1])))
+            self.bias.append(np.random.normal(0.0, 0.5, (self.shape[i+1])))
+
+    def loss_func(self, E_true, E_pred, F_true, F_pred):
+        # sync weights between the NNP of the same atom
+        for i in range(self.nweight):
+            tmp_weights = np.zeros_like(self.weights[i])
+            tmp_bias = np.zeros_like(self.bias[i])
+            self.comm.Allreduce(self.weights[i], tmp_weights, op=MPI.SUM)
+            self.comm.Allreduce(self.bias[i], tmp_bias, op=MPI.SUM)
+            self.weights[i] = tmp_weights / self.natom
+            self.bias[i] = tmp_bias / self.natom
+        # loss function
+        loss = (E_pred - E_true)**2 + hp.beta * (F_pred - F_true)**2 / (3 * hp.natom)
+        return loss
+
+    def feedforward(self, Gi, dGi):
+        # "inputs" means "linear transformation's input", not "each layer's input"
+        # "outputs" means "linear transformation's output", not "each layer's output"
+        inputs, outputs, deriv_inputs, deriv_outputs = [], [], [], []
+        for i in range(self.nweight):
+            if i == 0:
+                inputs.append(Gi)
+                deriv_inputs.append(np.identity(self.shape[0]))
+            else:
+                inputs.append(self.activation(outputs[i-1]))
+                deriv_inputs.append(self.deriv_activation(outputs[i-1])[None, :] * deriv_outputs[i-1])
+            outputs.append(np.dot(inputs[i], self.weights[i]) + self.bias[i])
+            deriv_outputs.append(np.dot(deriv_inputs[i], self.weights[i]))
+        Ei = outputs[-1]
+        Fi = - np.dot(dGi, deriv_outputs[-1])
+        return Ei, Fi, inputs, outputs, deriv_inputs, deriv_outputs
+
+    def backprop(self, Gi, dGi, E_error, F_error):
+        # feedforward
+        _, _, inputs, outputs, deriv_inputs, deriv_outputs = self.feedforward(Gi, dGi)
+
+        # backprop
+        weight_grads = [np.zeros_like(weight) for weight in self.weights]
+        bias_grads = [np.zeros_like(bias) for bias in self.bias]
+
+        for i in reversed(range(self.nweight)):
+            # energy
+            e_delta = self.deriv_activation(outputs[i]) * np.dot(self.weights[i+1], e_delta) \
+                if 'e_delta' in locals() else np.clip(E_error, -10., 10.)  # Huber loss
+                # if 'e_delta' in locals() else E_error  # squared loss
+            weight_grads[i] += inputs[i][:, None] * e_delta[None, :]
+            bias_grads[i] += e_delta
+
+            # force
+            f_delta = (self.second_deriv_activation(outputs[i]) * np.dot(inputs[i], self.weights[i]) +
+                       self.deriv_activation(outputs[i]))[None, :] * np.dot(f_delta, self.weights[i+1].T) \
+                if 'f_delta' in locals() else np.clip(F_error, -0.05, 0.05)  # Huber loss
+                # if 'f_delta' in locals() else F_error  # squared loss
+            weight_grads[i] += (hp.beta / (3 * hp.natom)) * \
+                np.tensordot(- np.dot(dGi, deriv_inputs[i]), f_delta, ((0,), (0,)))
+
+        return weight_grads, bias_grads
+
+
+class HDNNP(object):
     def __init__(self, comm, rank, nsample, ninput):
         self.comm = comm
         self.rank = rank
-        self.natom = hp.natom
+        self.nnp = SingleNNP(comm, nsample, ninput)
+        self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp.weights, self.nnp.bias)
         self.nsample = nsample
-        self.input_nodes = ninput
-        self.hidden1_nodes = hp.hidden_nodes
-        self.hidden2_nodes = hp.hidden_nodes
-        self.output_nodes = 1
-        self.learning_rate = hp.learning_rate
-        self.beta = hp.beta
-        self.gamma = hp.gamma
 
-        # initialize weight parameters
-        self.w, self.b = [], []
-        self.w.append(np.random.normal(0.0, 0.5, (self.hidden1_nodes, self.input_nodes)))
-        self.b.append(np.random.normal(0.0, 0.5, (self.hidden1_nodes)))
-        self.w.append(np.random.normal(0.0, 0.5, (self.hidden2_nodes, self.hidden1_nodes)))
-        self.b.append(np.random.normal(0.0, 0.5, (self.hidden2_nodes)))
-        self.w.append(np.random.normal(-0.1, 0.5, (self.output_nodes, self.hidden2_nodes)))
-        self.b.append(np.random.normal(-0.1, 0.5, (self.output_nodes)))
+    def inference(self, Gi, dGi):
+        Ei, Fi, _, _, _, _ = self.nnp.feedforward(Gi, dGi)
+        E, F = np.zeros_like(Ei), np.zeros_like(Fi)
+        self.comm.Allreduce(Ei, E, op=MPI.SUM)
+        self.comm.Allreduce(Fi, F, op=MPI.SUM)
+        return E, F
 
-        # accumulation of weight parameters and bias parameters
-        self.v_w = [np.zeros_like(self.w[0]), np.zeros_like(self.w[1]), np.zeros_like(self.w[2])]
-        self.v_b = [np.zeros_like(self.b[0]), np.zeros_like(self.b[1]), np.zeros_like(self.b[2])]
+    def training(self, dataset):
+        if hp.optimizer in ['sgd', 'adam']:
+            for m in range(self.nsample / hp.batch_size + 1):
+                subdataset = sample(dataset, hp.batch_size)
+                subdataset = self.comm.bcast(subdataset, root=0)
 
-        # define activation function and derivative
-        self.activation_func = lambda x: expit(x)
-        self.dif_activation_func = lambda x: expit(x) * (1 - expit(x))
+                weight_grads = [np.zeros_like(weight) for weight in self.nnp.weights]
+                bias_grads = [np.zeros_like(bias) for bias in self.nnp.bias]
+                w_para = [np.zeros_like(weight) for weight in self.nnp.weights]
+                b_para = [np.zeros_like(bias) for bias in self.nnp.bias]
+                for E_true, F_true, G, dG in subdataset:
+                    E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
+                    E_error = E_pred - E_true
+                    F_error = F_pred - F_true
+                    w_tmp, b_tmp = self.nnp.backprop(G[self.rank], dG[self.rank], E_error, F_error)
+                    for w_p, b_p, w_t, b_t in zip(w_para, b_para, w_tmp, b_tmp):
+                        w_p += w_t / (hp.batch_size * hp.natom)
+                        b_p += b_t / (hp.batch_size * hp.natom)
+                for w_grad, b_grad, w_p, b_p in zip(weight_grads, bias_grads, w_para, b_para):
+                    self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
+                    self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)
 
-    def train(self, nsubset, subdataset):
-        w_grad_sum = [np.zeros_like(self.w[0]), np.zeros_like(self.w[1]), np.zeros_like(self.w[2])]
-        b_grad_sum = [np.zeros_like(self.b[0]), np.zeros_like(self.b[1]), np.zeros_like(self.b[2])]
-
-        # before calculating grad_sum, renew weight and bias parameters with old v_w and v_b
-        for i in range(3):
-            self.w[i] += self.gamma * self.v_w[i]
-            self.b[i] += self.gamma * self.v_b[i]
-
-        # calculate grad_sum
-        for n in range(nsubset):
-            Et = subdataset[n][0]
-            Frt = subdataset[n][1]
-            G = subdataset[n][2]
-            dG = subdataset[n][3]
-            E = self.__query_E(G[self.rank])
-            Fr = self.__query_F(G[self.rank], dG[self.rank])
-            E_error = Et - E
-            F_errors = Frt - Fr
-            w_grad, b_grad = self.__gradient(G[self.rank], dG[self.rank], E_error, F_errors)
-            for i in range(3):
-                w_recv = np.zeros_like(w_grad[i])
-                b_recv = np.zeros_like(b_grad[i])
-                self.comm.Allreduce(w_grad[i], w_recv, op=MPI.SUM)
-                self.comm.Allreduce(b_grad[i], b_recv, op=MPI.SUM)
-                w_grad_sum[i] += w_recv
-                b_grad_sum[i] += b_recv
-
-        # renew weight and bias parameters with calculated gradient
-        for i in range(3):
-            self.w[i] += w_grad_sum[i] / (nsubset * self.natom)
-            self.b[i] += b_grad_sum[i] / (nsubset * self.natom)
-            self.v_w[i] = (self.gamma * self.v_w[i]) + (w_grad_sum[i] / (nsubset * self.natom))
-            self.v_b[i] = (self.gamma * self.v_b[i]) + (b_grad_sum[i] / (nsubset * self.natom))
-
-    def save_w(self, dire, name):
-        np.save(path.join(dire, name+'_wih1.npy'), self.w[0])
-        np.save(path.join(dire, name+'_wh1h2.npy'), self.w[1])
-        np.save(path.join(dire, name+'_wh2o.npy'), self.w[2])
-        np.save(path.join(dire, name+'_bih1.npy'), self.b[0])
-        np.save(path.join(dire, name+'_bh1h2.npy'), self.b[1])
-        np.save(path.join(dire, name+'_bh2o.npy'), self.b[2])
-
-    def load_w(self, dire, name):
-        self.w[0] = np.load(path.join(dire, name+'_wih1.npy'))
-        self.w[1] = np.load(path.join(dire, name+'_wh1h2.npy'))
-        self.w[2] = np.load(path.join(dire, name+'_wh2o.npy'))
-        self.b[0] = np.load(path.join(dire, name+'_bih1.npy'))
-        self.b[1] = np.load(path.join(dire, name+'_bh1h2.npy'))
-        self.b[2] = np.load(path.join(dire, name+'_bh2o.npy'))
+                self.nnp.weights, self.nnp.bias = self.optimizer.update_params(weight_grads, bias_grads)
+        elif hp.optimizer == 'bfgs':
+            print 'Info: BFGS is off-line learning method. "batch_size" is ignored.'
+            # TODO: BFGS optimize
+            self.optimizer.update_params()
+        else:
+            raise ValueError('invalid optimizer: select sgd or adam or bfgs')
 
     def calc_RMSE(self, dataset):
         E_MSE = 0.0
         F_MSE = 0.0
-        for n in range(self.nsample):
-            Et = dataset[n][0]
-            Frt = dataset[n][1]
-            G = dataset[n][2]
-            dG = dataset[n][3]
-            E_out = self.__query_E(G[self.rank])
-            F_rout = self.__query_F(G[self.rank], dG[self.rank])
-            E_MSE += (Et - E_out) ** 2
-            F_MSE += np.sum((Frt - F_rout)**2)
+        for E_true, F_true, G, dG in dataset:
+            E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
+            E_MSE += np.sum((E_pred - E_true) ** 2)
+            F_MSE += np.sum((F_pred - F_true) ** 2)
         E_RMSE = sqrt(E_MSE / self.nsample)
-        F_RMSE = sqrt(F_MSE / (self.nsample * self.natom * 3))
-        RMSE = E_RMSE + self.beta * F_RMSE
+        F_RMSE = sqrt(F_MSE / (self.nsample * hp.natom * 3))
+        RMSE = E_RMSE + hp.beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE
 
-    def __gradient(self, Gi, dGi, E_error, F_errors):
-        # feed_forward
-        self.__energy(Gi)
+    def save_w(self, datestr):
+        weight_save_dir = path.join(file_.weight_dir, datestr)
+        mkdir(weight_save_dir)
+        if self.rank == 0:
+            for i in range(self.nnp.nweight):
+                np.save(path.join(weight_save_dir, '{}_weights{}.npy'.format(file_.name, i)),
+                        self.nnp.weights[i])
+                np.save(path.join(weight_save_dir, '{}_bias{}.npy'.format(file_.name, i)),
+                        self.nnp.bias[i])
 
-        # back_prop
-        # energy
-        e_output_errors = np.array([E_error])
-        e_hidden2_errors = self.dif_activation_func(self.hidden2_inputs) * np.dot(self.w[2].T, e_output_errors)
-        e_hidden1_errors = self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[1].T, e_hidden2_errors)
+    def load_w(self):
+        for i in range(self.nnp.nweight):
+            self.nnp.weights[i] = np.load(path.join(file_.weight_dir, '{}_weights{}.npy'.format(file_.name, i)))
+            self.nnp.bias[i] = np.load(path.join(file_.weight_dir, '{}_bias{}.npy'.format(file_.name, i)))
 
-        e_grad_output_cost = np.dot(e_output_errors[:, None], self.hidden2_outputs[None, :])
-        e_grad_hidden2_cost = np.dot(e_hidden2_errors[:, None], self.hidden1_outputs[None, :])
-        e_grad_hidden1_cost = np.dot(e_hidden1_errors[:, None], Gi[None, :])
-
-        # forces
-        f_output_errors = np.zeros(1)
-        f_hidden2_errors = np.zeros(self.hidden2_nodes)
-        f_hidden1_errors = np.zeros(self.hidden1_nodes)
-        f_grad_output_cost = np.zeros((self.output_nodes, self.hidden2_nodes))
-        f_grad_hidden2_cost = np.zeros((self.hidden2_nodes, self.hidden1_nodes))
-        f_grad_hidden1_cost = np.zeros((self.hidden1_nodes, self.input_nodes))
-        for r in range(3*self.natom):
-            f_output_error = np.array([F_errors[r]])
-            coef = np.dot(self.w[1], self.dif_activation_func(self.hidden1_inputs) * np.dot(self.w[0], dGi[r]))
-            f_hidden2_error = self.dif_activation_func(self.hidden2_inputs) * \
-                np.dot(- self.w[2], (1 - 2 * self.hidden2_outputs) * coef) * f_output_error
-            f_hidden1_error = self.dif_activation_func(self.hidden1_inputs) * \
-                np.dot(self.w[1].T, f_hidden2_error)
-
-            f_output_errors += f_output_error
-            f_hidden2_errors += f_hidden2_error
-            f_hidden1_errors += f_hidden1_error
-            f_grad_output_cost += np.dot(f_output_error[:, None], (- self.dif_activation_func(self.hidden2_inputs) * coef)[None, :])
-            f_grad_hidden2_cost += np.dot(f_hidden2_error[:, None], self.hidden1_outputs[None, :])
-            f_grad_hidden1_cost += np.dot(f_hidden1_error[:, None], Gi[None, :])
-
-    # modify weight parameters
-        w_grad, b_grad = [], []
-        w_grad.append(self.learning_rate * (e_grad_hidden1_cost - self.beta * f_grad_hidden1_cost / (3*self.natom)))
-        w_grad.append(self.learning_rate * (e_grad_hidden2_cost - self.beta * f_grad_hidden2_cost / (3*self.natom)))
-        w_grad.append(self.learning_rate * (e_grad_output_cost - self.beta * f_grad_output_cost / (3*self.natom)))
-        b_grad.append(self.learning_rate * (e_hidden1_errors - self.beta * f_hidden1_errors / (3*self.natom)))
-        b_grad.append(self.learning_rate * (e_hidden2_errors - self.beta * f_hidden2_errors / (3*self.natom)))
-        b_grad.append(self.learning_rate * (e_output_errors - self.beta * f_output_errors / (3*self.natom)))
-        return w_grad, b_grad
-
-    def __energy(self, Gi):
-        # feed_forward
-        self.hidden1_inputs = np.dot(self.w[0], Gi) + self.b[0]
-        self.hidden1_outputs = self.activation_func(self.hidden1_inputs)
-        self.hidden2_inputs = np.dot(self.w[1], self.hidden1_outputs) + self.b[1]
-        self.hidden2_outputs = self.activation_func(self.hidden2_inputs)
-        self.final_inputs = np.dot(self.w[2], self.hidden2_outputs) + self.b[2]
-        final_outputs = self.final_inputs
-        return final_outputs
-
-    def __force(self, Gi, dGi):
-        #self.__energy(Gi) 他で一度計算してるのでいらない？
-        hidden1_outputs = np.dot(self.w[0], dGi)
-        hidden2_inputs = self.dif_activation_func(self.hidden1_inputs) * hidden1_outputs
-        hidden2_outputs = np.dot(self.w[1], hidden2_inputs)
-        final_inputs = self.dif_activation_func(self.hidden2_inputs) * hidden2_outputs
-        final_outputs = -1 * np.dot(self.w[2], final_inputs)
-        return final_outputs.reshape(-1) # convert shape(1,1) to shape(1)
-
-    def __query_E(self, Gi):
-        Ei = self.__energy(Gi)
-        E = np.zeros(1)
-        self.comm.Allreduce(Ei, E, op=MPI.SUM)
-        return E[0]
-
-    def __query_F(self, Gi, dGi):
-        Fir = np.zeros(3*self.natom)
-        for r in range(3*self.natom):
-            Fir[r] = self.__force(Gi, dGi[r])
-        Fr = np.zeros(3*self.natom)
-        self.comm.Allreduce(Fir, Fr, op=MPI.SUM)
-        return Fr
+    def sync_w(self):
+        for i in range(self.nnp.nweight):
+            self.comm.Bcast(self.nnp.weights[i], root=0)
+            self.comm.Bcast(self.nnp.bias[i], root=0)

@@ -3,7 +3,7 @@
 # define variables
 from config import hp
 from config import bool_
-from config import other
+from config import file_
 
 # import python modules
 from os import path
@@ -25,8 +25,8 @@ class LabelGenerator(object):
         self.train_npy_dir = train_npy_dir
 
     def make(self, atoms_objs, nsample):
-        Es = np.array([data.cohesive_energy for data in atoms_objs])
-        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*hp.natom))
+        Es = np.array([data.cohesive_energy for data in atoms_objs]).reshape((nsample, 1))
+        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*hp.natom, 1))
         np.save(path.join(self.train_npy_dir, 'Es.npy'), Es)
         np.save(path.join(self.train_npy_dir, 'Fs.npy'), Fs)
         return Es, Fs
@@ -142,6 +142,9 @@ class InputGenerator(object):
             dGs_para[m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        # sclaing
+        Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
+        dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
         return Gs, dGs
 
     def __G1_generator(self, Rc):
@@ -166,6 +169,9 @@ class InputGenerator(object):
             dGs_para[m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        # sclaing
+        Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
+        dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
         return Gs, dGs
 
     def __G2_generator(self, Rc, eta, Rs):
@@ -191,6 +197,9 @@ class InputGenerator(object):
             dGs_para[m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
+        # sclaing
+        Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
+        dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
         return Gs, dGs
 
     def __G4_generator(self, Rc, eta, lam, zeta):
@@ -330,9 +339,8 @@ class SFGenerator(InputGenerator):
 
 
 def make_dataset(allcomm, allrank, allsize):
-    train_dir = 'training_data'
-    train_xyz_file = path.join(train_dir, 'xyz', other.xyzfile)
-    train_npy_dir = path.join(train_dir, 'npy', other.name)
+    train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
+    train_npy_dir = path.join(file_.train_dir, 'npy', file_.name)
     if allrank == 0 and not path.exists(train_npy_dir):
         mkdir(train_npy_dir)
     label = LabelGenerator(train_npy_dir)
@@ -342,7 +350,7 @@ def make_dataset(allcomm, allrank, allsize):
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:
-            if data.config_type == other.name and data.cohesive_energy < 0.0:
+            if data.config_type == file_.name and data.cohesive_energy < 0.0:
                 coordinates.append(data)
         nsample = len(coordinates)
         Es, Fs = label.make(coordinates, nsample)
@@ -360,12 +368,8 @@ def make_dataset(allcomm, allrank, allsize):
     return dataset, nsample, ninput
 
 
-def main():
+if __name__ == '__main__':
     allcomm = MPI.COMM_WORLD
     allrank = allcomm.Get_rank()
     allsize = allcomm.Get_size()
     make_dataset(allcomm, allrank, allsize)
-
-
-if __name__ == '__main__':
-    main()

@@ -19,19 +19,24 @@ class hp:
     # about training
     learning_rate =
     beta =
-    gamma =
-    hidden_nodes =
+    momentum1 = 0.9
+    momentum2 = 0.999
+    epsilon = 1e-8
+    hidden_layer = ()
     nepoch =
-    nsubset =
+    batch_size =
+    optimizer = 'sgd' | 'adam' | 'bfgs'
+    activation = 'sigmoid' | 'tanh' | 'relu'
 
 
-class bool:
+class bool_:
     CALC_INPUT =
     LOAD_WEIGHT_PARAMS =
     SAVE_WEIGHT_PARAMS =
 
 
-class other:
+class file_:
     xyzfile =
     name =
-    output_interval =
+    weight_dir = 'weight_params'
+    train_dir = 'training_data'
