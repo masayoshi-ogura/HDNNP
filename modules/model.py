@@ -2,12 +2,12 @@
 
 from os import path
 from os import mkdir
-from math import sqrt
 from random import sample
 import numpy as np
 from mpi4py import MPI
 
 from config import hp
+from config import bool_
 from config import file_
 from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
 from optimizer import OPTIMIZERS
@@ -96,6 +96,9 @@ class HDNNP(object):
         self.nnp = SingleNNP(comm, nsample, ninput)
         self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp.weights, self.nnp.bias)
         self.nsample = nsample
+        if bool_.SAVE_FIG:
+            from animator import Animator
+            self.animator = Animator(nsample)
 
     def inference(self, Gi, dGi):
         Ei, Fi, _, _, _, _ = self.nnp.feedforward(Gi, dGi)
@@ -104,21 +107,21 @@ class HDNNP(object):
         self.comm.Allreduce(Fi, F, op=MPI.SUM)
         return E, F
 
-    def training(self, dataset):
+    def training(self, Es, Fs, Gs, dGs):
         if hp.optimizer in ['sgd', 'adam']:
             for m in range(self.nsample / hp.batch_size + 1):
-                subdataset = sample(dataset, hp.batch_size)
-                subdataset = self.comm.bcast(subdataset, root=0)
+                sampling = sample(range(self.nsample), hp.batch_size)
+                sampling = self.comm.bcast(sampling, root=0)
 
                 weight_grads = [np.zeros_like(weight) for weight in self.nnp.weights]
                 bias_grads = [np.zeros_like(bias) for bias in self.nnp.bias]
                 w_para = [np.zeros_like(weight) for weight in self.nnp.weights]
                 b_para = [np.zeros_like(bias) for bias in self.nnp.bias]
-                for E_true, F_true, G, dG in subdataset:
-                    E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-                    E_error = E_pred - E_true
-                    F_error = F_pred - F_true
-                    w_tmp, b_tmp = self.nnp.backprop(G[self.rank], dG[self.rank], E_error, F_error)
+                for i in sampling:
+                    E_pred, F_pred = self.inference(Gs[i][self.rank], dGs[i][self.rank])
+                    E_error = E_pred - Es[i]
+                    F_error = F_pred - Fs[i]
+                    w_tmp, b_tmp = self.nnp.backprop(Gs[i][self.rank], dGs[i][self.rank], E_error, F_error)
                     for w_p, b_p, w_t, b_t in zip(w_para, b_para, w_tmp, b_tmp):
                         w_p += w_t / (hp.batch_size * hp.natom)
                         b_p += b_t / (hp.batch_size * hp.natom)
@@ -134,17 +137,27 @@ class HDNNP(object):
         else:
             raise ValueError('invalid optimizer: select sgd or adam or bfgs')
 
-    def calc_RMSE(self, dataset):
-        E_MSE = 0.0
-        F_MSE = 0.0
-        for E_true, F_true, G, dG in dataset:
+    def calc_RMSE(self, m, Es, Fs, Gs, dGs):
+        def rmse(pred, true):
+            return np.sqrt(((pred - true)**2).mean())
+
+        if bool_.SAVE_FIG and m == 0:
+            self.animator.set_true(Es, Fs)
+        E_preds, F_preds = np.zeros_like(Es), np.zeros_like(Fs)
+        for i, (G, dG) in enumerate(zip(Gs, dGs)):
             E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-            E_MSE += np.sum((E_pred - E_true) ** 2)
-            F_MSE += np.sum((F_pred - F_true) ** 2)
-        E_RMSE = sqrt(E_MSE / self.nsample)
-        F_RMSE = sqrt(F_MSE / (self.nsample * hp.natom * 3))
+            E_preds[i] = E_pred
+            F_preds[i] = F_pred
+
+        if bool_.SAVE_FIG:
+            self.animator.set_pred(m, E_preds, F_preds)
+        E_RMSE = rmse(E_preds, Es)
+        F_RMSE = rmse(F_preds, Fs)
         RMSE = E_RMSE + hp.beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE
+
+    def save_fig(self):
+        self.animator.save_fig()
 
     def save_w(self, datestr):
         weight_save_dir = path.join(file_.weight_dir, datestr)

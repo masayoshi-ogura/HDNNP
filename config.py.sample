@@ -33,6 +33,7 @@ class bool_:
     CALC_INPUT =
     LOAD_WEIGHT_PARAMS =
     SAVE_WEIGHT_PARAMS =
+    SAVE_FIG =
 
 
 class file_:
