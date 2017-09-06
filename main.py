@@ -22,7 +22,7 @@ if allrank == 0:
     file = open('progress-'+datestr+'.out', 'w')
     stime = time()
 
-dataset, nsample, ninput = make_dataset(allcomm, allrank, allsize)
+Es, Fs, Gs, dGs, nsample, ninput = make_dataset(allcomm, allrank, allsize)
 
 if allrank == 0:
     file.write("""
@@ -68,8 +68,8 @@ if allrank < hp.natom:
 
     # training
     for m in range(hp.nepoch):
-        hdnnp.training(dataset)
-        E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(dataset)
+        hdnnp.training(Es, Fs, Gs, dGs)
+        E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(m, Es, Fs, Gs, dGs)
         if allrank == 0:
             file.write('{:<15}{:<15}{:<15}{:<15}{:<15}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
             file.flush()
@@ -79,3 +79,5 @@ if allrank < hp.natom:
         file.close()
         if bool_.SAVE_WEIGHT_PARAMS:
             hdnnp.save_w(datestr)
+        if bool_.SAVE_FIG:
+            hdnnp.save_fig()

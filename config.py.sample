@@ -33,6 +33,7 @@ class bool_:
     CALC_INPUT =
     LOAD_WEIGHT_PARAMS =
     SAVE_WEIGHT_PARAMS =
+    SAVE_FIG =
 
 
 class file_:
@@ -40,3 +41,4 @@ class file_:
     name =
     weight_dir = 'weight_params'
     train_dir = 'training_data'
+    fig_dir = 'figure'

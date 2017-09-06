@@ -364,8 +364,7 @@ def make_dataset(allcomm, allrank, allsize):
         nsample = len(Es)
         ninput = len(Gs[0][0])
 
-    dataset = [[Es[i], Fs[i], Gs[i], dGs[i]] for i in range(nsample)]
-    return dataset, nsample, ninput
+    return Es, Fs, Gs, dGs, nsample, ninput
 
 
 if __name__ == '__main__':
