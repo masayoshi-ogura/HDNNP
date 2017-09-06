@@ -109,7 +109,11 @@ class HDNNP(object):
 
     def training(self, Es, Fs, Gs, dGs):
         if hp.optimizer in ['sgd', 'adam']:
-            for m in range(self.nsample / hp.batch_size + 1):
+            if hp.batch_size == -1:
+                hp.batch_size = self.nsample
+
+            niter = -(- self.nsample / hp.batch_size)
+            for m in range(niter):
                 sampling = sample(range(self.nsample), hp.batch_size)
                 sampling = self.comm.bcast(sampling, root=0)
 

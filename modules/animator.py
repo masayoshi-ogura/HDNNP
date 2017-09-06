@@ -1,8 +1,10 @@
+from os import path
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from config import hp
+from config import file_
 
 
 def update(i, ax, pred, true):
@@ -34,6 +36,7 @@ class Animator(object):
     def save_fig(self):
         self.preds = self.preds.transpose(2, 0, 1)
         self.true = self.true.transpose(1, 0)
+
         for i, (pred, true) in enumerate(zip(self.preds, self.true)):
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1)
@@ -46,5 +49,5 @@ class Animator(object):
                 filename = 'force_{}y.gif'.format((i-1)/3+1)
             elif i % 3 == 2:
                 filename = 'force_{}z.gif'.format((i-1)/3+1)
-            anime.save(filename, writer='imagemagick')
+            anime.save(path.join(file_.fig_dir, filename), writer='imagemagick')
             plt.close(fig)

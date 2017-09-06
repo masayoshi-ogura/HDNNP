@@ -41,3 +41,4 @@ class file_:
     name =
     weight_dir = 'weight_params'
     train_dir = 'training_data'
+    fig_dir = 'figure'
