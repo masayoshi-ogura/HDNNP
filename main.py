@@ -71,7 +71,7 @@ if allrank < hp.natom:
         hdnnp.training(Es, Fs, Gs, dGs)
         E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(m, Es, Fs, Gs, dGs)
         if allrank == 0:
-            file.write('{:<15}{:<15}{:<15}{:<15}{:<15}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
+            file.write('{:<14f} {:<14f} {:<14f} {:<14f} {:<14f}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
             file.flush()
 
     # save

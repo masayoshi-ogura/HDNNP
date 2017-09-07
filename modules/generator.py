@@ -350,7 +350,7 @@ def make_dataset(allcomm, allrank, allsize):
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:
-            if data.config_type == file_.name and data.cohesive_energy < 0.0:
+            if data.config_type == file_.name and data.force.min() > -1. and data.force.max() < 1.:
                 coordinates.append(data)
         nsample = len(coordinates)
         Es, Fs = label.make(coordinates, nsample)
