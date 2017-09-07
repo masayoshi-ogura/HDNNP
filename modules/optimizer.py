@@ -14,9 +14,9 @@ class SGDOptimizer(object):
 
     def update_params(self, weight_grads, bias_grads):
         if self.nesterov:
-            weight_updates = [hp.momentum1 * velocity - hp.learning_rate * grad
+            weight_updates = [hp.momentum * velocity - hp.learning_rate * grad
                               for velocity, grad in zip(self.weight_velocities, weight_grads)]
-            bias_updates = [hp.momentum1 * velocity - hp.learning_rate * grad
+            bias_updates = [hp.momentum * velocity - hp.learning_rate * grad
                             for velocity, grad in zip(self.bias_velocities, bias_grads)]
             self.weight_velocities = weight_updates
             self.bias_velocities = bias_updates
@@ -45,23 +45,23 @@ class AdamOptimizer(object):
     def update_params(self, weight_grads, bias_grads):
         self.t += 1
 
-        self.weight_ms = [hp.momentum1 * m + (1 - hp.momentum1) * grad
+        self.weight_ms = [hp.adam_beta1 * m + (1 - hp.adam_beta1) * grad
                           for m, grad in zip(self.weight_ms, weight_grads)]
-        self.weight_vs = [hp.momentum2 * v + (1 - hp.momentum2) * (grad ** 2)
+        self.weight_vs = [hp.adam_beta2 * v + (1 - hp.adam_beta2) * (grad ** 2)
                           for v, grad in zip(self.weight_vs, weight_grads)]
 
-        self.bias_ms = [hp.momentum1 * m + (1 - hp.momentum1) * grad
+        self.bias_ms = [hp.adam_beta1 * m + (1 - hp.adam_beta1) * grad
                         for m, grad in zip(self.bias_ms, bias_grads)]
-        self.bias_vs = [hp.momentum2 * v + (1 - hp.momentum2) * (grad ** 2)
+        self.bias_vs = [hp.adam_beta2 * v + (1 - hp.adam_beta2) * (grad ** 2)
                         for v, grad in zip(self.bias_vs, bias_grads)]
 
         weight_updates = [- hp.learning_rate *
-                          (m / (1 - hp.momentum1**self.t)) /
-                          (np.sqrt(v / (1 - hp.momentum2**self.t)) + self.epsilon)
+                          (m / (1 - hp.adam_beta1**self.t)) /
+                          (np.sqrt(v / (1 - hp.adam_beta2**self.t)) + self.epsilon)
                           for m, v in zip(self.weight_ms, self.weight_vs)]
         bias_updates = [- hp.learning_rate *
-                        (m / (1 - hp.momentum1**self.t)) /
-                        (np.sqrt(v / (1 - hp.momentum2**self.t)) + self.epsilon)
+                        (m / (1 - hp.adam_beta1**self.t)) /
+                        (np.sqrt(v / (1 - hp.adam_beta2**self.t)) + self.epsilon)
                         for m, v in zip(self.bias_ms, self.bias_vs)]
 
         for weight, bias, weight_update, bias_update in zip(self.weights, self.bias, weight_updates, bias_updates):

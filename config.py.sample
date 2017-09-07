@@ -18,10 +18,11 @@ class hp:
     zetas = []
     # about training
     learning_rate =
-    beta =
-    momentum1 = 0.9
-    momentum2 = 0.999
-    epsilon = 1e-8
+    mixing_beta =
+    momentum = 0.9  # for sgd(Nesterov)
+    adam_beta1 = 0.9  # for adam
+    adam_beta2 = 0.999  # for adam
+    epsilon = 1e-8  # for adam
     hidden_layer = ()
     nepoch =
     batch_size =

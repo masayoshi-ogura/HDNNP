@@ -33,9 +33,11 @@ lam:  {}
 zeta: {}
 NN_figure:     {}x{}x{}
 learning_rate: {}
-beta:          {}
-momentum1:     {}
-momentum2:     {}
+mixing_beta:   {}
+momentum:      {}
+adam_beta1:    {}
+adam_beta2:    {}
+epsilon:       {}
 nepoch:        {}
 nsample:       {}
 ninput:        {}
@@ -47,7 +49,7 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
 """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)),
            ','.join(map(str, hp.lams)), ','.join(map(str, hp.zetas)),
            ninput, 'x'.join(map(str, hp.hidden_layer)), 1,
-           hp.learning_rate, hp.beta, hp.momentum1, hp.momentum2,
+           hp.learning_rate, hp.mixing_beta, hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.epsilon,
            hp.nepoch, nsample, ninput, hp.batch_size,
            hp.optimizer, hp.activation))
     file.flush()

@@ -22,7 +22,7 @@ class SingleNNP(object):
         self.nlayer = len(hp.hidden_layer)
         self.nweight = len(hp.hidden_layer) + 1
         self.learning_rate = hp.learning_rate
-        self.beta = hp.beta
+        self.mixing_beta = hp.mixing_beta
         self.activation = ACTIVATIONS[hp.activation]
         self.deriv_activation = DERIVATIVES[hp.activation]
         self.second_deriv_activation = SECOND_DERIVATIVES[hp.activation]
@@ -42,7 +42,7 @@ class SingleNNP(object):
             self.weights[i] = tmp_weights / self.natom
             self.bias[i] = tmp_bias / self.natom
         # loss function
-        loss = (E_pred - E_true)**2 + hp.beta * (F_pred - F_true)**2 / (3 * hp.natom)
+        loss = (E_pred - E_true)**2 + hp.mixing_beta * (F_pred - F_true)**2 / (3 * hp.natom)
         return loss
 
     def feedforward(self, Gi, dGi):
@@ -83,7 +83,7 @@ class SingleNNP(object):
                        self.deriv_activation(outputs[i]))[None, :] * np.dot(f_delta, self.weights[i+1].T) \
                 if 'f_delta' in locals() else np.clip(F_error, -0.05, 0.05)  # Huber loss
                 # if 'f_delta' in locals() else F_error  # squared loss
-            weight_grads[i] += (hp.beta / (3 * hp.natom)) * \
+            weight_grads[i] += (hp.mixing_beta / (3 * hp.natom)) * \
                 np.tensordot(- np.dot(dGi, deriv_inputs[i]), f_delta, ((0,), (0,)))
 
         return weight_grads, bias_grads
@@ -157,7 +157,7 @@ class HDNNP(object):
             self.animator.set_pred(m, E_preds, F_preds)
         E_RMSE = rmse(E_preds, Es)
         F_RMSE = rmse(F_preds, Fs)
-        RMSE = E_RMSE + hp.beta * F_RMSE
+        RMSE = E_RMSE + hp.mixing_beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE
 
     def save_fig(self):
