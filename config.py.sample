@@ -18,7 +18,7 @@ class hp:
     zetas = []
     # about training
     learning_rate =
-    learning_rate_decay = 1e-3  # after 1000 ite, lr becomes 1/2.
+    learning_rate_decay = 1e-3  # after 1000 ite., lr becomes 1/2.
     mixing_beta =
     momentum = 0.9  # for sgd(Nesterov)
     adam_beta1 = 0.9  # for adam
@@ -27,7 +27,7 @@ class hp:
     hidden_layer = ()
     nepoch =
     batch_size =
-    # batch_size_growth = ?
+    batch_size_growth = 1e-3  # after 1000 ite., batch_size becomes x2.
     optimizer = 'sgd' | 'adam' | 'bfgs'
     activation = 'sigmoid' | 'tanh' | 'relu'
 
