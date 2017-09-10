@@ -107,14 +107,15 @@ class HDNNP(object):
         self.comm.Allreduce(Fi, F, op=MPI.SUM)
         return E, F
 
-    def training(self, Es, Fs, Gs, dGs):
+    def training(self, m, Es, Fs, Gs, dGs):
         if hp.optimizer in ['sgd', 'adam']:
-            if hp.batch_size == -1:
+            batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
+            if batch_size < 0 or batch_size > self.nsample:
                 hp.batch_size = self.nsample
 
-            niter = -(- self.nsample / hp.batch_size)
+            niter = -(- self.nsample / batch_size)
             for m in range(niter):
-                sampling = sample(range(self.nsample), hp.batch_size)
+                sampling = sample(range(self.nsample), batch_size)
                 sampling = self.comm.bcast(sampling, root=0)
 
                 weight_grads = [np.zeros_like(weight) for weight in self.nnp.weights]
@@ -127,8 +128,8 @@ class HDNNP(object):
                     F_error = F_pred - Fs[i]
                     w_tmp, b_tmp = self.nnp.backprop(Gs[i][self.rank], dGs[i][self.rank], E_error, F_error)
                     for w_p, b_p, w_t, b_t in zip(w_para, b_para, w_tmp, b_tmp):
-                        w_p += w_t / (hp.batch_size * hp.natom)
-                        b_p += b_t / (hp.batch_size * hp.natom)
+                        w_p += w_t / (batch_size * hp.natom)
+                        b_p += b_t / (batch_size * hp.natom)
                 for w_grad, b_grad, w_p, b_p in zip(weight_grads, bias_grads, w_para, b_para):
                     self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
                     self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)
