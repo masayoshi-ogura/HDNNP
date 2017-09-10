@@ -253,6 +253,7 @@ class InputGenerator(object):
 
     @memorize
     def __neighbour(self, m, atoms, Rc):
+        atoms.set_pbc(bool_.pbc)  # temporary flags TODO: set periodic boundary conditions correctly in xyz file.
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
         index = [atoms.connect.get_neighbours(i)[0] - 1 for i in frange(self.natom)]
@@ -350,7 +351,8 @@ def make_dataset(allcomm, allrank, allsize):
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:
-            if data.config_type == file_.name and data.force.min() > -1. and data.force.max() < 1.:
+            # if data.config_type == file_.name and data.force.min() > -1. and data.force.max() < 1.:
+            if data.config_type == file_.name:  # debug
                 coordinates.append(data)
         nsample = len(coordinates)
         Es, Fs = label.make(coordinates, nsample)

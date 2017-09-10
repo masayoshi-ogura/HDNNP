@@ -35,6 +35,7 @@ class bool_:
     LOAD_WEIGHT_PARAMS =
     SAVE_WEIGHT_PARAMS =
     SAVE_FIG =
+    pbc = [True, True, True]  # temporary flags TODO: set periodic boundary conditions correctly in xyz file.
 
 
 class file_:
