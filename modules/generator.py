@@ -152,8 +152,8 @@ class InputGenerator(object):
     def __G1_generator(self, Rc):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
-            r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
-            dR = self.__deriv_R(m, r, R, Rc)
+            index, r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
+            dR = self.__deriv_R(m, index, r, R, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
             for i in range(self.natom):
@@ -181,8 +181,8 @@ class InputGenerator(object):
     def __G2_generator(self, Rc, eta, Rs):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
-            r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
-            dR = self.__deriv_R(m, r, R, Rc)
+            index, r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
+            dR = self.__deriv_R(m, index, r, R, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
             for i in range(self.natom):
@@ -211,9 +211,9 @@ class InputGenerator(object):
     def __G4_generator(self, Rc, eta, lam, zeta):
         for m in range(self.min, self.max):
             atoms = self.atoms_objs[m]
-            r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
-            dR = self.__deriv_R(m, r, R, Rc)
-            dcos = self.__deriv_cosine(m, r, R, cosine, Rc)
+            index, r, R, fc, tanh, cosine = self.__neighbour(m, atoms, Rc)
+            dR = self.__deriv_R(m, index, r, R, Rc)
+            dcos = self.__deriv_cosine(m, index, r, R, cosine, Rc)
             G = np.empty((self.natom))
             dG = np.empty((self.natom, 3*self.natom))
             for i in range(self.natom):
@@ -243,17 +243,17 @@ class InputGenerator(object):
         elif f.__name__ == '__deriv_R':
             cache = {}
 
-            def helper(self, m, r, R, Rc):
+            def helper(self, m, index, r, R, Rc):
                 if (m, Rc) not in cache:
-                    cache[(m, Rc)] = f(self, m, r, R, Rc)
+                    cache[(m, Rc)] = f(self, m, index, r, R, Rc)
                 return cache[(m, Rc)]
             return helper
         elif f.__name__ == '__deriv_cosine':
             cache = {}
 
-            def helper(self, m, r, R, cosine, Rc):
+            def helper(self, m, index, r, R, cosine, Rc):
                 if (m, Rc) not in cache:
-                    cache[(m, Rc)] = f(self, m, r, R, cosine, Rc)
+                    cache[(m, Rc)] = f(self, m, index, r, R, cosine, Rc)
                 return cache[(m, Rc)]
             return helper
 
@@ -262,10 +262,11 @@ class InputGenerator(object):
         atoms.set_pbc(bool_.pbc)  # temporary flags TODO: set periodic boundary conditions correctly in xyz file.
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
+        index = [atoms.connect.get_neighbours(i)[0] - 1 for i in frange(self.natom)]
         r, R, fc, tanh = self.__distance_ij(atoms, Rc)
         cosine = self.__cosine_ijk(atoms, Rc)
 
-        return r, R, fc, tanh, cosine
+        return index, r, R, fc, tanh, cosine
 
     def __distance_ij(self, atoms, Rc):
         r, R, fc, tanh = [], [], [], []
@@ -298,7 +299,7 @@ class InputGenerator(object):
         return cosine
 
     @memorize
-    def __deriv_R(self, m, r, R, Rc):
+    def __deriv_R(self, m, index, r, R, Rc):
         dR = []
         for i in range(self.natom):
             n_neighb = len(R[i])
@@ -308,14 +309,14 @@ class InputGenerator(object):
                     if l == i:
                         for alpha in range(3):
                             dRi[j][3*l+alpha] = - r[i][j][alpha] / R[i][j]
-                    elif l == j:
+                    elif l == index[i][j]:
                         for alpha in range(3):
                             dRi[j][3*l+alpha] = + r[i][j][alpha] / R[i][j]
             dR.append(dRi)
         return dR
 
     @memorize
-    def __deriv_cosine(self, m, r, R, cosine, Rc):
+    def __deriv_cosine(self, m, index, r, R, cosine, Rc):
         dcos = []
         for i in range(self.natom):
             n_neighb = len(R[i])
@@ -328,11 +329,11 @@ class InputGenerator(object):
                                 dcosi[j][k][3*l+alpha] = (+ r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
                                                          (+ r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
                                                          (- (r[i][j][alpha] + r[i][k][alpha])) / (R[i][j] * R[i][k])
-                        elif l == j:
+                        elif l == index[i][j]:
                             for alpha in range(3):
                                 dcosi[j][k][3*l+alpha] = (- r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
                                                          (+ r[i][k][alpha]) / (R[i][j] * R[i][k])
-                        elif l == k:
+                        elif l == index[i][k]:
                             for alpha in range(3):
                                 dcosi[j][k][3*l+alpha] = (- r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
                                                          (+ r[i][j][alpha]) / (R[i][j] * R[i][k])
@@ -356,7 +357,6 @@ def make_dataset(allcomm, allrank, allsize):
         alldataset = AtomsReader(train_xyz_file)
         coordinates = []
         for data in alldataset:
-            # if data.config_type == file_.name:  # debug
             if data.config_type == file_.name and data.force.min() > -1. and data.force.max() < 1.:
                 coordinates.append(data)
         nsample = len(coordinates)
