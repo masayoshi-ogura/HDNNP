@@ -143,8 +143,10 @@ class InputGenerator(object):
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
         # sclaing
-        Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
-        dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
+        min = np.min(Gs)
+        max = np.max(Gs)
+        Gs = 2 * (Gs - min) / (max - min) - 1
+        dGs = (2 * dGs) / (max - min)
         return Gs, dGs
 
     def __G1_generator(self, Rc):
@@ -170,8 +172,10 @@ class InputGenerator(object):
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
         # sclaing
-        Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
-        dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
+        min = np.min(Gs)
+        max = np.max(Gs)
+        Gs = 2 * (Gs - min) / (max - min) - 1
+        dGs = (2 * dGs) / (max - min)
         return Gs, dGs
 
     def __G2_generator(self, Rc, eta, Rs):
@@ -184,7 +188,7 @@ class InputGenerator(object):
             for i in range(self.natom):
                 gi = np.exp(- eta * (R[i] - Rs) ** 2) * fc[i]
                 G[i] = np.sum(gi)
-                dgi = gi[:, None] * ((-2*Rc*eta*(R[i][:, None]-Rs)*tanh[i][:, None] + 3*tanh[i][:, None]**2 - 3) / (Rc * tanh[i][:, None])) * dR[i]
+                dgi = gi[:, None] * ((-2*Rc*eta*(R[i]-Rs)*tanh[i] + 3*tanh[i]**2 - 3) / (Rc * tanh[i]))[:, None] * dR[i]
                 dG[i] = np.sum(dgi, axis=0)
             yield m, G, dG
 
@@ -198,8 +202,10 @@ class InputGenerator(object):
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
         # sclaing
-        Gs = (2 * (Gs - np.min(Gs))) / (np.max(Gs) - np.min(Gs)) - 1
-        dGs = (2 * dGs) / (np.max(Gs) - np.min(Gs))
+        min = np.min(Gs)
+        max = np.max(Gs)
+        Gs = 2 * (Gs - min) / (max - min) - 1
+        dGs = (2 * dGs) / (max - min)
         return Gs, dGs
 
     def __G4_generator(self, Rc, eta, lam, zeta):
@@ -214,10 +220,10 @@ class InputGenerator(object):
                 angular = (1+lam*cosine[i])
                 common = (2**(1-zeta)) * (angular**(zeta-1)) * np.exp(-eta*(R[i][:, None]**2+R[i][None, :]**2)) * fc[i][:, None] * fc[i][None, :]
                 gi = common * angular
-                filter = np.identity(len(index[i]), dtype=bool)
+                filter = np.identity(len(R[i]), dtype=bool)
                 gi[filter] = 0.0
                 G[i] = np.sum(gi)
-                dgi_R = ((-2*Rc*eta*R[i][:, None]*tanh[i][:, None] + 3*tanh[i][:, None]**2 - 3) / (Rc * tanh[i][:, None])) * dR[i]
+                dgi_R = ((-2*Rc*eta*R[i]*tanh[i] + 3*tanh[i]**2 - 3) / (Rc * tanh[i]))[:, None] * dR[i]
                 dgi_cos = zeta * lam * dcos[i]
                 dgi = common[:, :, None] * (angular[:, :, None] * (dgi_R[None, :, :] + dgi_R[:, None, :]) + dgi_cos)
                 filter = filter[:, :, None].repeat(3*self.natom, axis=2)
@@ -253,6 +259,7 @@ class InputGenerator(object):
 
     @memorize
     def __neighbour(self, m, atoms, Rc):
+        atoms.set_pbc(bool_.pbc)  # temporary flags TODO: set periodic boundary conditions correctly in xyz file.
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
         index = [atoms.connect.get_neighbours(i)[0] - 1 for i in frange(self.natom)]
@@ -297,12 +304,12 @@ class InputGenerator(object):
         for i in range(self.natom):
             n_neighb = len(R[i])
             dRi = np.zeros((n_neighb, 3*self.natom))
-            for j in index[i]:
+            for j in range(n_neighb):
                 for l in range(self.natom):
                     if l == i:
                         for alpha in range(3):
                             dRi[j][3*l+alpha] = - r[i][j][alpha] / R[i][j]
-                    elif l == j:
+                    elif l == index[i][j]:
                         for alpha in range(3):
                             dRi[j][3*l+alpha] = + r[i][j][alpha] / R[i][j]
             dR.append(dRi)
@@ -314,19 +321,19 @@ class InputGenerator(object):
         for i in range(self.natom):
             n_neighb = len(R[i])
             dcosi = np.zeros((n_neighb, n_neighb, 3*self.natom))
-            for j in index[i]:
-                for k in index[i]:
+            for j in range(n_neighb):
+                for k in range(n_neighb):
                     for l in range(self.natom):
                         if l == i:
                             for alpha in range(3):
                                 dcosi[j][k][3*l+alpha] = (+ r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
                                                          (+ r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
                                                          (- (r[i][j][alpha] + r[i][k][alpha])) / (R[i][j] * R[i][k])
-                        elif l == j:
+                        elif l == index[i][j]:
                             for alpha in range(3):
                                 dcosi[j][k][3*l+alpha] = (- r[i][j][alpha] / R[i][j]**2) * cosine[i][j][k] + \
                                                          (+ r[i][k][alpha]) / (R[i][j] * R[i][k])
-                        elif l == k:
+                        elif l == index[i][k]:
                             for alpha in range(3):
                                 dcosi[j][k][3*l+alpha] = (- r[i][k][alpha] / R[i][k]**2) * cosine[i][j][k] + \
                                                          (+ r[i][j][alpha]) / (R[i][j] * R[i][k])
