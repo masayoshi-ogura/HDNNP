@@ -73,16 +73,16 @@ class SingleNNP(object):
         for i in reversed(range(self.nweight)):
             # energy
             e_delta = self.deriv_activation(outputs[i]) * np.dot(self.weights[i+1], e_delta) \
-                if 'e_delta' in locals() else np.clip(E_error, -1.0, 1.0)  # Huber loss
-                # if 'e_delta' in locals() else E_error  # squared loss
+                if 'e_delta' in locals() else E_error  # squared loss
+                # if 'e_delta' in locals() else np.clip(E_error, -1.0, 1.0)  # Huber loss
             weight_grads[i] += inputs[i][:, None] * e_delta[None, :]
             bias_grads[i] += e_delta
 
             # force
             f_delta = (self.second_deriv_activation(outputs[i]) * np.dot(inputs[i], self.weights[i]) +
                        self.deriv_activation(outputs[i]))[None, :] * np.dot(f_delta, self.weights[i+1].T) \
-                if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
-                # if 'f_delta' in locals() else F_error  # squared loss
+                if 'f_delta' in locals() else F_error  # squared loss
+                # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
             weight_grads[i] += (hp.mixing_beta / (3 * hp.natom)) * \
                 np.tensordot(- np.dot(dGi, deriv_inputs[i]), f_delta, ((0,), (0,)))
 
