@@ -39,6 +39,7 @@ momentum:            {}
 adam_beta1:          {}
 adam_beta2:          {}
 epsilon:             {}
+natom:               {}
 nepoch:              {}
 nsample:             {}
 ninput:              {}
@@ -53,7 +54,7 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
            ninput, 'x'.join(map(str, hp.hidden_layer)), 1,
            hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta,
            hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.epsilon,
-           hp.nepoch, nsample, ninput, hp.batch_size, hp.batch_size_growth,
+           hp.natom, hp.nepoch, nsample, ninput, hp.batch_size, hp.batch_size_growth,
            hp.optimizer, hp.activation))
     file.flush()
 
