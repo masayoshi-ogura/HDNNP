@@ -90,7 +90,7 @@ class SingleNNP(object):
 
 
 class HDNNP(object):
-    def __init__(self, comm, rank, natom, nsample, ninput):
+    def __init__(self, comm, rank, natom, nsample, ninput, composition):
         self.comm = comm
         self.rank = rank
         self.nnp = SingleNNP(comm, natom, nsample, ninput)

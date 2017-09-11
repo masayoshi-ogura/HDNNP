@@ -22,7 +22,7 @@ if allrank == 0:
     file = open('progress-'+datestr+'.out', 'w')
     stime = time()
 
-Es, Fs, Gs, dGs, natom, nsample, ninput = make_dataset(allcomm, allrank, allsize)
+Es, Fs, Gs, dGs, natom, nsample, ninput, composition = make_dataset(allcomm, allrank, allsize)
 
 if allrank == 0:
     file.write("""
@@ -40,6 +40,7 @@ adam_beta1:          {}
 adam_beta2:          {}
 epsilon:             {}
 natom:               {}
+composition:         {}
 nepoch:              {}
 nsample:             {}
 ninput:              {}
@@ -54,8 +55,8 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
            ninput, 'x'.join(map(str, hp.hidden_layer)), 1,
            hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta,
            hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.epsilon,
-           natom, hp.nepoch, nsample, ninput, hp.batch_size, hp.batch_size_growth,
-           hp.optimizer, hp.activation))
+           natom, dict(composition), hp.nepoch, nsample, ninput,
+           hp.batch_size, hp.batch_size_growth, hp.optimizer, hp.activation))
     file.flush()
 
 # use only "natom" nodes for NN
@@ -65,7 +66,7 @@ if allrank < natom:
     NNrank = NNcomm.Get_rank()
 
     # initialize HDNNP
-    hdnnp = HDNNP(NNcomm, NNrank, natom, nsample, ninput)
+    hdnnp = HDNNP(NNcomm, NNrank, natom, nsample, ninput, composition)
     # load weight parameters when restart
     if bool_.LOAD_WEIGHT_PARAMS:
         hdnnp.load_w()

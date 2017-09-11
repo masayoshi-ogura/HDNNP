@@ -8,6 +8,8 @@ from config import file_
 # import python modules
 from os import path
 from os import mkdir
+from collections import defaultdict
+import json
 import numpy as np
 from mpi4py import MPI
 try:
@@ -27,13 +29,13 @@ class LabelGenerator(object):
     def make(self, atoms_objs, natom, nsample):
         Es = np.array([data.cohesive_energy for data in atoms_objs]).reshape((nsample, 1))
         Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*natom, 1))
-        np.save(path.join(self.train_npy_dir, 'Es.npy'), Es)
-        np.save(path.join(self.train_npy_dir, 'Fs.npy'), Fs)
+        np.savez(path.join(self.train_npy_dir, 'Energy_Force.npz'), Energy=Es, Force=Fs)
         return Es, Fs
 
     def load(self):
-        Es = np.load(path.join(self.train_npy_dir, 'Es.npy'))
-        Fs = np.load(path.join(self.train_npy_dir, 'Fs.npy'))
+        ndarray = np.load(path.join(self.train_npy_dir, 'Energy_Force.npz'))
+        Es = ndarray['Energy']
+        Fs = ndarray['Force']
         return Es, Fs
 
 
@@ -61,42 +63,42 @@ class InputGenerator(object):
 
         n = 0
         for Rc in hp.Rcs:
-            prefix = path.join(self.train_npy_dir, 'G1-{}'.format(Rc))
-            if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
-                Gs[n] = np.load(prefix+'-Gs.npy')
-                dGs[n] = np.load(prefix+'-dGs.npy')
+            filename = path.join(self.train_npy_dir, 'G1-{}.npz'.format(Rc))
+            if path.exists(filename) and Gs[n].shape == np.load(filename)['SymmetricFunc'].shape:
+                ndarray = np.load(filename)
+                Gs[n] = ndarray['SymmetricFunc']
+                dGs[n] = ndarray['Derivative']
             else:
                 G, dG = self.__calc_G1(Rc)
-                np.save(prefix+'-Gs.npy', G)
-                np.save(prefix+'-dGs.npy', dG)
+                np.savez(filename, SymmetricFunc=G, Derivative=dG)
                 Gs[n] = G
                 dGs[n] = dG
             n += 1
 
             for eta in hp.etas:
                 for Rs in hp.Rss:
-                    prefix = path.join(self.train_npy_dir, 'G2-{}-{}-{}'.format(Rc, eta, Rs))
-                    if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
-                        Gs[n] = np.load(prefix+'-Gs.npy')
-                        dGs[n] = np.load(prefix+'-dGs.npy')
+                    filename = path.join(self.train_npy_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
+                    if path.exists(filename) and Gs[n].shape == np.load(filename)['SymmetricFunc'].shape:
+                        ndarray = np.load(filename)
+                        Gs[n] = ndarray['SymmetricFunc']
+                        dGs[n] = ndarray['Derivative']
                     else:
                         G, dG = self.__calc_G2(Rc, eta, Rs)
-                        np.save(prefix+'-Gs.npy', G)
-                        np.save(prefix+'-dGs.npy', dG)
+                        np.savez(filename, SymmetricFunc=G, Derivative=dG)
                         Gs[n] = G
                         dGs[n] = dG
                     n += 1
 
                 for lam in hp.lams:
                     for zeta in hp.zetas:
-                        prefix = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}'.format(Rc, eta, lam, zeta))
-                        if path.exists(prefix+'-Gs.npy') and Gs[n].shape == np.load(prefix+'-Gs.npy').shape:
-                            Gs[n] = np.load(prefix+'-Gs.npy')
-                            dGs[n] = np.load(prefix+'-dGs.npy')
+                        filename = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
+                        if path.exists(filename) and Gs[n].shape == np.load(filename)['SymmetricFunc'].shape:
+                            ndarray = np.load(filename)
+                            Gs[n] = ndarray['SymmetricFunc']
+                            dGs[n] = ndarray['Derivative']
                         else:
                             G, dG = self.__calc_G4(Rc, eta, lam, zeta)
-                            np.save(prefix+'-Gs.npy', G)
-                            np.save(prefix+'-dGs.npy', dG)
+                            np.savez(filename, SymmetricFunc=G, Derivative=dG)
                             Gs[n] = G
                             dGs[n] = dG
                         n += 1
@@ -105,24 +107,27 @@ class InputGenerator(object):
     def load(self):
         loaded_G, loaded_dG = [], []
         for Rc in hp.Rcs:
-            prefix = path.join(self.train_npy_dir, 'G1-{}'.format(Rc))
-            if path.exists(prefix+'-Gs.npy'):
-                loaded_G.append(np.load(prefix+'-Gs.npy'))
-                loaded_dG.append(np.load(prefix+'-dGs.npy'))
+            filename = path.join(self.train_npy_dir, 'G1-{}.npz'.format(Rc))
+            if path.exists(filename):
+                ndarray = np.load(filename)
+                loaded_G.append(ndarray['SymmetricFunc'])
+                loaded_dG.append(ndarray['Derivative'])
 
             for eta in hp.etas:
                 for Rs in hp.Rss:
-                    prefix = path.join(self.train_npy_dir, 'G2-{}-{}-{}'.format(Rc, eta, Rs))
-                    if path.exists(prefix+'-Gs.npy'):
-                        loaded_G.append(np.load(prefix+'-Gs.npy'))
-                        loaded_dG.append(np.load(prefix+'-dGs.npy'))
+                    filename = path.join(self.train_npy_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
+                    if path.exists(filename):
+                        ndarray = np.load(filename)
+                        loaded_G.append(ndarray['SymmetricFunc'])
+                        loaded_dG.append(ndarray['Derivative'])
 
                 for lam in hp.lams:
                     for zeta in hp.zetas:
-                        prefix = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}'.format(Rc, eta, lam, zeta))
-                        if path.exists(prefix+'-Gs.npy'):
-                            loaded_G.append(np.load(prefix+'-Gs.npy'))
-                            loaded_dG.append(np.load(prefix+'-dGs.npy'))
+                        filename = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
+                        if path.exists(filename):
+                            ndarray = np.load(filename)
+                            loaded_G.append(ndarray['SymmetricFunc'])
+                            loaded_dG.append(ndarray['Derivative'])
 
         Gs = np.c_[loaded_G].transpose(1, 2, 0)
         dGs = np.c_[loaded_dG].transpose(1, 2, 3, 0)
@@ -343,6 +348,7 @@ class SFGenerator(InputGenerator):
 def make_dataset(allcomm, allrank, allsize):
     train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
     train_npy_dir = path.join(file_.train_dir, 'npy', file_.name)
+    train_composition_file = path.join(train_npy_dir, 'composition.json')
     if allrank == 0 and not path.exists(train_npy_dir):
         mkdir(train_npy_dir)
     label = LabelGenerator(train_npy_dir)
@@ -361,12 +367,19 @@ def make_dataset(allcomm, allrank, allsize):
             len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
         Gs, dGs = input.make(allcomm, allsize, allrank, coordinates, natom, nsample, ninput)
+        composition = defaultdict(lambda: 0)
+        for atom in coordinates[0]:
+            composition[atom.symbol] += 1
+        with open(train_composition_file, 'w') as f:
+            json.dump(composition, f)
     else:
         Es, Fs = label.load()
         Gs, dGs = input.load()
         nsample, natom, ninput = Gs.shape
+        with open(train_composition_file, 'r') as f:
+            composition = json.load(f)
 
-    return Es, Fs, Gs, dGs, natom, nsample, ninput
+    return Es, Fs, Gs, dGs, natom, nsample, ninput, composition
 
 
 if __name__ == '__main__':
