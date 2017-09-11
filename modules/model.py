@@ -14,9 +14,9 @@ from optimizer import OPTIMIZERS
 
 
 class SingleNNP(object):
-    def __init__(self, comm, nsample, ninput):
+    def __init__(self, comm, natom, nsample, ninput):
         self.comm = comm
-        self.natom = hp.natom
+        self.natom = natom
         self.nsample = nsample
         self.shape = (ninput,) + hp.hidden_layer + (1,)
         self.nlayer = len(hp.hidden_layer)
@@ -42,7 +42,7 @@ class SingleNNP(object):
             self.weights[i] = tmp_weights / self.natom
             self.bias[i] = tmp_bias / self.natom
         # loss function
-        loss = (E_pred - E_true)**2 + hp.mixing_beta * (F_pred - F_true)**2 / (3 * hp.natom)
+        loss = (E_pred - E_true)**2 + hp.mixing_beta * (F_pred - F_true)**2 / (3 * self.natom)
         return loss
 
     def feedforward(self, Gi, dGi):
@@ -83,22 +83,23 @@ class SingleNNP(object):
                        self.deriv_activation(outputs[i]))[None, :] * np.dot(f_delta, self.weights[i+1].T) \
                 if 'f_delta' in locals() else F_error  # squared loss
                 # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += (hp.mixing_beta / (3 * hp.natom)) * \
+            weight_grads[i] += (hp.mixing_beta / (3 * self.natom)) * \
                 np.tensordot(- np.dot(dGi, deriv_inputs[i]), f_delta, ((0,), (0,)))
 
         return weight_grads, bias_grads
 
 
 class HDNNP(object):
-    def __init__(self, comm, rank, nsample, ninput):
+    def __init__(self, comm, rank, natom, nsample, ninput):
         self.comm = comm
         self.rank = rank
-        self.nnp = SingleNNP(comm, nsample, ninput)
+        self.nnp = SingleNNP(comm, natom, nsample, ninput)
         self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp.weights, self.nnp.bias)
+        self.natom = natom
         self.nsample = nsample
         if bool_.SAVE_FIG:
             from animator import Animator
-            self.animator = Animator(nsample)
+            self.animator = Animator(natom, nsample)
 
     def inference(self, Gi, dGi):
         Ei, Fi, _, _, _, _ = self.nnp.feedforward(Gi, dGi)
@@ -128,8 +129,8 @@ class HDNNP(object):
                     F_error = F_pred - Fs[i]
                     w_tmp, b_tmp = self.nnp.backprop(Gs[i][self.rank], dGs[i][self.rank], E_error, F_error)
                     for w_p, b_p, w_t, b_t in zip(w_para, b_para, w_tmp, b_tmp):
-                        w_p += w_t / (batch_size * hp.natom)
-                        b_p += b_t / (batch_size * hp.natom)
+                        w_p += w_t / (batch_size * self.natom)
+                        b_p += b_t / (batch_size * self.natom)
                 for w_grad, b_grad, w_p, b_p in zip(weight_grads, bias_grads, w_para, b_para):
                     self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
                     self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)

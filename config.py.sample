@@ -10,7 +10,6 @@
 
 class hp:
     # about symmetric functions
-    natom =
     Rcs = []
     etas = []
     Rss = []
