@@ -13,18 +13,18 @@ from mpi4py import MPI
 from modules.generator import make_dataset
 from modules.model import HDNNP
 
-allcomm = MPI.COMM_WORLD
-allrank = allcomm.Get_rank()
-allsize = allcomm.Get_size()
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
 
-if allrank == 0:
-    datestr = datetime.now().strftime('%m%d-%H%M%S')
+datestr = datetime.now().strftime('%m%d-%H%M%S')
+if rank == 0:
     file = open('progress-'+datestr+'.out', 'w')
     stime = time()
 
-Es, Fs, Gs, dGs, natom, nsample, ninput, composition = make_dataset(allcomm, allrank, allsize)
+Es, Fs, Gs, dGs, natom, nsample, ninput, composition = make_dataset(comm, rank, size)
 
-if allrank == 0:
+if rank == 0:
     file.write("""
 Rc:   {}
 eta:  {}
@@ -55,36 +55,28 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
            ninput, 'x'.join(map(str, hp.hidden_layer)), 1,
            hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta,
            hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.epsilon,
-           natom, dict(composition), hp.nepoch, nsample, ninput,
+           natom, dict(composition['number']), hp.nepoch, nsample, ninput,
            hp.batch_size, hp.batch_size_growth, hp.optimizer, hp.activation))
     file.flush()
 
-# use only "natom" nodes for NN
-allgroup = allcomm.Get_group()
-NNcomm = allcomm.Create(allgroup.Incl(range(natom)))
-if allrank < natom:
-    NNrank = NNcomm.Get_rank()
+# initialize HDNNP
+hdnnp = HDNNP(comm, rank, size, natom, nsample, ninput, composition)
+# load weight parameters when restart
+if bool_.LOAD_WEIGHT_PARAMS:
+    hdnnp.load_w()
 
-    # initialize HDNNP
-    hdnnp = HDNNP(NNcomm, NNrank, natom, nsample, ninput, composition)
-    # load weight parameters when restart
-    if bool_.LOAD_WEIGHT_PARAMS:
-        hdnnp.load_w()
-    else:
-        hdnnp.sync_w()
+# training
+for m in range(hp.nepoch):
+    hdnnp.training(m, Es, Fs, Gs, dGs)
+    E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(m, Es, Fs, Gs, dGs)
+    if rank == 0:
+        file.write('{:<14} {:<14.9f} {:<14.9f} {:<14.9f} {:<14.9f}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
+        file.flush()
 
-    # training
-    for m in range(hp.nepoch):
-        hdnnp.training(m, Es, Fs, Gs, dGs)
-        E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(m, Es, Fs, Gs, dGs)
-        if allrank == 0:
-            file.write('{:<14} {:<14.9f} {:<14.9f} {:<14.9f} {:<14.9f}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
-            file.flush()
-
-    # save
-    if allrank == 0:
-        file.close()
-        if bool_.SAVE_WEIGHT_PARAMS:
-            hdnnp.save_w(datestr)
-        if bool_.SAVE_FIG:
-            hdnnp.save_fig()
+# save
+if rank == 0:
+    file.close()
+    if bool_.SAVE_FIG:
+        hdnnp.save_fig()
+if bool_.SAVE_WEIGHT_PARAMS:
+    hdnnp.save_w(datestr)

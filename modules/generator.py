@@ -345,20 +345,20 @@ class SFGenerator(InputGenerator):
     pass
 
 
-def make_dataset(allcomm, allrank, allsize):
+def make_dataset(comm, rank, size):
     train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
     train_npy_dir = path.join(file_.train_dir, 'npy', file_.name)
     train_composition_file = path.join(train_npy_dir, 'composition.json')
-    if allrank == 0 and not path.exists(train_npy_dir):
+    if rank == 0 and not path.exists(train_npy_dir):
         mkdir(train_npy_dir)
     label = LabelGenerator(train_npy_dir)
     input = InputGenerator(train_npy_dir)
 
     if bool_.CALC_INPUT:
-        alldataset = AtomsReader(train_xyz_file)
+        dataset = AtomsReader(train_xyz_file)
         coordinates = []
-        for data in alldataset:
-            if data.config_type == file_.name and data.force.min() > -1. and data.force.max() < 1.:
+        for data in dataset:
+            if data.config_type == file_.name and data.force.min() > -10. and data.force.max() < 10.:
                 coordinates.append(data)
         natom = coordinates[0].n
         nsample = len(coordinates)
@@ -366,10 +366,11 @@ def make_dataset(allcomm, allrank, allsize):
         ninput = len(hp.Rcs) + \
             len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-        Gs, dGs = input.make(allcomm, allsize, allrank, coordinates, natom, nsample, ninput)
-        composition = defaultdict(lambda: 0)
-        for atom in coordinates[0]:
-            composition[atom.symbol] += 1
+        Gs, dGs = input.make(comm, size, rank, coordinates, natom, nsample, ninput)
+        composition = {'number': defaultdict(lambda: 0), 'index': defaultdict(list)}
+        for i, atom in enumerate(coordinates[0]):
+            composition['number'][atom.symbol] += 1
+            composition['index'][atom.symbol].append(i)
         with open(train_composition_file, 'w') as f:
             json.dump(composition, f)
     else:
@@ -383,7 +384,7 @@ def make_dataset(allcomm, allrank, allsize):
 
 
 if __name__ == '__main__':
-    allcomm = MPI.COMM_WORLD
-    allrank = allcomm.Get_rank()
-    allsize = allcomm.Get_size()
-    make_dataset(allcomm, allrank, allsize)
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    make_dataset(comm, rank, size)

@@ -2,8 +2,10 @@
 *.out
 *.idx
 *.npy
+*.npz
 *.png
 *.gif
+*.json
 
 *.o[0-9]*
 *.e[0-9]*
