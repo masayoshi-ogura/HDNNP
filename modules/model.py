@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 from os import path
-from os import mkdir
+from os import makedirs
+from sys import exit
 from random import sample
+from itertools import combinations
 import numpy as np
 from mpi4py import MPI
 
@@ -14,10 +16,8 @@ from optimizer import OPTIMIZERS
 
 
 class SingleNNP(object):
-    def __init__(self, comm, nsample, ninput):
-        self.comm = comm
-        self.natom = hp.natom
-        self.nsample = nsample
+    def __init__(self, all_natom, ninput):
+        self.all_natom = all_natom
         self.shape = (ninput,) + hp.hidden_layer + (1,)
         self.nlayer = len(hp.hidden_layer)
         self.nweight = len(hp.hidden_layer) + 1
@@ -32,18 +32,18 @@ class SingleNNP(object):
             self.weights.append(np.random.normal(0.0, 0.5, (self.shape[i], self.shape[i+1])))
             self.bias.append(np.random.normal(0.0, 0.5, (self.shape[i+1])))
 
-    def loss_func(self, E_true, E_pred, F_true, F_pred):
-        # sync weights between the NNP of the same atom
-        for i in range(self.nweight):
-            tmp_weights = np.zeros_like(self.weights[i])
-            tmp_bias = np.zeros_like(self.bias[i])
-            self.comm.Allreduce(self.weights[i], tmp_weights, op=MPI.SUM)
-            self.comm.Allreduce(self.bias[i], tmp_bias, op=MPI.SUM)
-            self.weights[i] = tmp_weights / self.natom
-            self.bias[i] = tmp_bias / self.natom
-        # loss function
-        loss = (E_pred - E_true)**2 + hp.mixing_beta * (F_pred - F_true)**2 / (3 * hp.natom)
-        return loss
+    # def loss_func(self, E_true, E_pred, F_true, F_pred):
+    #     # sync weights between the NNP of the same atom
+    #     for i in range(self.nweight):
+    #         tmp_weights = np.zeros_like(self.weights[i])
+    #         tmp_bias = np.zeros_like(self.bias[i])
+    #         self.comm.Allreduce(self.weights[i], tmp_weights, op=MPI.SUM)
+    #         self.comm.Allreduce(self.bias[i], tmp_bias, op=MPI.SUM)
+    #         self.weights[i] = tmp_weights / self.natom
+    #         self.bias[i] = tmp_bias / self.natom
+    #     # loss function
+    #     loss = (E_pred - E_true)**2 + hp.mixing_beta * (F_pred - F_true)**2 / (3 * self.natom)
+    #     return loss
 
     def feedforward(self, Gi, dGi):
         # "inputs" means "linear transformation's input", not "each layer's input"
@@ -83,28 +83,30 @@ class SingleNNP(object):
                        self.deriv_activation(outputs[i]))[None, :] * np.dot(f_delta, self.weights[i+1].T) \
                 if 'f_delta' in locals() else F_error  # squared loss
                 # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += (hp.mixing_beta / (3 * hp.natom)) * \
+            weight_grads[i] += (hp.mixing_beta / (3 * self.all_natom)) * \
                 np.tensordot(- np.dot(dGi, deriv_inputs[i]), f_delta, ((0,), (0,)))
 
         return weight_grads, bias_grads
 
 
 class HDNNP(object):
-    def __init__(self, comm, rank, nsample, ninput):
-        self.comm = comm
-        self.rank = rank
-        self.nnp = SingleNNP(comm, nsample, ninput)
-        self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp.weights, self.nnp.bias)
+    def __init__(self, comm, rank, size, natom, nsample, ninput, composition):
+        self.all_natom = natom
         self.nsample = nsample
+        self.initialize(comm, rank, size, ninput, composition)
         if bool_.SAVE_FIG:
             from animator import Animator
-            self.animator = Animator(nsample)
+            self.animator = Animator(natom, nsample)
 
-    def inference(self, Gi, dGi):
-        Ei, Fi, _, _, _, _ = self.nnp.feedforward(Gi, dGi)
-        E, F = np.zeros_like(Ei), np.zeros_like(Fi)
-        self.comm.Allreduce(Ei, E, op=MPI.SUM)
-        self.comm.Allreduce(Fi, F, op=MPI.SUM)
+    def inference(self, G, dG):
+        E, E_tmp = np.zeros(1), np.zeros(1)
+        F, F_tmp = np.zeros((3*self.all_natom, 1)), np.zeros((3*self.all_natom, 1))
+        for nnp, i in zip(self.nnp, self.index):
+            Ei, Fi, _, _, _, _ = nnp.feedforward(G[i], dG[i])
+            E_tmp += Ei
+            F_tmp += Fi
+        self.all_comm.Allreduce(E_tmp, E, op=MPI.SUM)
+        self.all_comm.Allreduce(F_tmp, F, op=MPI.SUM)
         return E, F
 
     def training(self, m, Es, Fs, Gs, dGs):
@@ -116,25 +118,29 @@ class HDNNP(object):
             niter = -(- self.nsample / batch_size)
             for m in range(niter):
                 sampling = sample(range(self.nsample), batch_size)
-                sampling = self.comm.bcast(sampling, root=0)
+                sampling = self.all_comm.bcast(sampling, root=0)
 
-                weight_grads = [np.zeros_like(weight) for weight in self.nnp.weights]
-                bias_grads = [np.zeros_like(bias) for bias in self.nnp.bias]
-                w_para = [np.zeros_like(weight) for weight in self.nnp.weights]
-                b_para = [np.zeros_like(bias) for bias in self.nnp.bias]
-                for i in sampling:
-                    E_pred, F_pred = self.inference(Gs[i][self.rank], dGs[i][self.rank])
-                    E_error = E_pred - Es[i]
-                    F_error = F_pred - Fs[i]
-                    w_tmp, b_tmp = self.nnp.backprop(Gs[i][self.rank], dGs[i][self.rank], E_error, F_error)
-                    for w_p, b_p, w_t, b_t in zip(w_para, b_para, w_tmp, b_tmp):
-                        w_p += w_t / (batch_size * hp.natom)
-                        b_p += b_t / (batch_size * hp.natom)
-                for w_grad, b_grad, w_p, b_p in zip(weight_grads, bias_grads, w_para, b_para):
-                    self.comm.Allreduce(w_p, w_grad, op=MPI.SUM)
-                    self.comm.Allreduce(b_p, b_grad, op=MPI.SUM)
+                weight_grads = [np.zeros_like(weight) for weight in self.nnp[0].weights]
+                bias_grads = [np.zeros_like(bias) for bias in self.nnp[0].bias]
+                weight_para = [np.zeros_like(weight) for weight in self.nnp[0].weights]
+                bias_para = [np.zeros_like(bias) for bias in self.nnp[0].bias]
+                for sam in sampling:
+                    E_pred, F_pred = self.inference(Gs[sam], dGs[sam])
+                    E_error = E_pred - Es[sam]
+                    F_error = F_pred - Fs[sam]
+                    for nnp, i in zip(self.nnp, self.index):
+                        w_tmp, b_tmp = nnp.backprop(Gs[sam][i], dGs[sam][i], E_error, F_error)
+                        for w_p, b_p, w_t, b_t in zip(weight_para, bias_para, w_tmp, b_tmp):
+                            w_p += w_t / (batch_size * self.atomic_natom)
+                            b_p += b_t / (batch_size * self.atomic_natom)
+                for w_g, b_g, w_p, b_p in zip(weight_grads, bias_grads, weight_para, bias_para):
+                    self.atomic_comm.Allreduce(w_p, w_g, op=MPI.SUM)
+                    self.atomic_comm.Allreduce(b_p, b_g, op=MPI.SUM)
 
-                self.nnp.weights, self.nnp.bias = self.optimizer.update_params(weight_grads, bias_grads)
+                weights, bias = self.optimizer.update_params(weight_grads, bias_grads)
+                for nnp in self.nnp:
+                    nnp.weights = weights
+                    nnp.bias = bias
         elif hp.optimizer == 'bfgs':
             print 'Info: BFGS is off-line learning method. "batch_size" is ignored.'
             # TODO: BFGS optimize
@@ -149,10 +155,10 @@ class HDNNP(object):
         if bool_.SAVE_FIG and m == 0:
             self.animator.set_true(Es, Fs)
         E_preds, F_preds = np.zeros_like(Es), np.zeros_like(Fs)
-        for i, (G, dG) in enumerate(zip(Gs, dGs)):
-            E_pred, F_pred = self.inference(G[self.rank], dG[self.rank])
-            E_preds[i] = E_pred
-            F_preds[i] = F_pred
+        for sam, (G, dG) in enumerate(zip(Gs, dGs)):
+            E_pred, F_pred = self.inference(G, dG)
+            E_preds[sam] = E_pred
+            F_preds[sam] = F_pred
 
         if bool_.SAVE_FIG:
             self.animator.set_pred(m, E_preds, F_preds)
@@ -165,21 +171,90 @@ class HDNNP(object):
         self.animator.save_fig()
 
     def save_w(self, datestr):
-        weight_save_dir = path.join(file_.weight_dir, datestr)
-        mkdir(weight_save_dir)
-        if self.rank == 0:
-            for i in range(self.nnp.nweight):
-                np.save(path.join(weight_save_dir, '{}_weights{}.npy'.format(file_.name, i)),
-                        self.nnp.weights[i])
-                np.save(path.join(weight_save_dir, '{}_bias{}.npy'.format(file_.name, i)),
-                        self.nnp.bias[i])
+        if self.atomic_rank == 0:
+            weight_save_dir = path.join(file_.weight_dir, file_.name, datestr)
+            if not path.exists(weight_save_dir):
+                makedirs(weight_save_dir)
+            weights = {str(i): self.nnp[0].weights[i] for i in range(self.nnp[0].nweight)}
+            bias = {str(i): self.nnp[0].bias[i] for i in range(self.nnp[0].nweight)}
+            np.savez(path.join(weight_save_dir, '{}_weights.npz'.format(self.symbol)), **weights)
+            np.savez(path.join(weight_save_dir, '{}_bias.npz'.format(self.symbol)), **bias)
 
     def load_w(self):
-        for i in range(self.nnp.nweight):
-            self.nnp.weights[i] = np.load(path.join(file_.weight_dir, '{}_weights{}.npy'.format(file_.name, i)))
-            self.nnp.bias[i] = np.load(path.join(file_.weight_dir, '{}_bias{}.npy'.format(file_.name, i)))
+        weights = np.load(path.join(file_.weight_dir, file_.name, '{}_weights.npz'.format(self.symbol)))
+        bias = np.load(path.join(file_.weight_dir, file_.name, '{}_bias.npz'.format(self.symbol)))
+        for nnp in self.nnp:
+            for i in range(nnp.nweight):
+                nnp.weights[i] = weights[str(i)]
+                nnp.bias[i] = bias[str(i)]
 
     def sync_w(self):
-        for i in range(self.nnp.nweight):
-            self.comm.Bcast(self.nnp.weights[i], root=0)
-            self.comm.Bcast(self.nnp.bias[i], root=0)
+        for i in range(self.nnp[0].nweight):
+            self.atomic_comm.Bcast(self.nnp[0].weights[i], root=0)
+            self.atomic_comm.Bcast(self.nnp[0].bias[i], root=0)
+
+        for nnp in self.nnp:
+            nnp.weights = self.nnp[0].weights
+            nnp.bias = self.nnp[0].bias
+
+    def initialize(self, comm, rank, size, ninput, composition):
+        def comb(n, r):
+            for c in combinations(range(1, n), r-1):
+                ret = []
+                low = 0
+                for p in c:
+                    ret.append(p - low)
+                    low = p
+                ret.append(n - low)
+                yield ret
+
+        def allocate(size, symbol, natom):
+            min = 0
+            for worker in comb(size, len(symbol)):
+                obj = 0
+                for w, n in zip(worker, natom):
+                    if w > n:
+                        break
+                    obj += n*(-(-n/w))**2
+                else:
+                    if min == 0 or min > obj:
+                        min = obj
+                        min_worker = {symbol[i]: worker[i] for i in range(len(symbol))}  # worker(node)
+            return min_worker
+
+        s = composition['number'].keys()  # symbol list
+        n = composition['number'].values()  # natom list
+
+        # allocate worker for each atom
+        if size == 1:
+            raise ValueError('the number of process must be 2 or more.')
+        elif size > self.all_natom:
+            self.all_comm = comm.Create(comm.Get_group().Incl(range(self.all_natom)))
+            if not rank < self.all_natom:
+                exit()
+            w = composition['number']  # worker(node) ex.) {'Si': 3, 'Ge': 5}
+        else:
+            self.all_comm = comm
+            w = allocate(size, s, n)
+
+        # split MPI communicator and set SingleNNP instances and initialize them
+        low = 0
+        for symbol, num in w.items():
+            if low <= rank < low+num:
+                self.symbol = symbol
+                atomic_group = self.all_comm.Get_group().Incl(range(low, low+num))
+                self.atomic_comm = self.all_comm.Create(atomic_group)
+                self.atomic_rank = self.atomic_comm.Get_rank()
+            low += num
+        self.atomic_natom = composition['number'][self.symbol]
+        self.nnp = [SingleNNP(self.all_natom, ninput)]
+        quo, rem = self.atomic_natom / w[self.symbol], self.atomic_natom % w[self.symbol]
+        if self.atomic_rank < rem:
+            self.nnp *= quo+1
+            self.index = composition['index'][self.symbol][self.atomic_rank*(quo+1): (self.atomic_rank+1)*(quo+1)]
+        else:
+            self.nnp *= quo
+            self.index = composition['index'][self.symbol][self.atomic_rank*quo+rem: (self.atomic_rank+1)*quo+rem]
+
+        self.sync_w()
+        self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp[0].weights, self.nnp[0].bias)
