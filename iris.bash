@@ -8,4 +8,11 @@ export PATH=/home/ogura/python/Python-2.7.9/bin:$PATH
 export PYTHONPATH=/home/ogura/python/Python-2.7.9/lib/python-2.7/site-packages:$PYTHONPATH
 export PYTHONHOME=/home/ogura/python/Python-2.7.9
 
-mpirun -np 24 python main.py
+if [ "${mode}" = 'train' -o -z "${mode}" ]; then
+  mpirun -np 24 python train.py
+elif [ "${mode}" = 'test' ]; then
+  mpirun -np 24 python test.py
+else
+  echo 'Usage: qsub iris.bash -v mode=train|test'
+  echo "       if you don't define \$mode, 'train' will be chosen."
+fi
