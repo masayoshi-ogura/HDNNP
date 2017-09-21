@@ -12,6 +12,7 @@ from collections import defaultdict
 import dill
 import numpy as np
 from mpi4py import MPI
+from tqdm import tqdm
 try:
     from quippy import AtomsReader
     from quippy import farray
@@ -155,7 +156,7 @@ class InputGenerator(object):
         dGs_para = np.zeros((num, self.nsample, self.natom, 3*self.natom))
         # calculate
         # n:1..num, m:self.min..self.max
-        for m, n, G, dG in generator:
+        for m, n, G, dG in tqdm(generator):
             Gs_para[n][m] = G
             dGs_para[n][m] = dG
         # MPI Allreduce
@@ -394,7 +395,7 @@ def make_dataset(comm, rank, size):
     if bool_.CALC_INPUT:
         dataset = AtomsReader(train_xyz_file)
         coordinates = []
-        for data in dataset:
+        for data in tqdm(dataset):
             if data.config_type == file_.name and data.force.min() > -10. and data.force.max() < 10.:
                 coordinates.append(data)
         natom = coordinates[0].n
