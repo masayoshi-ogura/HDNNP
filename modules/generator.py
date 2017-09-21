@@ -9,7 +9,7 @@ from config import file_
 from os import path
 from os import mkdir
 from collections import defaultdict
-import json
+import pickle
 import numpy as np
 from mpi4py import MPI
 try:
@@ -23,17 +23,17 @@ except ImportError:
 
 
 class LabelGenerator(object):
-    def __init__(self, train_npy_dir):
-        self.train_npy_dir = train_npy_dir
+    def __init__(self, train_npz_dir):
+        self.train_npz_dir = train_npz_dir
 
     def make(self, atoms_objs, natom, nsample):
         Es = np.array([data.cohesive_energy for data in atoms_objs]).reshape((nsample, 1))
         Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*natom, 1))
-        np.savez(path.join(self.train_npy_dir, 'Energy_Force.npz'), Energy=Es, Force=Fs)
+        np.savez(path.join(self.train_npz_dir, 'Energy_Force.npz'), Energy=Es, Force=Fs)
         return Es, Fs
 
     def load(self):
-        ndarray = np.load(path.join(self.train_npy_dir, 'Energy_Force.npz'))
+        ndarray = np.load(path.join(self.train_npz_dir, 'Energy_Force.npz'))
         Es = ndarray['Energy']
         Fs = ndarray['Force']
         return Es, Fs
@@ -44,8 +44,8 @@ class EFGenerator(LabelGenerator):
 
 
 class InputGenerator(object):
-    def __init__(self, train_npy_dir):
-        self.train_npy_dir = train_npy_dir
+    def __init__(self, train_npz_dir):
+        self.train_npz_dir = train_npz_dir
 
     def make(self, comm, size, rank, atoms_objs, natom, nsample, ninput, composition):
         self.comm = comm
@@ -64,7 +64,7 @@ class InputGenerator(object):
 
         n = 0
         for Rc in hp.Rcs:
-            filename = path.join(self.train_npy_dir, 'G1-{}.npz'.format(Rc))
+            filename = path.join(self.train_npz_dir, 'G1-{}.npz'.format(Rc))
             if path.exists(filename) and Gs[n:n+2].shape == np.load(filename)['G'].shape:
                 ndarray = np.load(filename)
                 Gs[n:n+2] = ndarray['G']
@@ -78,7 +78,7 @@ class InputGenerator(object):
 
             for eta in hp.etas:
                 for Rs in hp.Rss:
-                    filename = path.join(self.train_npy_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
+                    filename = path.join(self.train_npz_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
                     if path.exists(filename) and Gs[n:n+2].shape == np.load(filename)['G'].shape:
                         ndarray = np.load(filename)
                         Gs[n:n+2] = ndarray['G']
@@ -92,7 +92,7 @@ class InputGenerator(object):
 
                 for lam in hp.lams:
                     for zeta in hp.zetas:
-                        filename = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
+                        filename = path.join(self.train_npz_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
                         if path.exists(filename) and Gs[n:n+3].shape == np.load(filename)['G'].shape:
                             ndarray = np.load(filename)
                             Gs[n:n+3] = ndarray['G']
@@ -108,7 +108,7 @@ class InputGenerator(object):
     def load(self):
         loaded_G, loaded_dG = [], []
         for Rc in hp.Rcs:
-            filename = path.join(self.train_npy_dir, 'G1-{}.npz'.format(Rc))
+            filename = path.join(self.train_npz_dir, 'G1-{}.npz'.format(Rc))
             if path.exists(filename):
                 ndarray = np.load(filename)
                 loaded_G.append(ndarray['G'])
@@ -116,7 +116,7 @@ class InputGenerator(object):
 
             for eta in hp.etas:
                 for Rs in hp.Rss:
-                    filename = path.join(self.train_npy_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
+                    filename = path.join(self.train_npz_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
                     if path.exists(filename):
                         ndarray = np.load(filename)
                         loaded_G.append(ndarray['G'])
@@ -124,7 +124,7 @@ class InputGenerator(object):
 
                 for lam in hp.lams:
                     for zeta in hp.zetas:
-                        filename = path.join(self.train_npy_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
+                        filename = path.join(self.train_npz_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
                         if path.exists(filename):
                             ndarray = np.load(filename)
                             loaded_G.append(ndarray['G'])
@@ -384,12 +384,12 @@ class SFGenerator(InputGenerator):
 
 def make_dataset(comm, rank, size):
     train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
-    train_npy_dir = path.join(file_.train_dir, 'npy', file_.name)
-    train_composition_file = path.join(train_npy_dir, 'composition.json')
-    if rank == 0 and not path.exists(train_npy_dir):
-        mkdir(train_npy_dir)
-    label = LabelGenerator(train_npy_dir)
-    input = InputGenerator(train_npy_dir)
+    train_npz_dir = path.join(file_.train_dir, 'npz', file_.name)
+    train_composition_file = path.join(train_npz_dir, 'composition.pickle')
+    if rank == 0 and not path.exists(train_npz_dir):
+        mkdir(train_npz_dir)
+    label = LabelGenerator(train_npz_dir)
+    input = InputGenerator(train_npz_dir)
 
     if bool_.CALC_INPUT:
         dataset = AtomsReader(train_xyz_file)
@@ -409,14 +409,14 @@ def make_dataset(comm, rank, size):
             composition['index'][atom.symbol].add(i)
             composition['symbol'].append(atom.symbol)
         with open(train_composition_file, 'w') as f:
-            json.dump(composition, f)
+            pickle.dump(composition, f)
         Gs, dGs = input.make(comm, size, rank, coordinates, natom, nsample, ninput, composition)
     else:
         Es, Fs = label.load()
         Gs, dGs = input.load()
         nsample, natom, ninput = Gs.shape
         with open(train_composition_file, 'r') as f:
-            composition = json.load(f)
+            composition = pickle.load(f)
 
     return Es, Fs, Gs, dGs, natom, nsample, ninput, composition
 
