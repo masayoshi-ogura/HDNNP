@@ -208,9 +208,9 @@ class InputGenerator(object):
                         fc1[:, None] * fc2[None, :]
                     dgi_radial1 = gi[:, :, None] * ((-2*Rc*eta*R1*tanh1 + 3*tanh1**2 - 3) / (Rc * tanh1))[:, None, None] * dR1[:, None, :]
                     dgi_radial2 = gi[:, :, None] * ((-2*Rc*eta*R2*tanh2 + 3*tanh2**2 - 3) / (Rc * tanh2))[None, :, None] * dR2[None, :, :]
-                    dgi_angular = zeta * lam * (2**(1-zeta)) * ((1+lam*cos)**(zeta-1)) * \
-                        np.exp(-eta*(R1[:, None, None]**2+R2[None, :, None]**2)) * \
-                        fc1[:, None, None] * fc2[None, :, None] * dcos
+                    dgi_angular = (zeta * lam * (2**(1-zeta)) * ((1+lam*cos)**(zeta-1)) *
+                                   np.exp(-eta*(R1[:, None]**2+R2[None, :]**2)) *
+                                   fc1[:, None] * fc2[None, :])[:, :, None] * dcos
                     dgi = dgi_radial1 + dgi_radial2 + dgi_angular
 
                     if con in ['homo', 'hetero']:
@@ -231,7 +231,7 @@ class InputGenerator(object):
 
             def helper(self, m, con, atoms, Rc):
                 if (m, con, Rc) not in cache:
-                    cache[(m, con, Rc)] = f(self, m, atoms, Rc)
+                    cache[(m, con, Rc)] = f(self, m, con, atoms, Rc)
                 return cache[(m, con, Rc)]
             return helper
         if f.__name__ == '__distance_ij':
@@ -274,7 +274,7 @@ class InputGenerator(object):
         atoms.calc_connect()
 
         for i in range(self.natom):
-            neighbours = atoms.connect.get_neighbours(i+1) - 1
+            neighbours = atoms.connect.get_neighbours(i+1)[0] - 1
             r, R, fc, tanh = self.__distance_ij(m, i, atoms, Rc)
             cos = self.__cosine_ijk(m, i, atoms, Rc)
             dR = self.__deriv_R(m, i, neighbours, r, R, Rc)
