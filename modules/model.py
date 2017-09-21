@@ -167,8 +167,9 @@ class HDNNP(object):
         RMSE = E_RMSE + hp.mixing_beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE
 
-    def save_fig(self):
-        self.animator.save_fig()
+    def save_fig(self, ext):
+        if self.all_rank == 0:
+            self.animator.save_fig(ext)
 
     def save_w(self, datestr):
         if self.atomic_rank == 0:
@@ -181,8 +182,8 @@ class HDNNP(object):
             np.savez(path.join(weight_save_dir, '{}_bias.npz'.format(self.symbol)), **bias)
 
     def load_w(self):
-        weights = np.load(path.join(file_.weight_dir, file_.name, '{}_weights.npz'.format(self.symbol)))
-        bias = np.load(path.join(file_.weight_dir, file_.name, '{}_bias.npz'.format(self.symbol)))
+        weights = np.load(path.join(file_.weight_dir, '{}_weights.npz'.format(self.symbol)))
+        bias = np.load(path.join(file_.weight_dir, '{}_bias.npz'.format(self.symbol)))
         for nnp in self.nnp:
             for i in range(nnp.nweight):
                 nnp.weights[i] = weights[str(i)]
@@ -230,11 +231,13 @@ class HDNNP(object):
             raise ValueError('the number of process must be 2 or more.')
         elif size > self.all_natom:
             self.all_comm = comm.Create(comm.Get_group().Incl(range(self.all_natom)))
+            self.all_rank = self.all_comm.Get_rank()
             if not rank < self.all_natom:
                 exit()
             w = composition['number']  # worker(node) ex.) {'Si': 3, 'Ge': 5}
         else:
             self.all_comm = comm
+            self.all_rank = rank
             w = allocate(size, s, n)
 
         # split MPI communicator and set SingleNNP instances and initialize them

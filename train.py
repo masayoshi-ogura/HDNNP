@@ -24,6 +24,9 @@ if rank == 0:
 
 Es, Fs, Gs, dGs, natom, nsample, ninput, composition = make_dataset(comm, rank, size)
 
+# initialize HDNNP
+hdnnp = HDNNP(comm, rank, size, natom, nsample, ninput, composition)
+
 if rank == 0:
     file.write("""
 Rc:   {}
@@ -59,8 +62,6 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
            hp.batch_size, hp.batch_size_growth, hp.optimizer, hp.activation))
     file.flush()
 
-# initialize HDNNP
-hdnnp = HDNNP(comm, rank, size, natom, nsample, ninput, composition)
 # load weight parameters when restart
 if bool_.LOAD_WEIGHT_PARAMS:
     hdnnp.load_w()
@@ -76,7 +77,7 @@ for m in range(hp.nepoch):
 # save
 if rank == 0:
     file.close()
-    if bool_.SAVE_FIG:
-        hdnnp.save_fig()
+if bool_.SAVE_FIG:
+    hdnnp.save_fig('gif')
 if bool_.SAVE_WEIGHT_PARAMS:
     hdnnp.save_w(datestr)
