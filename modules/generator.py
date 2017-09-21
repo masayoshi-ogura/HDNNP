@@ -9,7 +9,7 @@ from config import file_
 from os import path
 from os import mkdir
 from collections import defaultdict
-import pickle
+import dill
 import numpy as np
 from mpi4py import MPI
 try:
@@ -385,7 +385,7 @@ class SFGenerator(InputGenerator):
 def make_dataset(comm, rank, size):
     train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
     train_npz_dir = path.join(file_.train_dir, 'npz', file_.name)
-    train_composition_file = path.join(train_npz_dir, 'composition.pickle')
+    train_composition_file = path.join(train_npz_dir, 'composition.dill')
     if rank == 0 and not path.exists(train_npz_dir):
         mkdir(train_npz_dir)
     label = LabelGenerator(train_npz_dir)
@@ -409,14 +409,14 @@ def make_dataset(comm, rank, size):
             composition['index'][atom.symbol].add(i)
             composition['symbol'].append(atom.symbol)
         with open(train_composition_file, 'w') as f:
-            pickle.dump(composition, f)
+            dill.dump(composition, f)
         Gs, dGs = input.make(comm, size, rank, coordinates, natom, nsample, ninput, composition)
     else:
         Es, Fs = label.load()
         Gs, dGs = input.load()
         nsample, natom, ninput = Gs.shape
         with open(train_composition_file, 'r') as f:
-            composition = pickle.load(f)
+            composition = dill.load(f)
 
     return Es, Fs, Gs, dGs, natom, nsample, ninput, composition
 
