@@ -32,16 +32,13 @@ class hp:
 
 
 class bool_:
-    CALC_INPUT =
     LOAD_WEIGHT_PARAMS =
     SAVE_WEIGHT_PARAMS =
     SAVE_FIG =
-    pbc = [True, True, True]  # temporary flags TODO: set periodic boundary conditions correctly in xyz file.
 
 
 class file_:
-    xyzfile =
-    name =
+    xyz_file =
     weight_dir = 'weight_params'
-    train_dir = 'training_data'
+    data_dir = 'data'
     fig_dir = 'figure'

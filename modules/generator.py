@@ -2,12 +2,13 @@
 
 # define variables
 from config import hp
-from config import bool_
 from config import file_
 
 # import python modules
 from os import path
-from os import mkdir
+from os import makedirs
+from re import match
+from random import shuffle
 from collections import defaultdict
 import dill
 import numpy as np
@@ -15,44 +16,23 @@ from mpi4py import MPI
 from tqdm import tqdm
 try:
     from quippy import AtomsReader
+    from quippy import AtomsWriter
     from quippy import farray
     from quippy import fzeros
     from quippy import frange
 except ImportError:
-    print 'Warning: can\'t import quippy, so can\'t calculate symmetric functions, but load them.'
-    bool_.CALC_INPUT = False
+    print 'Warning: can\'t import quippy.'
 
 
-class LabelGenerator(object):
-    def __init__(self, train_npz_dir):
-        self.train_npz_dir = train_npz_dir
-
-    def make(self, atoms_objs, natom, nsample):
-        Es = np.array([data.cohesive_energy for data in atoms_objs]).reshape((nsample, 1))
-        Fs = np.array([np.array(data.force).T for data in atoms_objs]).reshape((nsample, 3*natom, 1))
-        np.savez(path.join(self.train_npz_dir, 'Energy_Force.npz'), Energy=Es, Force=Fs)
-        return Es, Fs
-
-    def load(self):
-        ndarray = np.load(path.join(self.train_npz_dir, 'Energy_Force.npz'))
-        Es = ndarray['Energy']
-        Fs = ndarray['Force']
-        return Es, Fs
-
-
-class EFGenerator(LabelGenerator):
-    pass
-
-
-class InputGenerator(object):
-    def __init__(self, train_npz_dir):
-        self.train_npz_dir = train_npz_dir
-
-    def make(self, comm, size, rank, atoms_objs, natom, nsample, ninput, composition):
+class Generator(object):
+    def __init__(self, comm, size, rank, data_dir, name, atoms_objs, natom, nsample, ninput, composition):
         self.comm = comm
+        self.data_dir = data_dir
+        self.name = name
         self.atoms_objs = atoms_objs
         self.natom = natom
         self.nsample = nsample
+        self.ninput = ninput
         self.composition = composition
         quo, rem = self.nsample/size, self.nsample % size
         if rank < rem:
@@ -60,12 +40,25 @@ class InputGenerator(object):
         else:
             self.min, self.max = rank*quo+rem, (rank+1)*quo+rem
 
-        Gs = np.empty((ninput, self.nsample, self.natom))
-        dGs = np.empty((ninput, self.nsample, self.natom, 3*self.natom))
+    def make_label(self):
+        EF_file = path.join(self.data_dir, 'Energy_Force.npz')
+        if path.exists(EF_file):
+            ndarray = np.load(EF_file)
+            Es = ndarray['Energy']
+            Fs = ndarray['Force']
+        else:
+            Es = np.array([data.cohesive_energy for data in self.atoms_objs]).reshape((self.nsample, 1))
+            Fs = np.array([np.array(data.force).T for data in self.atoms_objs]).reshape((self.nsample, 3*self.natom, 1))
+            np.savez(EF_file, Energy=Es, Force=Fs)
+        return Es, Fs
+
+    def make_input(self):
+        Gs = np.empty((self.ninput, self.nsample, self.natom))
+        dGs = np.empty((self.ninput, self.nsample, self.natom, 3*self.natom))
 
         n = 0
         for Rc in hp.Rcs:
-            filename = path.join(self.train_npz_dir, 'G1-{}.npz'.format(Rc))
+            filename = path.join(self.data_dir, 'G1-{}.npz'.format(Rc))
             if path.exists(filename) and Gs[n:n+2].shape == np.load(filename)['G'].shape:
                 ndarray = np.load(filename)
                 Gs[n:n+2] = ndarray['G']
@@ -79,7 +72,7 @@ class InputGenerator(object):
 
             for eta in hp.etas:
                 for Rs in hp.Rss:
-                    filename = path.join(self.train_npz_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
+                    filename = path.join(self.data_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
                     if path.exists(filename) and Gs[n:n+2].shape == np.load(filename)['G'].shape:
                         ndarray = np.load(filename)
                         Gs[n:n+2] = ndarray['G']
@@ -93,7 +86,7 @@ class InputGenerator(object):
 
                 for lam in hp.lams:
                     for zeta in hp.zetas:
-                        filename = path.join(self.train_npz_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
+                        filename = path.join(self.data_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
                         if path.exists(filename) and Gs[n:n+3].shape == np.load(filename)['G'].shape:
                             ndarray = np.load(filename)
                             Gs[n:n+3] = ndarray['G']
@@ -105,35 +98,6 @@ class InputGenerator(object):
                             dGs[n:n+3] = dG
                         n += 3
         return Gs.transpose(1, 2, 0), dGs.transpose(1, 2, 3, 0)
-
-    def load(self):
-        loaded_G, loaded_dG = [], []
-        for Rc in hp.Rcs:
-            filename = path.join(self.train_npz_dir, 'G1-{}.npz'.format(Rc))
-            if path.exists(filename):
-                ndarray = np.load(filename)
-                loaded_G.append(ndarray['G'])
-                loaded_dG.append(ndarray['dG'])
-
-            for eta in hp.etas:
-                for Rs in hp.Rss:
-                    filename = path.join(self.train_npz_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
-                    if path.exists(filename):
-                        ndarray = np.load(filename)
-                        loaded_G.append(ndarray['G'])
-                        loaded_dG.append(ndarray['dG'])
-
-                for lam in hp.lams:
-                    for zeta in hp.zetas:
-                        filename = path.join(self.train_npz_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
-                        if path.exists(filename):
-                            ndarray = np.load(filename)
-                            loaded_G.append(ndarray['G'])
-                            loaded_dG.append(ndarray['dG'])
-
-        Gs = np.c_[loaded_G].transpose(1, 2, 0)
-        dGs = np.c_[loaded_dG].transpose(1, 2, 3, 0)
-        return Gs, dGs
 
     def __calc_G(self, type, *params):
         if type == 1:
@@ -148,25 +112,23 @@ class InputGenerator(object):
         else:
             raise ValueError('available symmetric function type is 1, 2, or 4.')
 
-        # prepare np arrays
-        # homo(, mix), hetero
         Gs = np.empty((num, self.nsample, self.natom))
         Gs_para = np.zeros((num, self.nsample, self.natom))
         dGs = np.empty((num, self.nsample, self.natom, 3*self.natom))
         dGs_para = np.zeros((num, self.nsample, self.natom, 3*self.natom))
-        # calculate
         # n:1..num, m:self.min..self.max
         for m, n, G, dG in tqdm(generator):
             Gs_para[n][m] = G
             dGs_para[n][m] = dG
-        # MPI Allreduce
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
         # sclaing
-        for Gs_, dGs_ in zip(Gs, dGs):
-            min, max = np.min(Gs_), np.max(Gs_)
-            Gs_ = 2 * (Gs_ - min) / (max - min) - 1
-            dGs_ = (2 * dGs_) / (max - min)
+        for i in range(num):
+            min, max = np.min(Gs[i]), np.max(Gs[i])
+            if min == 0. and max == 0.:  # When there are zero heteroatoms, 'hetero' and 'mix' are zero matrices
+                continue
+            Gs[i] = 2 * (Gs[i] - min) / (max - min) - 1
+            dGs[i] = (2 * dGs[i]) / (max - min)
         return Gs, dGs
 
     def __G1_generator(self, Rc):
@@ -227,50 +189,49 @@ class InputGenerator(object):
                 yield m, n, G, dG
 
     def memorize(f):
-        if f.__name__ == '__neighbour':
-            cache = {}
-
-            def helper(self, m, con, atoms, Rc):
-                if (m, con, Rc) not in cache:
-                    cache[(m, con, Rc)] = f(self, m, con, atoms, Rc)
-                return cache[(m, con, Rc)]
-            return helper
+        # if f.__name__ == '__neighbour':
+        #     cache = {}
+        #
+        #     def helper(self, m, con, atoms, Rc):
+        #         if (m, con, Rc) not in cache:
+        #             cache[(m, con, Rc)] = f(self, m, con, atoms, Rc)
+        #         return cache[(m, con, Rc)]
+        #     return helper
         if f.__name__ == '__distance_ij':
             cache = {}
 
             def helper(self, m, i, atoms, Rc):
-                if (m, i, Rc) not in cache:
-                    cache[(m, i, Rc)] = f(self, m, i, atoms, Rc)
-                return cache[(m, i, Rc)]
+                if (self.name, m, i, Rc) not in cache:
+                    cache[(self.name, m, i, Rc)] = f(self, m, i, atoms, Rc)
+                return cache[(self.name, m, i, Rc)]
             return helper
         if f.__name__ == '__cosine_ijk':
             cache = {}
 
             def helper(self, m, i, atoms, Rc):
-                if (m, i, Rc) not in cache:
-                    cache[(m, i, Rc)] = f(self, m, i, atoms, Rc)
-                return cache[(m, i, Rc)]
+                if (self.name, m, i, Rc) not in cache:
+                    cache[(self.name, m, i, Rc)] = f(self, m, i, atoms, Rc)
+                return cache[(self.name, m, i, Rc)]
             return helper
         if f.__name__ == '__deriv_R':
             cache = {}
 
             def helper(self, m, i, neighbours, r, R, Rc):
-                if (m, i, Rc) not in cache:
-                    cache[(m, i, Rc)] = f(self, m, i, neighbours, r, R, Rc)
-                return cache[(m, i, Rc)]
+                if (self.name, m, i, Rc) not in cache:
+                    cache[(self.name, m, i, Rc)] = f(self, m, i, neighbours, r, R, Rc)
+                return cache[(self.name, m, i, Rc)]
             return helper
         if f.__name__ == '__deriv_cosine':
             cache = {}
 
             def helper(self, m, i, neighbours, r, R, cos, Rc):
-                if (m, i, Rc) not in cache:
-                    cache[(m, i, Rc)] = f(self, m, i, neighbours, r, R, cos, Rc)
-                return cache[(m, i, Rc)]
+                if (self.name, m, i, Rc) not in cache:
+                    cache[(self.name, m, i, Rc)] = f(self, m, i, neighbours, r, R, cos, Rc)
+                return cache[(self.name, m, i, Rc)]
             return helper
 
-    @memorize
+    # @memorize
     def __neighbour(self, m, con, atoms, Rc):
-        atoms.set_pbc(bool_.pbc)  # temporary flags TODO: set periodic boundary conditions correctly in xyz file.
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
 
@@ -379,51 +340,74 @@ class InputGenerator(object):
         return dcos
 
 
-class SFGenerator(InputGenerator):
-    pass
+def make_dataset(comm, rank, size, mode):
+    xyz_file = path.join(file_.data_dir, file_.xyz_file)
+    config_type_file = path.join(file_.data_dir, 'config_type.dill')
+    if not path.exists(config_type_file) and rank == 0:
+        print 'config_type.dill is not found.\nLoad all data from xyz file ...'
+        config_type = set()
+        alldataset = defaultdict(list)
+        rawdata = AtomsReader(xyz_file)
+        for data in tqdm(rawdata):
+            # config_typeが構造と組成を表していないものをスキップ
+            config = data.config_type
+            if match('Single', config) or match('Sheet', config) or match('Interface', config) or \
+                    match('Cluster', config) or match('Amorphous', config):
+                continue
+            config_type.add(config)
+            alldataset[config].append(data)
+        with open(config_type_file, 'w') as f:
+            dill.dump(config_type, f)
+        print 'Separate all dataset to train & test dataset ...'
+        for config in tqdm(config_type):
+            composition = {'number': defaultdict(lambda: 0), 'index': defaultdict(set), 'symbol': []}
+            for i, data in enumerate(alldataset[config][0]):
+                composition['number'][data.symbol] += 1
+                composition['index'][data.symbol].add(i)
+                composition['symbol'].append(data.symbol)
 
+            save_dir = path.join(file_.data_dir, config)
+            shuffle(alldataset[config])
+            if not path.exists(save_dir):
+                makedirs(path.join(save_dir, 'train'))
+                makedirs(path.join(save_dir, 'test'))
+            train_writer = AtomsWriter(path.join(save_dir, 'train', 'structure.xyz'))
+            test_writer = AtomsWriter(path.join(save_dir, 'train', 'structure.xyz'))
+            sep = len(alldataset[config]) * 9 / 10
+            for i, data in enumerate(alldataset[config]):
+                # 2~4体の構造はpbcをFalseに
+                if match('Quadruple', config) or match('Triple', config) or match('Dimer', config):
+                    data.set_pbc([False, False, False])
+                if i < sep:
+                    train_writer.write(data)
+                else:
+                    test_writer.write(data)
+            with open(path.join(save_dir, 'composition.dill'), 'w') as f:
+                dill.dump(composition, f)
 
-def make_dataset(comm, rank, size):
-    train_xyz_file = path.join(file_.train_dir, 'xyz', file_.xyzfile)
-    train_npz_dir = path.join(file_.train_dir, 'npz', file_.name)
-    train_composition_file = path.join(train_npz_dir, 'composition.dill')
-    if rank == 0 and not path.exists(train_npz_dir):
-        mkdir(train_npz_dir)
-    label = LabelGenerator(train_npz_dir)
-    input = InputGenerator(train_npz_dir)
-
-    if bool_.CALC_INPUT:
-        dataset = AtomsReader(train_xyz_file)
-        coordinates = []
-        for data in tqdm(dataset):
-            if data.config_type == file_.name and data.force.min() > -10. and data.force.max() < 10.:
-                coordinates.append(data)
-        natom = coordinates[0].n
-        nsample = len(coordinates)
-        Es, Fs = label.make(coordinates, natom, nsample)
+    comm.Barrier()
+    with open(config_type_file, 'r') as f:
+        config_type = dill.load(f)
+    for config in tqdm(config_type):
+        print '----------------------{}-----------------------'.format(config)
+        data_dir = path.join(file_.data_dir, config, mode)
+        dataset = AtomsReader(path.join(data_dir, 'structure.xyz'))
+        natom = dataset[0].n
+        nsample = len(dataset)
         ninput = 2 * len(hp.Rcs) + \
             2 * len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             3 * len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-        composition = {'number': defaultdict(lambda: 0), 'index': defaultdict(set), 'symbol': []}
-        for i, atom in enumerate(coordinates[0]):
-            composition['number'][atom.symbol] += 1
-            composition['index'][atom.symbol].add(i)
-            composition['symbol'].append(atom.symbol)
-        with open(train_composition_file, 'w') as f:
-            dill.dump(composition, f)
-        Gs, dGs = input.make(comm, size, rank, coordinates, natom, nsample, ninput, composition)
-    else:
-        Es, Fs = label.load()
-        Gs, dGs = input.load()
-        nsample, natom, ninput = Gs.shape
-        with open(train_composition_file, 'r') as f:
+        with open(path.join(data_dir, '..', 'composition.dill')) as f:
             composition = dill.load(f)
-
-    return Es, Fs, Gs, dGs, natom, nsample, ninput, composition
+        generator = Generator(comm, size, rank, data_dir, config, dataset, natom, nsample, ninput, composition)
+        Es, Fs = generator.make_label()
+        Gs, dGs = generator.make_input()
+        yield config, Es, Fs, Gs, dGs, natom, nsample, ninput, composition
 
 
 if __name__ == '__main__':
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    make_dataset(comm, rank, size)
+    for _ in make_dataset(comm, rank, size, 'train'):
+        pass
