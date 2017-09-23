@@ -27,6 +27,7 @@ except ImportError:
 class Generator(object):
     def __init__(self, comm, size, rank, data_dir, name, atoms_objs, natom, nsample, ninput, composition):
         self.comm = comm
+        self.rank = rank
         self.data_dir = data_dir
         self.name = name
         self.atoms_objs = atoms_objs
@@ -42,14 +43,14 @@ class Generator(object):
 
     def make_label(self):
         EF_file = path.join(self.data_dir, 'Energy_Force.npz')
-        if path.exists(EF_file):
-            ndarray = np.load(EF_file)
-            Es = ndarray['Energy']
-            Fs = ndarray['Force']
-        else:
+        if self.rank == 0 and not path.exists(EF_file):
             Es = np.array([data.cohesive_energy for data in self.atoms_objs]).reshape((self.nsample, 1))
             Fs = np.array([np.array(data.force).T for data in self.atoms_objs]).reshape((self.nsample, 3*self.natom, 1))
             np.savez(EF_file, Energy=Es, Force=Fs)
+        self.comm.Barrier()
+        ndarray = np.load(EF_file)
+        Es = ndarray['Energy']
+        Fs = ndarray['Force']
         return Es, Fs
 
     def make_input(self):
@@ -372,9 +373,11 @@ def make_dataset(comm, rank, size, mode):
                 makedirs(path.join(save_dir, 'train'))
                 makedirs(path.join(save_dir, 'test'))
             train_writer = AtomsWriter(path.join(save_dir, 'train', 'structure.xyz'))
-            test_writer = AtomsWriter(path.join(save_dir, 'train', 'structure.xyz'))
+            test_writer = AtomsWriter(path.join(save_dir, 'test', 'structure.xyz'))
             sep = len(alldataset[config]) * 9 / 10
             for i, data in enumerate(alldataset[config]):
+                if data.cohesive_energy > 0.0:
+                    continue
                 # 2~4体の構造はpbcをFalseに
                 if match('Quadruple', config) or match('Triple', config) or match('Dimer', config):
                     data.set_pbc([False, False, False])
