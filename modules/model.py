@@ -113,7 +113,7 @@ class HDNNP(object):
         if hp.optimizer in ['sgd', 'adam']:
             batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
             if batch_size < 0 or batch_size > self.nsample:
-                hp.batch_size = self.nsample
+                batch_size = self.nsample
 
             niter = -(- self.nsample / batch_size)
             for m in range(niter):
@@ -167,13 +167,14 @@ class HDNNP(object):
         RMSE = E_RMSE + hp.mixing_beta * F_RMSE
         return E_RMSE, F_RMSE, RMSE
 
-    def save_fig(self, ext):
+    def save_fig(self, datestr, config, ext):
         if self.all_rank == 0:
-            self.animator.save_fig(ext)
+            print 'saving figures ...'
+            self.animator.save_fig(datestr, config, ext)
 
     def save_w(self, datestr):
         if self.atomic_rank == 0:
-            weight_save_dir = path.join(file_.weight_dir, file_.name, datestr)
+            weight_save_dir = path.join(file_.weight_dir, datestr)
             if not path.exists(weight_save_dir):
                 makedirs(weight_save_dir)
             weights = {str(i): self.nnp[0].weights[i] for i in range(self.nnp[0].nweight)}
@@ -181,13 +182,20 @@ class HDNNP(object):
             np.savez(path.join(weight_save_dir, '{}_weights.npz'.format(self.symbol)), **weights)
             np.savez(path.join(weight_save_dir, '{}_bias.npz'.format(self.symbol)), **bias)
 
-    def load_w(self):
-        weights = np.load(path.join(file_.weight_dir, '{}_weights.npz'.format(self.symbol)))
-        bias = np.load(path.join(file_.weight_dir, '{}_bias.npz'.format(self.symbol)))
-        for nnp in self.nnp:
-            for i in range(nnp.nweight):
-                nnp.weights[i] = weights[str(i)]
-                nnp.bias[i] = bias[str(i)]
+    def load_w(self, datestr):
+        weight_file = path.join(file_.weight_dir, datestr, '{}_weights.npz'.format(self.symbol))
+        bias_file = path.join(file_.weight_dir, datestr, '{}_bias.npz'.format(self.symbol))
+        if path.exists(weight_file):
+            weights = np.load(weight_file)
+            bias = np.load(bias_file)
+            for nnp in self.nnp:
+                for i in range(nnp.nweight):
+                    nnp.weights[i] = weights[str(i)]
+                    nnp.bias[i] = bias[str(i)]
+        else:
+            if self.atomic_rank == 0:
+                print 'weight params file {} is not found. use initialized parameters.'.format(weight_file)
+            pass
 
     def sync_w(self):
         for i in range(self.nnp[0].nweight):
@@ -254,10 +262,10 @@ class HDNNP(object):
         quo, rem = self.atomic_natom / w[self.symbol], self.atomic_natom % w[self.symbol]
         if self.atomic_rank < rem:
             self.nnp *= quo+1
-            self.index = composition['index'][self.symbol][self.atomic_rank*(quo+1): (self.atomic_rank+1)*(quo+1)]
+            self.index = list(composition['index'][self.symbol])[self.atomic_rank*(quo+1): (self.atomic_rank+1)*(quo+1)]
         else:
             self.nnp *= quo
-            self.index = composition['index'][self.symbol][self.atomic_rank*quo+rem: (self.atomic_rank+1)*quo+rem]
+            self.index = list(composition['index'][self.symbol])[self.atomic_rank*quo+rem: (self.atomic_rank+1)*quo+rem]
 
         self.sync_w()
         self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp[0].weights, self.nnp[0].bias)
