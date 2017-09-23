@@ -66,20 +66,23 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
         file.flush()
 
     # initialize HDNNP
-    hdnnp = HDNNP(comm, rank, size, natom, nsample, ninput, composition)
-    hdnnp.load_w(datestr)
+    hdnnp = HDNNP(natom, nsample)
+    # if size > natom, unnnecessary node return False and do nothing.
+    if hdnnp.initialize(comm, rank, size, ninput, composition):
+        hdnnp.load_w(datestr)
 
-    # training
-    for m in range(hp.nepoch):
-        hdnnp.training(m, Es, Fs, Gs, dGs)
-        E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(m, Es, Fs, Gs, dGs)
-        if rank == 0:
-            file.write('{:<14} {:<14.9f} {:<14.9f} {:<14.9f} {:<14.9f}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
-            file.flush()
+        # training
+        for m in range(hp.nepoch):
+            hdnnp.training(m, Es, Fs, Gs, dGs)
+            E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(m, Es, Fs, Gs, dGs)
+            if rank == 0:
+                file.write('{:<14} {:<14.9f} {:<14.9f} {:<14.9f} {:<14.9f}\n'.format(m+1, time()-stime, E_RMSE, F_RMSE, RMSE))
+                file.flush()
 
-    # save
-    if bool_.SAVE_FIG:
-        hdnnp.save_fig(datestr, config, 'gif')
-    hdnnp.save_w(datestr)
+        # save
+        if bool_.SAVE_FIG:
+            hdnnp.save_fig(datestr, config, 'gif')
+        hdnnp.save_w(datestr)
+    comm.Barrier()
 if rank == 0:
     file.close()

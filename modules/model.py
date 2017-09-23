@@ -90,10 +90,9 @@ class SingleNNP(object):
 
 
 class HDNNP(object):
-    def __init__(self, comm, rank, size, natom, nsample, ninput, composition):
+    def __init__(self, natom, nsample):
         self.all_natom = natom
         self.nsample = nsample
-        self.initialize(comm, rank, size, ninput, composition)
         if bool_.SAVE_FIG:
             from animator import Animator
             self.animator = Animator(natom, nsample)
@@ -173,10 +172,11 @@ class HDNNP(object):
             self.animator.save_fig(datestr, config, ext)
 
     def save_w(self, datestr):
+        weight_save_dir = path.join(file_.weight_dir, datestr)
+        if self.all_rank == 0 and not path.exists(weight_save_dir):
+            makedirs(weight_save_dir)
+        self.all_comm.Barrier()
         if self.atomic_rank == 0:
-            weight_save_dir = path.join(file_.weight_dir, datestr)
-            if not path.exists(weight_save_dir):
-                makedirs(weight_save_dir)
             weights = {str(i): self.nnp[0].weights[i] for i in range(self.nnp[0].nweight)}
             bias = {str(i): self.nnp[0].bias[i] for i in range(self.nnp[0].nweight)}
             np.savez(path.join(weight_save_dir, '{}_weights.npz'.format(self.symbol)), **weights)
@@ -239,9 +239,9 @@ class HDNNP(object):
             raise ValueError('the number of process must be 2 or more.')
         elif size > self.all_natom:
             self.all_comm = comm.Create(comm.Get_group().Incl(range(self.all_natom)))
-            self.all_rank = self.all_comm.Get_rank()
             if not rank < self.all_natom:
-                exit()
+                return False
+            self.all_rank = self.all_comm.Get_rank()
             w = composition['number']  # worker(node) ex.) {'Si': 3, 'Ge': 5}
         else:
             self.all_comm = comm
@@ -269,3 +269,5 @@ class HDNNP(object):
 
         self.sync_w()
         self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp[0].weights, self.nnp[0].bias)
+
+        return True

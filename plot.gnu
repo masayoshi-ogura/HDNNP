@@ -5,7 +5,6 @@
 
 output = "`ls | grep .out | tail -n 1`"
 # every ::50はwarning避け
-stats output every ::50 nooutput
 set logscale y
 set format y "10^{%L}"
 set yrange [1e-3:1e2]
@@ -13,6 +12,7 @@ set xlabel 'iteration'
 set ylabel 'eV, eV/angstrom'
 
 if (ARG1 eq 'all') {
+  stats output every ::50 nooutput
   do for [i = 1:STATS_blocks-1] {
     set term x11 i
     plot output index i us 1:3 w l title 'energy RMSE', \
