@@ -32,13 +32,13 @@ class hp:
 
 
 class bool_:
-    LOAD_WEIGHT_PARAMS =
-    SAVE_WEIGHT_PARAMS =
     SAVE_FIG =
 
 
 class file_:
     xyz_file =
+    train_config = ['all']  # config_type use for training. if 'all', all config_type will be used
     weight_dir = 'weight_params'
+    test_weight = ''  # specify datestr(cf. MMDD-hhmmss)
     data_dir = 'data'
     fig_dir = 'figure'

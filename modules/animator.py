@@ -1,4 +1,5 @@
 from os import path
+from os import mkdir
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -21,39 +22,30 @@ def update(i, ax, pred, true):
 
 class Animator(object):
     def __init__(self, natom, nsample):
-        nfigure = 1 + 3 * natom
         self.natom = natom
-        self.preds = np.empty((hp.nepoch, nsample, nfigure))
-        self.true = np.empty((nsample, nfigure))
+        self.preds = {'energy': np.empty((hp.nepoch, nsample)), 'force': np.empty((hp.nepoch, nsample * 3*natom))}
+        self.true = {'energy': np.empty(nsample), 'force': np.empty((nsample * 3*natom))}
 
     def set_pred(self, m, E_pred, F_pred):
-        # nepoch x nsample x 1+3*natom -> 1+3*natom x nepoch x nsample
-        self.preds[m] = np.c_[E_pred, F_pred.reshape((-1, 3 * self.natom))]
+        self.preds['energy'][m] = E_pred.reshape(-1)
+        self.preds['force'][m] = F_pred.reshape(-1)
 
     def set_true(self, E_true, F_true):
-        # nsample x 1+3*natom -> 1+3*natom x nsample
-        self.true = np.c_[E_true, F_true.reshape((-1, 3 * self.natom))]
+        self.true['energy'] = E_true.reshape(-1)
+        self.true['force'] = F_true.reshape(-1)
 
-    def save_fig(self, ext):
-        self.preds = self.preds.transpose(2, 0, 1)
-        self.true = self.true.transpose(1, 0)
-
-        for i, (pred, true) in enumerate(zip(self.preds, self.true)):
-            if i == 0:
-                filename = 'energy.{}'.format(ext)
-            elif i % 3 == 0:
-                filename = 'force_{}x.{}'.format((i-1)/3+1, ext)
-            elif i % 3 == 1:
-                filename = 'force_{}y.{}'.format((i-1)/3+1, ext)
-            elif i % 3 == 2:
-                filename = 'force_{}z.{}'.format((i-1)/3+1, ext)
-
+    def save_fig(self, datestr, config, ext):
+        for s in ['energy', 'force']:
+            save_dir = path.join(file_.fig_dir, datestr)
+            if not path.exists(save_dir):
+                mkdir(save_dir)
+            file = path.join(save_dir, '{}-{}.{}'.format(config, s, ext))
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1)
             if ext == 'gif':
-                anime = FuncAnimation(fig, update, fargs=(ax, pred, true), interval=100, frames=hp.nepoch)
-                anime.save(path.join(file_.fig_dir, filename), writer='imagemagick')
+                anime = FuncAnimation(fig, update, fargs=(ax, self.preds[s], self.true[s]), interval=100, frames=hp.nepoch)
+                anime.save(file, writer='imagemagick')
             elif ext == 'png':
-                update(0, ax, pred, true)
-                fig.savefig(path.join(file_.fig_dir, filename))
+                update(0, ax, self.preds[s], self.true[s])
+                fig.savefig(file)
             plt.close(fig)

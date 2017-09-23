@@ -389,9 +389,21 @@ def make_dataset(comm, rank, size, mode):
     with open(config_type_file, 'r') as f:
         config_type = dill.load(f)
     for config in tqdm(config_type):
-        print '----------------------{}-----------------------'.format(config)
+        for type in file_.train_config:
+            if match(type, config) or type == 'all':
+                break
+        else:
+            continue
+        if rank == 0:
+            print '----------------------{}-----------------------'.format(config)
         data_dir = path.join(file_.data_dir, config, mode)
-        dataset = AtomsReader(path.join(data_dir, 'structure.xyz'))
+        xyz_file = path.join(data_dir, 'structure.xyz')
+        if not path.exists(xyz_file):
+            if rank == 0:
+                print 'xyz file {} is not found. maybe there are too few samples.'.format(xyz_file)
+            continue
+
+        dataset = AtomsReader(xyz_file)
         natom = dataset[0].n
         nsample = len(dataset)
         ninput = 2 * len(hp.Rcs) + \
