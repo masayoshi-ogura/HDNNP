@@ -122,13 +122,13 @@ class Generator(object):
             dGs_para[n][m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
         self.comm.Allreduce(dGs_para, dGs, op=MPI.SUM)
-        # sclaing
-        for i in range(num):
-            min, max = np.min(Gs[i]), np.max(Gs[i])
-            if min == 0. and max == 0.:  # When there are zero heteroatoms, 'hetero' and 'mix' are zero matrices
-                continue
-            Gs[i] = 2 * (Gs[i] - min) / (max - min) - 1
-            dGs[i] = (2 * dGs[i]) / (max - min)
+        # # sclaing
+        # for i in range(num):
+        #     min, max = np.min(Gs[i]), np.max(Gs[i])
+        #     if min == 0. and max == 0.:  # When there are zero heteroatoms, 'hetero' and 'mix' are zero matrices
+        #         continue
+        #     Gs[i] = 2 * (Gs[i] - min) / (max - min) - 1
+        #     dGs[i] = (2 * dGs[i]) / (max - min)
         return Gs, dGs
 
     def __G1_generator(self, Rc):

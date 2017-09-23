@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from config import file_
-
 # import python modules
 from datetime import datetime
 from mpi4py import MPI
@@ -22,17 +20,18 @@ for ret in make_dataset(comm, rank, size):
     config, Es, Fs, Gs, dGs, natom, nsample, ninput, composition = ret
 
     # initialize HDNNP
-    hdnnp = HDNNP(comm, rank, size, natom, nsample, ninput, composition)
-    hdnnp.load_w(file_.test_weight)
+    hdnnp = HDNNP(natom, nsample)
+    # if size > natom, unnnecessary node return False and do nothing.
+    if hdnnp.initialize(comm, rank, size, ninput, composition):
+        # test
+        E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(0, Es, Fs, Gs, dGs)
+        if rank == 0:
+            file.write('E_RMSE: {}\nF_RMSE: {}\nRMSE: {}\n'.format(E_RMSE, F_RMSE, RMSE))
+            file.flush()
 
-    # test
-    E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(0, Es, Fs, Gs, dGs)
-    if rank == 0:
-        file.write('E_RMSE: {}\nF_RMSE: {}\nRMSE: {}\n'.format(E_RMSE, F_RMSE, RMSE))
-        file.flush()
-
-    # save
-    hdnnp.save_fig(datestr, config, 'png')
+        # save
+        hdnnp.save_fig(datestr, config, 'png')
+    comm.Barrier()
 
 if rank == 0:
     file.close()
