@@ -12,7 +12,9 @@ if [ "${mode}" = 'train' -o -z "${mode}" ]; then
   mpirun -machinefile $PBS_NODEFILE -np $NPROCS python train.py
 elif [ "${mode}" = 'test' ]; then
   mpirun -machinefile $PBS_NODEFILE -np $NPROCS python test.py
+elif [ "${mode}" = 'preproc' ]; then
+  mpirun -machinefile $PBS_NODEFILE -np $NPROCS python modules/generator.py
 else
-  echo 'Usage: qsub forte.bash -v mode=train|test'
+  echo 'Usage: qsub -v mode=train|test|preproc forte.bash'
   echo "       if you don't define \$mode, 'train' will be chosen."
 fi
