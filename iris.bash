@@ -8,7 +8,6 @@ export PATH=/home/ogura/python/Python-2.7.9/bin:$PATH
 export PYTHONPATH=/home/ogura/python/Python-2.7.9/lib/python-2.7/site-packages:$PYTHONPATH
 export PYTHONHOME=/home/ogura/python/Python-2.7.9
 
-echo "mode is ${mode}"
 if [ "${mode}" = 'train' -o -z "${mode}" ]; then
   mpirun -np 24 python train.py
 elif [ "${mode}" = 'test' ]; then
