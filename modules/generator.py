@@ -118,7 +118,8 @@ class Generator(object):
         dGs = np.empty((num, self.nsample, self.natom, 3*self.natom))
         dGs_para = np.zeros((num, self.nsample, self.natom, 3*self.natom))
         # n:1..num, m:self.min..self.max
-        for m, n, G, dG in tqdm(generator):
+        generator = tqdm(generator) if bool_.LOCAL else generator
+        for m, n, G, dG in generator:
             Gs_para[n][m] = G
             dGs_para[n][m] = dG
         self.comm.Allreduce(Gs_para, Gs, op=MPI.SUM)
@@ -349,7 +350,8 @@ def make_dataset(comm, rank, size, mode):
         config_type = set()
         alldataset = defaultdict(list)
         rawdata = AtomsReader(xyz_file)
-        for data in tqdm(rawdata):
+        rawdata = tqdm(rawdata) if bool_.LOCAL else rawdata
+        for data in rawdata:
             # config_typeが構造と組成を表していないものをスキップ
             config = data.config_type
             if match('Single', config) or match('Sheet', config) or match('Interface', config) or \
@@ -360,7 +362,8 @@ def make_dataset(comm, rank, size, mode):
         with open(config_type_file, 'w') as f:
             dill.dump(config_type, f)
         print 'Separate all dataset to train & test dataset ...'
-        for config in tqdm(config_type):
+        config_type = tqdm(config_type) if bool_.LOCAL else config_type
+        for config in config_type:
             composition = {'number': defaultdict(lambda: 0), 'index': defaultdict(set), 'symbol': []}
             for i, data in enumerate(alldataset[config][0]):
                 composition['number'][data.symbol] += 1
@@ -391,7 +394,8 @@ def make_dataset(comm, rank, size, mode):
     comm.Barrier()
     with open(config_type_file, 'r') as f:
         config_type = dill.load(f)
-    for config in tqdm(config_type):
+    config_type = tqdm(config_type) if bool_.LOCAL else config_type
+    for config in config_type:
         for type in file_.train_config:
             if match(type, config) or type == 'all':
                 break
