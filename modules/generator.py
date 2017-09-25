@@ -2,6 +2,7 @@
 
 # define variables
 from config import hp
+from config import bool_
 from config import file_
 
 # import python modules
