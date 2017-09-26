@@ -192,47 +192,19 @@ class Generator(object):
                 yield m, n, G, dG
 
     def memorize(f):
-        # if f.__name__ == '__neighbour':
-        #     cache = {}
-        #
-        #     def helper(self, m, con, atoms, Rc):
-        #         if (m, con, Rc) not in cache:
-        #             cache[(m, con, Rc)] = f(self, m, con, atoms, Rc)
-        #         return cache[(m, con, Rc)]
-        #     return helper
-        if f.__name__ == '__distance_ij':
-            cache = {}
+        cache = {}
+        done = []
 
-            def helper(self, m, i, atoms, Rc):
-                if (self.name, m, i, Rc) not in cache:
-                    cache[(self.name, m, i, Rc)] = f(self, m, i, atoms, Rc)
-                return cache[(self.name, m, i, Rc)]
-            return helper
-        if f.__name__ == '__cosine_ijk':
-            cache = {}
+        def helper(self, m, i, Rc, *args):
+            if self.name not in done:
+                cache.clear()
+                done.append(self.name)
+            if (m, i, Rc) not in cache:
+                cache[(m, i, Rc)] = f(self, m, i, Rc, *args)
+            return cache[(m, i, Rc)]
+        return helper
 
-            def helper(self, m, i, atoms, Rc):
-                if (self.name, m, i, Rc) not in cache:
-                    cache[(self.name, m, i, Rc)] = f(self, m, i, atoms, Rc)
-                return cache[(self.name, m, i, Rc)]
-            return helper
-        if f.__name__ == '__deriv_R':
-            cache = {}
-
-            def helper(self, m, i, neighbours, r, R, Rc):
-                if (self.name, m, i, Rc) not in cache:
-                    cache[(self.name, m, i, Rc)] = f(self, m, i, neighbours, r, R, Rc)
-                return cache[(self.name, m, i, Rc)]
-            return helper
-        if f.__name__ == '__deriv_cosine':
-            cache = {}
-
-            def helper(self, m, i, neighbours, r, R, cos, Rc):
-                if (self.name, m, i, Rc) not in cache:
-                    cache[(self.name, m, i, Rc)] = f(self, m, i, neighbours, r, R, cos, Rc)
-                return cache[(self.name, m, i, Rc)]
-            return helper
-
+    # yieldと合わせるのよくなさそう(動作がどうなるかわからん)ので外す
     # @memorize
     def __neighbour(self, m, con, atoms, Rc):
         atoms.set_cutoff(Rc)
@@ -240,10 +212,10 @@ class Generator(object):
 
         for i in range(self.natom):
             neighbours = atoms.connect.get_neighbours(i+1)[0] - 1
-            r, R, fc, tanh = self.__distance_ij(m, i, atoms, Rc)
-            cos = self.__cosine_ijk(m, i, atoms, Rc)
-            dR = self.__deriv_R(m, i, neighbours, r, R, Rc)
-            dcos = self.__deriv_cosine(m, i, neighbours, r, R, cos, Rc)
+            r, R, fc, tanh = self.__distance_ij(m, i, Rc, atoms)
+            cos = self.__cosine_ijk(m, i, Rc, atoms)
+            dR = self.__deriv_R(m, i, Rc, neighbours, r, R)
+            dcos = self.__deriv_cosine(m, i, Rc, neighbours, r, R, cos)
 
             symbol = self.composition['symbol'][i]  # symbol of the focused atom
             index = self.composition['index'][symbol]  # index of the same species of the focused atom
@@ -280,7 +252,7 @@ class Generator(object):
                 yield i,  homo_radial, hetero_radial, mix_angular
 
     @memorize
-    def __distance_ij(self, m, i, atoms, Rc):
+    def __distance_ij(self, m, i, Rc, atoms):
         ri, Ri = [], []
         for n in frange(atoms.n_neighbours(i+1)):
             dist = farray(0.0)
@@ -295,7 +267,7 @@ class Generator(object):
         return r, R, fc, tanh
 
     @memorize
-    def __cosine_ijk(self, m, i, atoms, Rc):
+    def __cosine_ijk(self, m, i, Rc, atoms):
         n_neighb = atoms.n_neighbours(i+1)
         cos = np.zeros((n_neighb, n_neighb))
         for j in range(n_neighb):
@@ -307,7 +279,7 @@ class Generator(object):
         return cos
 
     @memorize
-    def __deriv_R(self, m, i, neighbours, r, R, Rc):
+    def __deriv_R(self, m, i, Rc, neighbours, r, R):
         n_neighb = len(neighbours)
         dR = np.zeros((n_neighb, 3*self.natom))
         for j in range(n_neighb):
@@ -321,7 +293,7 @@ class Generator(object):
         return dR
 
     @memorize
-    def __deriv_cosine(self, m, i, neighbours, r, R, cos, Rc):
+    def __deriv_cosine(self, m, i, Rc, neighbours, r, R, cos):
         n_neighb = len(neighbours)
         dcos = np.zeros((n_neighb, n_neighb, 3*self.natom))
         for j in range(n_neighb):
