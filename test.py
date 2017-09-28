@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from config import bool_
+
 # import python modules
 from datetime import datetime
 from mpi4py import MPI
@@ -16,7 +18,7 @@ datestr = datetime.now().strftime('%m%d-%H%M%S')
 if rank == 0:
     file = open('test-'+datestr+'.out', 'w')
 
-for ret in make_dataset(comm, rank, size):
+for ret in make_dataset(comm, rank, size, 'test'):
     config, Es, Fs, Gs, dGs, natom, nsample, ninput, composition = ret
 
     # initialize HDNNP
@@ -26,11 +28,13 @@ for ret in make_dataset(comm, rank, size):
         # test
         E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(0, Es, Fs, Gs, dGs)
         if rank == 0:
+            file.write('-----------------{}----------------\n'.format(config))
             file.write('E_RMSE: {}\nF_RMSE: {}\nRMSE: {}\n'.format(E_RMSE, F_RMSE, RMSE))
             file.flush()
 
         # save
-        hdnnp.save_fig(datestr, config, 'png')
+        if bool_.SAVE_FIG:
+            hdnnp.save_fig(datestr, config, 'png')
     comm.Barrier()
 
 if rank == 0:

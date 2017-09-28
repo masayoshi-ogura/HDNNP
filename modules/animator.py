@@ -35,6 +35,7 @@ class Animator(object):
         self.true['force'] = F_true.reshape(-1)
 
     def save_fig(self, datestr, config, ext):
+        plt.ioff()
         for s in ['energy', 'force']:
             save_dir = path.join(file_.fig_dir, datestr)
             if not path.exists(save_dir):

@@ -3,7 +3,7 @@
 #        all ... plot all of blocks.
 #        live ... plot latest block.
 
-output = "`ls | grep .out | tail -n 1`"
+output = "`ls | grep progress-.*.out | tail -n 1 | head -n 1`"
 set xlabel 'iteration'
 set ylabel 'eV, eV/angstrom'
 
