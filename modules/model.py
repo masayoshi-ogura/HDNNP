@@ -55,7 +55,7 @@ class SingleNNP(object):
                 self.inputs.append(self.activation(self.outputs[i-1]))
                 self.deriv_inputs.append(self.deriv_activation(self.outputs[i-1])[:, None, :] * self.deriv_outputs[i-1])
             self.outputs.append(np.dot(self.inputs[i], self.weights[i]) + self.bias[i])
-            self.deriv_outputs.append(np.dot(self.deriv_inputs[i], self.weights[i]))
+            self.deriv_outputs.append(np.tensordot(self.deriv_inputs[i], self.weights[i], ((2,), (0,))))
         Ei = self.outputs[-1]
         Fi = - self.deriv_outputs[-1]
         return Ei, Fi
@@ -75,7 +75,7 @@ class SingleNNP(object):
 
             # force
             f_delta = (self.second_deriv_activation(self.outputs[i]) * np.dot(self.inputs[i], self.weights[i]) +
-                       self.deriv_activation(self.outputs[i]))[:, None, :] * np.dot(f_delta, self.weights[i+1].T) \
+                       self.deriv_activation(self.outputs[i]))[:, None, :] * np.tensordot(f_delta, self.weights[i+1], ((2,), (1,))) \
                 if 'f_delta' in locals() else F_error  # squared loss
                 # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
             weight_grads[i] += (hp.mixing_beta / (3 * self.all_natom)) * \
