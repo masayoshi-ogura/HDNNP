@@ -225,8 +225,8 @@ class HDNNP(object):
         n = composition['number'].values()  # natom list
 
         # allocate worker for each atom
-        if size == 1:
-            raise ValueError('the number of process must be 2 or more.')
+        if len(s) > size:
+            raise ValueError('the number of process must be {} or more.'.format(len(s)))
         elif size > self.all_natom:
             self.all_comm = comm.Create(comm.Get_group().Incl(range(self.all_natom)))
             if not rank < self.all_natom:
