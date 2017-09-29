@@ -46,43 +46,40 @@ class SingleNNP(object):
     def feedforward(self, Gi, dGi, size):
         # "inputs" means "linear transformation's input", not "each layer's input"
         # "outputs" means "linear transformation's output", not "each layer's output"
-        inputs, outputs, deriv_inputs, deriv_outputs = [], [], [], []
+        self.inputs, self.outputs, self.deriv_inputs, self.deriv_outputs = [], [], [], []
         for i in range(self.nweight):
             if i == 0:
-                inputs.append(Gi)
-                deriv_inputs.append(dGi)
+                self.inputs.append(Gi)
+                self.deriv_inputs.append(dGi)
             else:
-                inputs.append(self.activation(outputs[i-1]))
-                deriv_inputs.append(self.deriv_activation(outputs[i-1])[:, None, :] * deriv_outputs[i-1])
-            outputs.append(np.dot(inputs[i], self.weights[i]) + self.bias[i])
-            deriv_outputs.append(np.dot(deriv_inputs[i], self.weights[i]))
-        Ei = outputs[-1]
-        Fi = - deriv_outputs[-1]
-        return Ei, Fi, inputs, outputs, deriv_inputs, deriv_outputs
+                self.inputs.append(self.activation(self.outputs[i-1]))
+                self.deriv_inputs.append(self.deriv_activation(self.outputs[i-1])[:, None, :] * self.deriv_outputs[i-1])
+            self.outputs.append(np.dot(self.inputs[i], self.weights[i]) + self.bias[i])
+            self.deriv_outputs.append(np.dot(self.deriv_inputs[i], self.weights[i]))
+        Ei = self.outputs[-1]
+        Fi = - self.deriv_outputs[-1]
+        return Ei, Fi
 
-    def backprop(self, Gi, dGi, E_error, F_error, size):
-        # feedforward
-        _, _, inputs, outputs, deriv_inputs, deriv_outputs = self.feedforward(Gi, dGi, size)
-
+    def backprop(self, Gi, dGi, E_error, F_error):
         # backprop
         weight_grads = [np.zeros_like(weight) for weight in self.weights]
         bias_grads = [np.zeros_like(bias) for bias in self.bias]
 
         for i in reversed(range(self.nweight)):
             # energy
-            e_delta = self.deriv_activation(outputs[i]) * np.dot(e_delta, self.weights[i+1].T) \
+            e_delta = self.deriv_activation(self.outputs[i]) * np.dot(e_delta, self.weights[i+1].T) \
                 if 'e_delta' in locals() else E_error  # squared loss
                 # if 'e_delta' in locals() else np.clip(E_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += np.dot(inputs[i].T, e_delta)
+            weight_grads[i] += np.dot(self.inputs[i].T, e_delta)
             bias_grads[i] += np.sum(e_delta, axis=0)
 
             # force
-            f_delta = (self.second_deriv_activation(outputs[i]) * np.dot(inputs[i], self.weights[i]) +
-                       self.deriv_activation(outputs[i]))[:, None, :] * np.dot(f_delta, self.weights[i+1].T) \
+            f_delta = (self.second_deriv_activation(self.outputs[i]) * np.dot(self.inputs[i], self.weights[i]) +
+                       self.deriv_activation(self.outputs[i]))[:, None, :] * np.dot(f_delta, self.weights[i+1].T) \
                 if 'f_delta' in locals() else F_error  # squared loss
                 # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
             weight_grads[i] += (hp.mixing_beta / (3 * self.all_natom)) * \
-                np.tensordot(- deriv_inputs[i], f_delta, ((0, 1), (0, 1)))
+                np.tensordot(- self.deriv_inputs[i], f_delta, ((0, 1), (0, 1)))
 
         return weight_grads, bias_grads
 
@@ -99,7 +96,7 @@ class HDNNP(object):
         E, E_tmp = np.zeros((size, 1)), np.zeros((size, 1))
         F, F_tmp = np.zeros((size, 3*self.all_natom, 1)), np.zeros((size, 3*self.all_natom, 1))
         for nnp, i in zip(self.nnp, self.index):
-            Ei, Fi, _, _, _, _ = nnp.feedforward(Gs[:, i, :], dGs[:, i, :, :], size)
+            Ei, Fi = nnp.feedforward(Gs[:, i, :], dGs[:, i, :, :], size)
             E_tmp += Ei
             F_tmp += Fi
         self.all_comm.Allreduce(E_tmp, E, op=MPI.SUM)
@@ -125,7 +122,7 @@ class HDNNP(object):
                 E_error = E_pred - Es[sampling]
                 F_error = F_pred - Fs[sampling]
                 for nnp, i in zip(self.nnp, self.index):
-                    w_tmp, b_tmp = nnp.backprop(Gs[sampling, i, :], dGs[sampling, i, :, :], E_error, F_error, batch_size)
+                    w_tmp, b_tmp = nnp.backprop(Gs[sampling, i, :], dGs[sampling, i, :, :], E_error, F_error)
                     for w_p, b_p, w_t, b_t in zip(weight_para, bias_para, w_tmp, b_tmp):
                         w_p += w_t / (batch_size * self.atomic_natom)
                         b_p += b_t / (batch_size * self.atomic_natom)
