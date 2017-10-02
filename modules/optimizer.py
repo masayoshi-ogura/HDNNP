@@ -80,8 +80,8 @@ class AdamOptimizer(object):
         self.beta_ms = hp.adam_beta1 * self.beta_ms + (1 - hp.adam_beta1) * beta_grads
         self.beta_vs = hp.adam_beta2 * self.beta_vs + (1 - hp.adam_beta2) * (beta_grads ** 2)
 
-        self.gamma_ms = hp.adam_gamma1 * self.gamma_ms + (1 - hp.adam_gamma1) * gamma_grads
-        self.gamma_vs = hp.adam_gamma2 * self.gamma_vs + (1 - hp.adam_gamma2) * (gamma_grads ** 2)
+        self.gamma_ms = hp.adam_beta1 * self.gamma_ms + (1 - hp.adam_beta1) * gamma_grads
+        self.gamma_vs = hp.adam_beta2 * self.gamma_vs + (1 - hp.adam_beta2) * (gamma_grads ** 2)
 
         weight_updates = [- learning_rate *
                           (m / (1 - hp.adam_beta1**self.t)) /
@@ -93,8 +93,8 @@ class AdamOptimizer(object):
                         for m, v in zip(self.bias_ms, self.bias_vs)]
         beta_updates = - learning_rate * (self.beta_ms / (1 - hp.adam_beta1**self.t)) \
             / (np.sqrt(self.beta_vs / (1 - hp.adam_beta2**self.t)) + eps)
-        gamma_updates = - learning_rate * (self.gamma_ms / (1 - hp.adam_gamma1**self.t)) \
-            / (np.sqrt(self.gamma_vs / (1 - hp.adam_gamma2**self.t)) + eps)
+        gamma_updates = - learning_rate * (self.gamma_ms / (1 - hp.adam_beta1**self.t)) \
+            / (np.sqrt(self.gamma_vs / (1 - hp.adam_beta2**self.t)) + eps)
 
         for weight, bias, weight_update, bias_update in zip(self.weights, self.bias, weight_updates, bias_updates):
             weight += weight_update

@@ -26,7 +26,7 @@ for ret in make_dataset(comm, rank, size, 'test'):
     hdnnp = HDNNP(natom, nsample)
     # if size > natom, unnnecessary node return False and do nothing.
     if hdnnp.initialize(comm, rank, size, ninput, composition):
-        hdnnp.load(file_.test_weight)
+        hdnnp.load(file_.test_dir)
 
         # test
         E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(0, Es, Fs, Gs, dGs)
@@ -36,8 +36,7 @@ for ret in make_dataset(comm, rank, size, 'test'):
             file.flush()
 
         # save
-        if bool_.SAVE_FIG:
-            hdnnp.save_fig(datestr, config, 'png')
+        hdnnp.save_fig(datestr, config, 'png')
     comm.Barrier()
 
 if rank == 0:

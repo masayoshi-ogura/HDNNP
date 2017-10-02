@@ -5,22 +5,21 @@ from os import makedirs
 from itertools import combinations
 import numpy as np
 from mpi4py import MPI
+import dill
 
 from config import hp
 from config import bool_
 from config import file_
 from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
 from optimizer import OPTIMIZERS
+from animator import Animator
 
 
 class SingleNNP(object):
     def __init__(self, all_natom, ninput):
         self.all_natom = all_natom
         self.shape = (ninput,) + hp.hidden_layer + (1,)
-        self.nlayer = len(hp.hidden_layer)
         self.nweight = len(hp.hidden_layer) + 1
-        self.learning_rate = hp.learning_rate
-        self.mixing_beta = hp.mixing_beta
         self.activation = ACTIVATIONS[hp.activation]
         self.deriv_activation = DERIVATIVES[hp.activation]
         self.second_deriv_activation = SECOND_DERIVATIVES[hp.activation]
@@ -57,7 +56,8 @@ class SingleNNP(object):
         if mode == 'train':
             self.mu = np.mean(Gi, axis=0)  # mean
             self.sigma2 = np.var(Gi, axis=0)  # variance
-            self.norm = (Gi - self.mu) / np.sqrt(self.sigma2 + eps)  # NxD
+            self.xmu = (Gi - self.mu)
+            self.norm = self.xmu / np.sqrt(self.sigma2 + eps)  # NxD
             scaled_Gi = self.gamma * self.norm + self.beta  # NxD
             scaled_dGi = self.gamma * dGi / np.sqrt(self.sigma2 + eps)
 
@@ -70,55 +70,54 @@ class SingleNNP(object):
         elif mode == 'test':
             self.mu = self.mu_EMA
             self.sigma2 = self.sigma2_EMA
-            self.norm = (Gi - self.mu) / np.sqrt(self.sigma2 + eps)
+            self.xmu = (Gi - self.mu)
+            self.norm = self.xmu / np.sqrt(self.sigma2 + eps)
             scaled_Gi = self.gamma * self.norm + self.beta
             scaled_dGi = self.gamma * dGi / np.sqrt(self.sigma2 + eps)
 
         return scaled_Gi, scaled_dGi
 
-    def batchnorm_backprop(self, dout, eps=1e-5):
-        batch_size = len(dout)
-        beta_grad = np.sum(dout, axis=0)
-        gamma_grad = np.sum(dout * self.norm, axis=0)
-        dxmu = dout * self.gamma / np.sqrt(self.sigma2 + eps) \
-            - self.norm * np.sum(dout * self.gamma * (input - self.mu) / batch_size, axis=0) / (self.sigma2 + eps)
-        # もしかしたら
-        # dxmu = (1. / batch_size) * gamma * (sigma2 + eps)**(-1. / 2.) * \
-        #        (batch_size * dout - np.sum(dout, axis=0) - (input - mu) * (sigma2 + eps)**(-1.0) * np.sum(dout * (input - mu), axis=0))
-        # かもしれない
-        din = dxmu - np.sum(dxmu / batch_size, axis=0)
-        return beta_grad, gamma_grad, din
+    def batchnorm_backprop(self, dout, mode, eps=1e-5):
+        if mode == 'energy':
+            beta_grads = np.sum(dout, axis=0)
+            gamma_grads = np.sum(dout * self.norm, axis=0)
+            # 隠れ層の部分でも使うなら以下が必要
+            # batch_size = len(dout)
+            # dxmu = dout * self.gamma / np.sqrt(self.sigma2 + eps) \
+            #     - self.norm * np.sum(dout * self.gamma * self.xmu / batch_size, axis=0) / (self.sigma2 + eps)
+            # # もしかしたら
+            # # dxmu = (1. / batch_size) * gamma * (sigma2 + eps)**(-1. / 2.) * \
+            # #        (batch_size * dout - np.sum(dout, axis=0) - self.xmu * (sigma2 + eps)**(-1.0) * np.sum(dout * self.xmu, axis=0))
+            # # かもしれない
+            # din = dxmu - np.sum(dxmu / batch_size, axis=0)
+        elif mode == 'force':
+            beta_grads = np.sum(dout, axis=(0, 1))
+            gamma_grads = np.sum(dout * self.norm[:, None, :], axis=(0, 1))
+
+        return beta_grads, gamma_grads
 
     def backprop(self, E_error, F_error):
-        # backprop
-        weight_grads = [np.zeros_like(weight) for weight in self.weights]
-        bias_grads = [np.zeros_like(bias) for bias in self.bias]
-        beta_grads = np.zeros_like(self.beta)
-        gamma_grads = np.zeros_like(self.gamma)
-
+        weight_grads = [None for _ in range(self.nweight)]
+        bias_grads = [None for _ in range(self.nweight)]
+        # weights and bias
         for i in reversed(range(self.nweight)):
             # energy
             e_delta = self.deriv_activation(self.outputs[i]) * np.dot(e_delta, self.weights[i+1].T) \
                 if 'e_delta' in locals() else E_error  # squared loss
                 # if 'e_delta' in locals() else np.clip(E_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += np.dot(self.inputs[i].T, e_delta)
-            bias_grads[i] += np.sum(e_delta, axis=0)
-            if i == 0:
-                b, g, _ = self.batchnorm_backprop(np.dot(e_delta, self.weights[0].T))
-                beta_grads += b
-                gamma_grads += g
-
             # force
             f_delta = (self.second_deriv_activation(self.outputs[i]) * np.dot(self.inputs[i], self.weights[i]) +
                        self.deriv_activation(self.outputs[i]))[:, None, :] * np.tensordot(f_delta, self.weights[i+1], ((2,), (1,))) \
                 if 'f_delta' in locals() else F_error  # squared loss
                 # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += (hp.mixing_beta / (3 * self.all_natom)) * \
+            weight_grads[i] = np.dot(self.inputs[i].T, e_delta) + (hp.mixing_beta / (3 * self.all_natom)) * \
                 np.tensordot(- self.deriv_inputs[i], f_delta, ((0, 1), (0, 1)))
-            if i == 0:
-                b, g, _ = self.batchnorm_backprop(np.tensordot(f_delta, self.weights[0], ((2,), (1,))))
-                beta_grads += (hp.mixing_beta / (3 * self.all_natom)) * b
-                gamma_grads += (hp.mixing_beta / (3 * self.all_natom)) * g
+            bias_grads[i] = np.sum(e_delta, axis=0)
+        # beta and gamma(batch norm)
+        b_e, g_e = self.batchnorm_backprop(np.dot(e_delta, self.weights[0].T), 'energy')
+        b_f, g_f = self.batchnorm_backprop(np.tensordot(f_delta, self.weights[0], ((2,), (1,))), 'force')
+        beta_grads = b_e + (hp.mixing_beta / (3 * self.all_natom)) * b_f
+        gamma_grads = g_e + (hp.mixing_beta / (3 * self.all_natom)) * g_f
 
         return weight_grads, bias_grads, beta_grads, gamma_grads
 
@@ -127,9 +126,7 @@ class HDNNP(object):
     def __init__(self, natom, nsample):
         self.all_natom = natom
         self.nsample = nsample
-        if bool_.SAVE_FIG:
-            from animator import Animator
-            self.animator = Animator(natom, nsample)
+        self.animator = Animator(natom, nsample)
 
     def inference(self, Gs, dGs, size, mode):
         E, E_tmp = np.zeros((size, 1)), np.zeros((size, 1))
@@ -153,27 +150,31 @@ class HDNNP(object):
                 sampling = np.random.randint(0, self.nsample, batch_size)
                 self.all_comm.Bcast(sampling, root=0)
 
-                grads = ([np.zeros_like(weight) for weight in self.nnp[0].weights], [np.zeros_like(bias) for bias in self.nnp[0].bias],
-                         np.zeros_like(self.nnp[0].beta), np.zeros_like(self.nnp[0].gamma))
-                para = ([np.zeros_like(weight) for weight in self.nnp[0].weights], [np.zeros_like(bias) for bias in self.nnp[0].bias],
-                        np.zeros_like(self.nnp[0].beta), np.zeros_like(self.nnp[0].gamma))
+                weight_grads = [np.zeros_like(weight) for weight in self.nnp[0].weights]
+                bias_grads = [np.zeros_like(bias) for bias in self.nnp[0].bias]
+                beta_grads = np.zeros_like(self.nnp[0].beta)
+                gamma_grads = np.zeros_like(self.nnp[0].gamma)
+                weight_para = [np.zeros_like(weight) for weight in self.nnp[0].weights]
+                bias_para = [np.zeros_like(bias) for bias in self.nnp[0].bias]
+                beta_para = np.zeros_like(self.nnp[0].beta)
+                gamma_para = np.zeros_like(self.nnp[0].gamma)
                 E_pred, F_pred = self.inference(Gs[sampling], dGs[sampling], batch_size, 'train')
                 E_error = E_pred - Es[sampling]
                 F_error = F_pred - Fs[sampling]
                 for nnp in self.nnp:
-                    tmp = nnp.backprop(E_error, F_error)
-                    for (weight_p, bias_p, beta_p, gamma_p), (weight_t, bias_t, beta_t, gamma_t) in zip(para, tmp):
+                    weight, bias, beta, gamma = nnp.backprop(E_error, F_error)
+                    for weight_p, bias_p, weight_t, bias_t in zip(weight_para, bias_para, weight, bias):
                         weight_p += weight_t
                         bias_p += bias_t
-                        beta_p += beta_t
-                        gamma_p += gamma_t
-                for (weight, bias, beta, gamma), (weight_p, bias_p, beta_p, gamma_p) in zip(grads, para):
+                    beta_para += beta
+                    gamma_para += gamma
+                for weight_p, bias_p, weight, bias in zip(weight_para, bias_para, weight_grads, bias_grads):
                     self.atomic_comm.Allreduce(weight_p/(batch_size*self.atomic_natom), weight, op=MPI.SUM)
                     self.atomic_comm.Allreduce(bias_p/(batch_size*self.atomic_natom), bias, op=MPI.SUM)
-                    self.atomic_comm.Allreduce(beta_p/(batch_size*self.atomic_natom), beta, op=MPI.SUM)
-                    self.atomic_comm.Allreduce(gamma_p/(batch_size*self.atomic_natom), gamma, op=MPI.SUM)
+                self.atomic_comm.Allreduce(beta_para/(batch_size*self.atomic_natom), beta_grads, op=MPI.SUM)
+                self.atomic_comm.Allreduce(gamma_para/(batch_size*self.atomic_natom), gamma_grads, op=MPI.SUM)
 
-                weights, bias, beta, gamma = self.optimizer.update_params(*grads)
+                weights, bias, beta, gamma = self.optimizer.update_params(weight_grads, bias_grads, beta_grads, gamma_grads)
                 for nnp in self.nnp:
                     nnp.weights = weights
                     nnp.bias = bias
@@ -207,9 +208,10 @@ class HDNNP(object):
             self.animator.save_fig(datestr, config, ext)
 
     def save(self, datestr):
-        weight_save_dir = path.join(file_.weight_dir, datestr)
-        if self.all_rank == 0 and not path.exists(weight_save_dir):
-            makedirs(weight_save_dir)
+        save_dir = path.join(file_.save_dir, datestr)
+        if self.all_rank == 0 and not path.exists(save_dir):
+            makedirs(save_dir)
+        self.all_comm.Barrier()
         # before saving, sync EMA
         mu_EMA, sigma2_EMA = np.zeros_like(self.nnp[0].mu_EMA), np.zeros_like(self.nnp[0].sigma2_EMA)
         mu_EMA_p, sigma2_EMA_p = np.zeros_like(self.nnp[0].mu_EMA), np.zeros_like(self.nnp[0].sigma2_EMA)
@@ -225,11 +227,14 @@ class HDNNP(object):
             dicts.update({'bias_{}'.format(i): bias for i, bias in enumerate(self.nnp[0].bias)})
             dicts.update({'beta': self.nnp[0].beta, 'gamma': self.nnp[0].gamma,
                           'mu_EMA': mu_EMA/self.atomic_natom, 'sigma2_EMA': sigma2_EMA/self.atomic_natom})
-            np.savez(path.join(weight_save_dir, '{}.npz'.format(self.symbol)), **dicts)
+            np.savez(path.join(save_dir, '{}.npz'.format(self.symbol)), **dicts)
+            with open(path.join(save_dir, '{}_optimizer.dill'.format(self.symbol)), 'w') as f:
+                dill.dump(self.optimizer, f)
 
     def load(self, datestr):
-        npz_file = path.join(file_.weight_dir, datestr, '{}.npz'.format(self.symbol))
-        if path.exists(npz_file):
+        npz_file = path.join(file_.save_dir, datestr, '{}.npz'.format(self.symbol))
+        dill_file = path.join(file_.save_dir, datestr, '{}_optimizer.dill'.format(self.symbol))
+        if path.exists(npz_file) and path.exists(dill_file):
             data = np.load(npz_file)
             for nnp in self.nnp:
                 for i in range(nnp.nweight):
@@ -239,9 +244,11 @@ class HDNNP(object):
                 nnp.gamma = data['gamma']
                 nnp.mu_EMA = data['mu_EMA']
                 nnp.sigma2_EMA = data['sigma2_EMA']
+            with open(dill_file, 'r') as f:
+                self.optimizer = dill.load(f)
         else:
             if self.atomic_rank == 0:
-                print 'pretrained data file {} is not found. use initialized parameters.'.format(npz_file)
+                print 'pretrained data file {} or {} is not found. use initialized parameters.'.format(npz_file, dill_file)
             pass
 
     def sync(self):
