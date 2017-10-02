@@ -22,7 +22,7 @@ class hp:
     momentum = 0.9  # for sgd(Nesterov)
     adam_beta1 = 0.9  # for adam
     adam_beta2 = 0.999  # for adam
-    epsilon = 1e-8  # for adam
+    smooth_factor = 0.1  # for batch normalization
     hidden_layer = ()
     nepoch =
     batch_size =

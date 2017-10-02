@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from config import bool_
+from config import file_
 
 # import python modules
 from datetime import datetime
@@ -25,6 +26,8 @@ for ret in make_dataset(comm, rank, size, 'test'):
     hdnnp = HDNNP(natom, nsample)
     # if size > natom, unnnecessary node return False and do nothing.
     if hdnnp.initialize(comm, rank, size, ninput, composition):
+        hdnnp.load(file_.test_weight)
+
         # test
         E_RMSE, F_RMSE, RMSE = hdnnp.calc_RMSE(0, Es, Fs, Gs, dGs)
         if rank == 0:

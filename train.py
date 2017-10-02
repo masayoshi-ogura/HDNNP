@@ -33,7 +33,7 @@ mixing_beta:         {}
 momentum:            {}
 adam_beta1:          {}
 adam_beta2:          {}
-epsilon:             {}
+smooth_factor:       {}
 batch_size:          {}
 batch_size_growth:   {}
 optimizer:           {}
@@ -41,7 +41,7 @@ activation:          {}
 """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)),
            ','.join(map(str, hp.lams)), ','.join(map(str, hp.zetas)),
            hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta,
-           hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.epsilon,
+           hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.smooth_factor,
            hp.batch_size, hp.batch_size_growth, hp.optimizer, hp.activation))
     file.flush()
 
@@ -69,7 +69,7 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
     hdnnp = HDNNP(natom, nsample)
     # if size > natom, unnnecessary node return False and do nothing.
     if hdnnp.initialize(comm, rank, size, ninput, composition):
-        hdnnp.load_w(datestr)
+        hdnnp.load(datestr)
 
         # training
         for m in range(hp.nepoch):
@@ -82,7 +82,7 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
         # save
         if bool_.SAVE_FIG:
             hdnnp.save_fig(datestr, config, 'gif')
-        hdnnp.save_w(datestr)
+        hdnnp.save(datestr)
     comm.Barrier()
 if rank == 0:
     file.close()
