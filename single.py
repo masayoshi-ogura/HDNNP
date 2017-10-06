@@ -18,7 +18,7 @@ from modules.model import SingleNNP
 from modules.animator import Animator
 
 datestr = datetime.now().strftime('%m%d-%H%M%S')
-file = open('progress-'+datestr+'.out', 'w')
+file = open(path.join(file_.progress_dir, 'progress-{}.out'.format(datestr)), 'w')
 stime = time()
 file.write("""
 learning_rate:       {}
@@ -76,6 +76,7 @@ training_data = (input[:sep], label[:sep], dinput[:sep], dlabel[:sep])
 validation_data = (input[sep:], label[sep:], dinput[sep:], dlabel[sep:])
 
 file.write("""
+-------------------{}-----------------------
 ninput:        {}
 hidden_layers:
 \t{}
@@ -83,7 +84,7 @@ nepoch:        {}
 nsample:       {}
 
 epoch   spent time        training_RMSE     training_dRMSE    training_tRMSE    validation_RMSE   validation_dRMSE  validation_tRMSE
-""".format(ninput, '\n\t'.join(map(str, hp.hidden_layers)), hp.nepoch, nsample))
+""".format(argv[1], ninput, '\n\t'.join(map(str, hp.hidden_layers)), hp.nepoch, nsample))
 file.flush()
 
 # initialize NNP
