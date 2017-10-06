@@ -30,19 +30,14 @@ zeta: {}
 learning_rate:       {}
 learning_rate_decay: {}
 mixing_beta:         {}
-momentum:            {}
-adam_beta1:          {}
-adam_beta2:          {}
-epsilon:             {}
+smooth_factor:       {}
 batch_size:          {}
 batch_size_growth:   {}
 optimizer:           {}
-activation:          {}
 """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)),
            ','.join(map(str, hp.lams)), ','.join(map(str, hp.zetas)),
-           hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta,
-           hp.momentum, hp.adam_beta1, hp.adam_beta2, hp.epsilon,
-           hp.batch_size, hp.batch_size_growth, hp.optimizer, hp.activation))
+           hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.smooth_factor,
+           hp.batch_size, hp.batch_size_growth, hp.optimizer))
     file.flush()
 
 for ret in make_dataset(comm, rank, size, 'train'):
@@ -53,16 +48,16 @@ for ret in make_dataset(comm, rank, size, 'train'):
 
 -------------------------{}-----------------------------
 
-NN_figure:           {}x{}x{}
-natom:               {}
-composition:         {}
-nepoch:              {}
-nsample:             {}
-ninput:              {}
+natom:         {}
+composition:   {}
+ninput:        {}
+hidden_layers: {}
+nepoch:        {}
+nsample:       {}
 
 epoch          spent time     energy RMSE    force RMSE     RMSE
-""".format(config, ninput, 'x'.join(map(str, hp.hidden_layer)), 1,
-           natom, dict(composition['number']), hp.nepoch, nsample, ninput))
+""".format(config, natom, dict(composition['number']), ninput,
+           '\n\t\t'.join(map(str, hp.model)), hp.nepoch, nsample))
         file.flush()
 
     # initialize HDNNP

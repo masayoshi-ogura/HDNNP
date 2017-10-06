@@ -2,51 +2,64 @@ from os import path
 from os import mkdir
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import ArtistAnimation
+from collections import defaultdict
 
 from config import hp
+from config import bool_
 from config import file_
 
 
-def update(i, ax, pred, true):
-    if i != 0:
-        ax.cla()
-
-    ax.scatter(pred[i], true)
-    ax.set_title('epochs={}'.format(i+1))
-    min = np.min(true)
-    max = np.max(true)
-    ax.set_xlim([min, max])
-    ax.set_ylim([min, max])
-
-
 class Animator(object):
-    def __init__(self, natom, nsample):
-        self.natom = natom
-        self.preds = {'energy': np.empty((hp.nepoch, nsample)), 'force': np.empty((hp.nepoch, nsample * 3*natom))}
-        self.true = {'energy': np.empty(nsample), 'force': np.empty((nsample * 3*natom))}
+    def __init__(self, type):
+        self._preds = defaultdict(list)
+        self._true = {}
+        self._type = type
 
-    def set_pred(self, m, E_pred, F_pred):
-        self.preds['energy'][m] = E_pred.reshape(-1)
-        self.preds['force'][m] = F_pred.reshape(-1)
+    @property
+    def preds(self):
+        return self._preds
 
-    def set_true(self, E_true, F_true):
-        self.true['energy'] = E_true.reshape(-1)
-        self.true['force'] = F_true.reshape(-1)
+    @preds.setter
+    def preds(self, pred):
+        self._preds['energy'].append(pred[0].reshape(-1))
+        self._preds['force'].append(pred[1].reshape(-1))
 
-    def save_fig(self, datestr, config, ext):
+    @property
+    def true(self):
+        return self._true
+
+    @true.setter
+    def true(self, true):
+        self._true['energy'] = true[0].reshape(-1)
+        self._true['force'] = true[1].reshape(-1)
+
+    def save_fig(self, datestr, config):
         plt.ioff()
         for s in ['energy', 'force']:
             save_dir = path.join(file_.fig_dir, datestr)
             if not path.exists(save_dir):
                 mkdir(save_dir)
-            file = path.join(save_dir, '{}-{}.{}'.format(config, s, ext))
-            fig = plt.figure()
-            ax = fig.add_subplot(1, 1, 1)
-            if ext == 'gif':
-                anime = FuncAnimation(fig, update, fargs=(ax, self.preds[s], self.true[s]), interval=100, frames=hp.nepoch)
+            min = np.min(self.true[s])
+            max = np.max(self.true[s])
+
+            if bool_.SAVE_GIF:
+                file = path.join(save_dir, '{}-{}-{}.gif'.format(config, self._type, s))
+                fig = plt.figure()
+                artists = [self.artist(i+1, self.preds[s][i], self.true[s], min, max) for i in range(hp.nepoch)]
+                anime = ArtistAnimation(fig, artists, interval=50, blit=True)
                 anime.save(file, writer='imagemagick')
-            elif ext == 'png':
-                update(0, ax, self.preds[s], self.true[s])
-                fig.savefig(file)
+                plt.close(fig)
+
+            file = path.join(save_dir, '{}-{}-{}.png'.format(config, self._type, s))
+            fig = plt.figure()
+            self.artist(hp.nepoch, self.preds[s][-1], self.true[s], min, max)
+            fig.savefig(file)
             plt.close(fig)
+
+    def artist(self, i, pred, true, min, max):
+        artist = [plt.scatter(pred, true, c='blue'),
+                  plt.xlim(min, max),
+                  plt.ylim(min, max),
+                  plt.text(0.5, 0.9, 'epochs={}'.format(i), fontsize=12.0, ha='center', transform=plt.gcf().transFigure)]
+        return artist
