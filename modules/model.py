@@ -139,9 +139,13 @@ class HDNNP(object):
 
                 weight_grads = [np.zeros_like(weight) for weight in self.nnp[0].weights]
                 bias_grads = [np.zeros_like(bias) for bias in self.nnp[0].bias]
+                beta_grads = np.zeros_like(self.nnp[0].beta)
+                gamma_grads = np.zeros_like(self.nnp[0].gamma)
                 weight_para = [np.zeros_like(weight) for weight in self.nnp[0].weights]
                 bias_para = [np.zeros_like(bias) for bias in self.nnp[0].bias]
-                E_pred, F_pred = self.inference(Gs[sampling], dGs[sampling], batch_size)
+                beta_para = np.zeros_like(self.nnp[0].beta)
+                gamma_para = np.zeros_like(self.nnp[0].gamma)
+                E_pred, F_pred = self.inference(Gs[sampling], dGs[sampling], batch_size, 'train')
                 E_error = E_pred - Es[sampling]
                 F_error = F_pred - Fs[sampling]
                 for nnp in self.nnp:
@@ -161,6 +165,8 @@ class HDNNP(object):
                 for nnp in self.nnp:
                     nnp.weights = weights
                     nnp.bias = bias
+                    nnp.beta = beta
+                    nnp.gamma = gamma
         elif hp.optimizer == 'bfgs':
             print 'Info: BFGS is off-line learning method. "batch_size" is ignored.'
             # TODO: BFGS optimize
@@ -171,7 +177,7 @@ class HDNNP(object):
     def calc_RMSE(self, m, Es, Fs, Gs, dGs):
         if bool_.SAVE_GIF and m == 0:
             self.animator.set_true(Es, Fs)
-        E_preds, F_preds = self.inference(Gs, dGs, self.nsample)
+        E_preds, F_preds = self.inference(Gs, dGs, self.nsample, 'test')
 
         if bool_.SAVE_GIF:
             self.animator.set_pred(m, E_preds, F_preds)
@@ -185,10 +191,10 @@ class HDNNP(object):
             print 'saving figures ...'
             self.animator.save_fig(datestr, config, ext)
 
-    def save_w(self, datestr):
-        weight_save_dir = path.join(file_.weight_dir, datestr)
-        if self.all_rank == 0 and not path.exists(weight_save_dir):
-            makedirs(weight_save_dir)
+    def save(self, datestr):
+        save_dir = path.join(file_.save_dir, datestr)
+        if self.all_rank == 0 and not path.exists(save_dir):
+            makedirs(save_dir)
         self.all_comm.Barrier()
         # before saving, sync EMA
         mu_EMA, sigma_EMA = np.zeros_like(self.nnp[0].mu_EMA), np.zeros_like(self.nnp[0].sigma_EMA)
@@ -226,10 +232,10 @@ class HDNNP(object):
                 self.optimizer = dill.load(f)
         else:
             if self.atomic_rank == 0:
-                print 'weight params file {} is not found. use initialized parameters.'.format(weight_file)
+                print 'pretrained data file {} or {} is not found. use initialized parameters.'.format(npz_file, dill_file)
             pass
 
-    def sync_w(self):
+    def sync(self):
         for i in range(self.nnp[0].nweight):
             self.atomic_comm.Bcast(self.nnp[0].weights[i], root=0)
             self.atomic_comm.Bcast(self.nnp[0].bias[i], root=0)
@@ -290,16 +296,15 @@ class HDNNP(object):
                 self.atomic_rank = self.atomic_comm.Get_rank()
             low += num
         self.atomic_natom = composition['number'][self.symbol]
-        self.nnp = [SingleNNP(self.all_natom, ninput)]
         quo, rem = self.atomic_natom / w[self.symbol], self.atomic_natom % w[self.symbol]
         if self.atomic_rank < rem:
-            self.nnp *= quo+1
+            self.nnp = [SingleNNP(self.all_natom, ninput) for _ in range(quo+1)]
             self.index = list(composition['index'][self.symbol])[self.atomic_rank*(quo+1): (self.atomic_rank+1)*(quo+1)]
         else:
-            self.nnp *= quo
+            self.nnp = [SingleNNP(self.all_natom, ninput) for _ in range(quo)]
             self.index = list(composition['index'][self.symbol])[self.atomic_rank*quo+rem: (self.atomic_rank+1)*quo+rem]
 
-        self.sync_w()
-        self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp[0].weights, self.nnp[0].bias)
+        self.sync()
+        self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp[0].weights, self.nnp[0].bias, self.nnp[0].beta, self.nnp[0].gamma)
 
         return True
