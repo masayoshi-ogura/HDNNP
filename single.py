@@ -77,6 +77,7 @@ validation_data = (input[sep:], label[sep:], dinput[sep:], dlabel[sep:])
 
 file.write("""
 -------------------{}-----------------------
+
 ninput:        {}
 hidden_layers:
 \t{}

@@ -7,20 +7,17 @@ from activation_function import ACTIVATIONS, DERIVATIVES
 
 
 class LayerBase(object):
-    def __init__(self):
+    @property
+    def parameter(self):
+        return ()
+
+    @parameter.setter
+    def parameter(self, _):
         pass
 
-    def feedforward(self):
-        return
-
-    def backprop(self):
-        return
-
-    def save(self):
-        pass
-
-    def load(self):
-        pass
+    @property
+    def gradient(self):
+        return ()
 
 
 class FullyConnectedLayer(LayerBase):
@@ -62,18 +59,6 @@ class ActivationLayer(LayerBase):
         self._activation = ACTIVATIONS[activation]
         self._deriv_activation = DERIVATIVES[activation]
 
-    @property
-    def parameter(self):
-        return ()
-
-    @parameter.setter
-    def parameter(self, _):
-        pass
-
-    @property
-    def gradient(self):
-        return ()
-
     def feedforward(self, input, dinput, *_):
         self._deriv_input = self._deriv_activation(input)
         output = self._activation(input)
@@ -112,7 +97,6 @@ class BatchNormalizationLayer(LayerBase):
         if hasattr(self, '_mu_EMA'):
             self._mu_EMA = hp.smooth_factor * mu + (1 - hp.smooth_factor) * self._mu_EMA
         else:
-            print 'mu_EMA is initialized to {}'.format(mu)
             self._mu_EMA = mu
 
     @property
@@ -124,7 +108,6 @@ class BatchNormalizationLayer(LayerBase):
         if hasattr(self, '_sigma_EMA'):
             self._sigma_EMA = hp.smooth_factor * sigma + (1 - hp.smooth_factor) * self._sigma_EMA
         else:
-            print 'sigma_EMA is initialized to {}'.format(sigma)
             self._sigma_EMA = sigma
 
     def feedforward(self, input, dinput, batch_size, mode, eps=1e-5):

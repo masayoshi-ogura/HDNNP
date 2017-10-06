@@ -28,7 +28,6 @@ class hp:
 
 class bool_:
     SAVE_FIG =
-    LOCAL =
 
 
 class file_:

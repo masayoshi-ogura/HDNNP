@@ -14,7 +14,6 @@ from collections import defaultdict
 import dill
 import numpy as np
 from mpi4py import MPI
-from tqdm import tqdm
 try:
     from quippy import AtomsReader
     from quippy import AtomsWriter
@@ -119,7 +118,6 @@ class Generator(object):
         dGs = np.empty((num, self.nsample, self.natom, 3*self.natom))
         dGs_para = np.zeros((num, self.nsample, self.natom, 3*self.natom))
         # n:1..num, m:self.min..self.max
-        generator = tqdm(generator) if bool_.LOCAL else generator
         for m, n, G, dG in generator:
             Gs_para[n][m] = G
             dGs_para[n][m] = dG
@@ -323,7 +321,6 @@ def make_dataset(comm, rank, size, mode):
         config_type = set()
         alldataset = defaultdict(list)
         rawdata = AtomsReader(xyz_file)
-        rawdata = tqdm(rawdata) if bool_.LOCAL else rawdata
         for data in rawdata:
             # config_typeが構造と組成を表していないものをスキップ
             config = data.config_type
@@ -334,8 +331,7 @@ def make_dataset(comm, rank, size, mode):
             alldataset[config].append(data)
         with open(config_type_file, 'w') as f:
             dill.dump(config_type, f)
-        print 'Separate all dataset to train & test dataset ...'
-        config_type = tqdm(config_type) if bool_.LOCAL else config_type
+        print 'Separate all dataset to training & validation & test dataset ...'
         for config in config_type:
             composition = {'number': defaultdict(lambda: 0), 'index': defaultdict(set), 'symbol': []}
             for i, data in enumerate(alldataset[config][0]):
@@ -343,31 +339,35 @@ def make_dataset(comm, rank, size, mode):
                 composition['index'][data.symbol].add(i)
                 composition['symbol'].append(data.symbol)
 
-            save_dir = path.join(file_.data_dir, config)
+            data_dir = path.join(file_.data_dir, config)
             shuffle(alldataset[config])
-            if not path.exists(save_dir):
-                makedirs(path.join(save_dir, 'train'))
-                makedirs(path.join(save_dir, 'test'))
-            train_writer = AtomsWriter(path.join(save_dir, 'train', 'structure.xyz'))
-            test_writer = AtomsWriter(path.join(save_dir, 'test', 'structure.xyz'))
-            sep = len(alldataset[config]) * 9 / 10
+            if not path.exists(data_dir):
+                makedirs(path.join(data_dir, 'training'))
+                makedirs(path.join(data_dir, 'validation'))
+                makedirs(path.join(data_dir, 'test'))
+            training_writer = AtomsWriter(path.join(data_dir, 'training', 'structure.xyz'))
+            validation_writer = AtomsWriter(path.join(data_dir, 'validation', 'structure.xyz'))
+            test_writer = AtomsWriter(path.join(data_dir, 'test', 'structure.xyz'))
+            sep1 = len(alldataset[config]) * 7 / 10
+            sep2 = len(alldataset[config]) * 9 / 10
             for i, data in enumerate(alldataset[config]):
                 if data.cohesive_energy > 0.0:
                     continue
                 # 2~4体の構造はpbcをFalseに
                 if match('Quadruple', config) or match('Triple', config) or match('Dimer', config):
                     data.set_pbc([False, False, False])
-                if i < sep:
-                    train_writer.write(data)
+                if i < sep1:
+                    training_writer.write(data)
+                elif i < sep2:
+                    validation_writer.write(data)
                 else:
                     test_writer.write(data)
-            with open(path.join(save_dir, 'composition.dill'), 'w') as f:
+            with open(path.join(data_dir, 'composition.dill'), 'w') as f:
                 dill.dump(composition, f)
 
     comm.Barrier()
     with open(config_type_file, 'r') as f:
         config_type = dill.load(f)
-    config_type = tqdm(config_type) if bool_.LOCAL else config_type
     for config in config_type:
         for type in file_.train_config:
             if match(type, config) or type == 'all':
@@ -378,10 +378,10 @@ def make_dataset(comm, rank, size, mode):
             print '----------------------{}-----------------------'.format(config)
         data_dir = path.join(file_.data_dir, config, mode)
         xyz_file = path.join(data_dir, 'structure.xyz')
-        if not path.exists(xyz_file):
-            if rank == 0:
-                print 'xyz file {} is not found. maybe there are too few samples.'.format(xyz_file)
-            continue
+        # if not path.exists(xyz_file):
+        #     if rank == 0:
+        #         print 'xyz file {} is not found. maybe there are too few samples.'.format(xyz_file)
+        #     continue
 
         dataset = AtomsReader(xyz_file)
         natom = dataset[0].n
@@ -401,5 +401,5 @@ if __name__ == '__main__':
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    for _ in make_dataset(comm, rank, size, 'train'):
+    for _ in make_dataset(comm, rank, size, 'training'):
         pass
