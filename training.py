@@ -3,24 +3,21 @@
 # define variables
 from config import hp
 from config import file_
+from config import mpi
 
 # import python modules
 from time import time
 from os import path
 from datetime import datetime
-from mpi4py import MPI
 
 # import own modules
-from modules.generator import make_dataset
+from modules.data import DataGenerator
 from modules.model import HDNNP
 from modules.animator import Animator
 
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-size = comm.Get_size()
-
 datestr = datetime.now().strftime('%m%d-%H%M%S')
-if rank == 0:
+generator = DataGenerator('training')
+if mpi.rank == 0:
     file = open(path.join(file_.progress_dir, 'progress-{}.out'.format(datestr)), 'w')
     stime = time()
     file.write("""
@@ -42,9 +39,7 @@ optimizer:           {}
            hp.batch_size, hp.batch_size_growth, hp.optimizer))
     file.flush()
 
-    for ret in make_dataset(comm, rank, size, 'training'):
-        config, training_data, validation_data, natom, nsample, ninput, composition = ret
-
+    for config, training_data, validation_data in generator:
         file.write("""
 
 -------------------------{}-----------------------------
@@ -58,14 +53,14 @@ nepoch:        {}
 nsample:       {}
 
 epoch          spent time     energy RMSE    force RMSE     RMSE
-""".format(config, natom, dict(composition['number']), ninput,
-           '\n\t\t'.join(map(str, hp.model)), hp.nepoch, nsample))
+""".format(config, training_data.natom, dict(training_data.composition['number']), training_data.ninput,
+           '\n\t\t'.join(map(str, hp.model)), hp.nepoch, training_data.nsample))
         file.flush()
 
         training_animator = Animator('training')
         validation_animator = Animator('validation')
-        hdnnp = HDNNP(ninput)
-        hdnnp.initialize(comm, rank, size, ninput, composition)
+        hdnnp = HDNNP(training_data.ninput, training_data.composition)
+        hdnnp.initialize()
         hdnnp.load(datestr)
 
         for m, training_RMSE, validation_RMSE in hdnnp.fit(training_data, validation_data, training_animator, validation_animator):
@@ -78,17 +73,13 @@ epoch          spent time     energy RMSE    force RMSE     RMSE
         training_animator.save_fig(datestr, config)
         validation_animator.save_fig(datestr, config)
         hdnnp.save(datestr)
-        comm.Barrier()
+        mpi.comm.Barrier()
     file.close()
 else:
-    for ret in make_dataset(comm, rank, size, 'training'):
-        config, training_data, validation_data, natom, nsample, ninput, composition = ret
-
-        hdnnp = HDNNP(ninput)
-        if hdnnp.initialize(comm, rank, size, ninput, composition):
+    for config, training_data, validation_data in generator:
+        hdnnp = HDNNP(training_data.ninput, training_data.composition)
+        if hdnnp.initialize():
             hdnnp.load(datestr)
-
             for m, training_RMSE, validation_RMSE in hdnnp.fit(training_data, validation_data):
-                t_RMSE, t_dRMSE, t_tRMSE = training_RMSE
-                v_RMSE, v_dRMSE, v_tRMSE = validation_RMSE
-        comm.Barrier()
+                pass
+        mpi.comm.Barrier()

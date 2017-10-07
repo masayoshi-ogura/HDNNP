@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from config import hp
+from config import file_
+from config import mpi
+
 from os import path
 from os import makedirs
 from itertools import combinations
@@ -7,8 +11,6 @@ import numpy as np
 from mpi4py import MPI
 import dill
 
-from config import hp
-from config import file_
 from layer import FullyConnectedLayer, ActivationLayer, BatchNormalizationLayer
 from optimizer import OPTIMIZERS
 
