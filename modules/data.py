@@ -20,7 +20,6 @@ try:
     from quippy import AtomsWriter
     from quippy import farray
     from quippy import fzeros
-    from quippy import frange
 except ImportError:
     print 'Warning: can\'t import quippy.'
 
@@ -41,9 +40,9 @@ class DataSet(object):
         quo = self.nsample / mpi.size
         rem = self.nsample % mpi.size
         self._count = np.array([quo+1 if i < rem else quo
-                                for i in range(mpi.size)], dtype=np.int8)
+                                for i in range(mpi.size)], dtype=np.int32)
         self._disps = np.array([np.sum(self._count[:i])
-                                for i in range(mpi.size)], dtype=np.int8)
+                                for i in range(mpi.size)], dtype=np.int32)
         self._n = self._count[mpi.rank]  # the number of allocated samples in this node
 
         self._make_label()
@@ -181,18 +180,18 @@ class DataSet(object):
             dG = np.empty((self._n, 2, self.natom, self.nforce))
             for i, con in enumerate(['homo', 'hetero']):
                 for j, atoms in enumerate(self._atoms_objs):
-                    for k, radial, _, _ in self._neighbour(con, j, Rc, atoms):
+                    for k, radial, _, _ in self._calc_geometry(con, j, Rc, atoms):
                         R, fc, tanh, dR = radial
                         G[j, i, k] = np.sum(fc)
-                        dG[j, i, k] = - 3/Rc * np.dot((1 - tanh**2) * tanh**2, dR)
+                        dG[j, i, k] = - 3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
         else:
             G = np.zeros((self._n, 2, self.natom))
             dG = np.zeros((self._n, 2, self.natom, self.nforce))
             for j, atoms in enumerate(self._atoms_objs):
-                for k, radial, _, _ in self._neighbour('homo', j, Rc, atoms):
+                for k, radial, _, _ in self._calc_geometry('homo', j, Rc, atoms):
                     R, fc, tanh, dR = radial
                     G[j, 0, k] = np.sum(fc)
-                    dG[j, 0, k] = -3./Rc * np.dot((1 - tanh**2) * tanh**2, dR)
+                    dG[j, 0, k] = -3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
@@ -201,20 +200,20 @@ class DataSet(object):
             dG = np.empty((self._n, 2, self.natom, self.nforce))
             for i, con in enumerate(['homo', 'hetero']):
                 for j, atoms in enumerate(self._atoms_objs):
-                    for k, radial, _, _ in self._neighbour(con, j, Rc, atoms):
+                    for k, radial, _, _ in self._calc_geometry(con, j, Rc, atoms):
                         R, fc, tanh, dR = radial
-                        gi = np.exp(- eta * (R - Rs) ** 2) * fc
+                        gi = np.exp(- eta * (R - Rs)**2) * fc
                         G[j, i, k] = np.sum(gi)
-                        dG[j, i, k] = np.dot(gi * (-2*eta*(R-Rs) + 3/Rc*(tanh - 1/tanh)), dR)
+                        dG[j, i, k] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
         else:
             G = np.zeros((self._n, 2, self.natom))
             dG = np.zeros((self._n, 2, self.natom, self.nforce))
             for j, atoms in enumerate(self._atoms_objs):
-                for k, radial, _, _ in self._neighbour('homo', j, Rc, atoms):
+                for k, radial, _, _ in self._calc_geometry('homo', j, Rc, atoms):
                     R, fc, tanh, dR = radial
-                    gi = np.exp(- eta * (R - Rs) ** 2) * fc
+                    gi = np.exp(- eta * (R - Rs)**2) * fc
                     G[j, 0, k] = np.sum(gi)
-                    dG[j, 0, k] = np.dot(gi * (-2*eta*(R-Rs) + 3/Rc*(tanh - 1/tanh)), dR)
+                    dG[j, 0, k] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lam, zeta):
@@ -223,88 +222,109 @@ class DataSet(object):
             dG = np.empty((self._n, 3, self.natom, self.nforce))
             for i, con in enumerate(['homo', 'hetero']):
                 for j, atoms in enumerate(self._atoms_objs):
-                    for k, radial1, radial2, angular in self._neighbour(con, j, Rc, atoms):
+                    for k, radial1, radial2, angular in self._calc_geometry(con, j, Rc, atoms):
                         R1, fc1, tanh1, dR1 = radial1
                         R2, fc2, tanh2, dR2 = radial2
                         cos, dcos = angular
-                        ang = 1 + lam * cos
-                        ang[np.identity(len(R1), dtype=bool)] = 0.0
-                        common = 2**(-zeta) * ang**(zeta-1) \
+                        ang = 1. + lam * cos
+                        ang[np.identity(len(R1), dtype=bool)] = 0.
+                        common = 2.**(-zeta) * ang**(zeta-1) \
                             * (np.exp(-eta * R1**2) * fc1)[:, None] \
                             * (np.exp(-eta * R2**2) * fc2)[None, :]
                         G[j, i, k] = np.tensordot(common, ang)
-                        dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2*eta*R1 + 3/Rc*(tanh1 - 1/tanh1)), dR1)
-                        dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2*eta*R2 + 3/Rc*(tanh2 - 1/tanh2)), dR2)
+                        dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
+                        dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
                         dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
                         dG[j, i, k] = dgi_radial1 + dgi_radial2 + dgi_angular
             for j, atoms in enumerate(self._atoms_objs):
-                for k, radial1, radial2, angular in self._neighbour('mix', j, Rc, atoms):
+                for k, radial1, radial2, angular in self._calc_geometry('mix', j, Rc, atoms):
                     R1, fc1, tanh1, dR1 = radial1
                     R2, fc2, tanh2, dR2 = radial2
                     cos, dcos = angular
-                    ang = 1 + lam * cos
-                    common = 2**(1-zeta) * ang**(zeta-1) \
+                    ang = 1. + lam * cos
+                    common = 2.**(1-zeta) * ang**(zeta-1) \
                         * (np.exp(-eta * R1**2) * fc1)[:, None] \
                         * (np.exp(-eta * R2**2) * fc2)[None, :]
                     G[j, 2, k] = np.tensordot(common, ang)
-                    dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2*eta*R1 + 3/Rc*(tanh1 - 1/tanh1)), dR1)
-                    dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2*eta*R2 + 3/Rc*(tanh2 - 1/tanh2)), dR2)
+                    dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
+                    dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
                     dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
                     dG[j, 2, k] = dgi_radial1 + dgi_radial2 + dgi_angular
         else:
             G = np.zeros((self._n, 3, self.natom))
             dG = np.zeros((self._n, 3, self.natom, self.nforce))
             for j, atoms in enumerate(self._atoms_objs):
-                for k, radial1, radial2, angular in self._neighbour('homo', j, Rc, atoms):
+                for k, radial1, radial2, angular in self._calc_geometry('homo', j, Rc, atoms):
                     R1, fc1, tanh1, dR1 = radial1
                     R2, fc2, tanh2, dR2 = radial2
                     cos, dcos = angular
-                    ang = 1 + lam * cos
-                    ang[np.identity(len(R1), dtype=bool)] = 0.0
-                    common = 2**(-zeta) * ang**(zeta-1) \
+                    ang = 1. + lam * cos
+                    ang[np.identity(len(R1), dtype=bool)] = 0.
+                    common = 2.**(-zeta) * ang**(zeta-1) \
                         * (np.exp(-eta * R1**2) * fc1)[:, None] \
                         * (np.exp(-eta * R2**2) * fc2)[None, :]
                     G[j, 0, k] = np.tensordot(common, ang)
-                    dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2*eta*R1 + 3/Rc*(tanh1 - 1/tanh1)), dR1)
-                    dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2*eta*R2 + 3/Rc*(tanh2 - 1/tanh2)), dR2)
+                    dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
+                    dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
                     dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
                     dG[j, 0, k] = dgi_radial1 + dgi_radial2 + dgi_angular
         return G, dG
 
-    def memorize(f):
-        cache = {}
+    def memorize_generator(f):
+        cache = defaultdict(list)
         done = []
 
-        def helper(self, j, k, Rc, *args):
+        def helper(self, con, j, Rc, atoms):
             if self._name not in done:
                 cache.clear()
                 done.append(self._name)
-            if (j, k, Rc) not in cache:
-                cache[(j, k, Rc)] = f(self, j, k, Rc, *args)
-            return cache[(j, k, Rc)]
+            if (con, j, Rc) not in cache:
+                for k, homo_rad, hetero_rad, homo_ang, hetero_ang, mix_ang in f(self, j, Rc, atoms):
+                    cache[('homo', j, Rc)].append((k, homo_rad, homo_rad, homo_ang))
+                    cache[('hetero', j, Rc)].append((k, hetero_rad, hetero_rad, hetero_ang))
+                    cache[('mix', j, Rc)].append((k, homo_rad, hetero_rad, mix_ang))
+                    yield cache[(con, j, Rc)][k]
+            for ret in cache[(con, j, Rc)]:
+                yield ret
         return helper
 
-    # yieldと合わせるのよくなさそう(動作がどうなるかわからん)ので外す
-    # @memorize
-    def _neighbour(self, con, j, Rc, atoms):
+    @memorize_generator
+    def _calc_geometry(self, j, Rc, atoms):
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
 
+        zeros_radial = (np.zeros(1), np.zeros(1), np.ones(1), np.zeros((1, self.nforce)))
+        zeros_angular = (np.zeros((1, 1)), np.zeros((1, 1, self.nforce)))
         for k in range(self.natom):
             neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
-            r, R = self._distance_ij(j, k, Rc, atoms)
-            cos = self._cosine_ijk(j, k, Rc, atoms)
-            dR = self._deriv_R(j, k, Rc, neighbours, r, R)
-            dcos = self._deriv_cosine(j, k, Rc, neighbours, r, R, cos)
+            if len(neighbours) == 0:
+                yield k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
+                continue
+
+            symbol = self.composition['symbol'][k]  # symbol of the focused atom
+            index = self.composition['index'][symbol]  # index of the same species of the focused atom
+            homo_neighbours = []
+            hetero_neighbours = []
+            for i, n in enumerate(neighbours):
+                if n in index:
+                    homo_neighbours.append(i)
+                else:
+                    hetero_neighbours.append(i)
+
+            n_neighb = len(neighbours)
+            r, R, cos = self._neighbour(k, n_neighb, atoms)
+            dR = self._deriv_R(k, n_neighb, neighbours, r, R)
+            dcos = self._deriv_cosine(k, n_neighb, neighbours, r, R, cos)
             R = np.array(R)
             fc = np.tanh(1-R/Rc)**3
             tanh = np.tanh(1-R/Rc)
             cos = np.array(cos)
-
-            symbol = self.composition['symbol'][k]  # symbol of the focused atom
-            index = self.composition['index'][symbol]  # index of the same species of the focused atom
-            homo_neighbours = [i for i, n in enumerate(neighbours) if n in index]
-            hetero_neighbours = [i for i, n in enumerate(neighbours) if n not in index]
+            if not homo_neighbours:
+                yield k, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), zeros_angular
+                continue
+            elif not hetero_neighbours:
+                yield k, (R, fc, tanh, dR), zeros_radial, (cos, dcos), zeros_angular, zeros_angular
+                continue
 
             homo_R = np.delete(R, hetero_neighbours)
             homo_fc = np.delete(fc, hetero_neighbours)
@@ -328,35 +348,23 @@ class DataSet(object):
             mix_dcos = np.delete(np.delete(dcos, hetero_neighbours, axis=0), homo_neighbours, axis=1)
             mix_angular = (mix_cos, mix_dcos)
 
-            if con == 'homo':
-                yield k, homo_radial, homo_radial, homo_angular
-            elif con == 'hetero':
-                yield k,  hetero_radial, hetero_radial, hetero_angular
-            elif con == 'mix':
-                yield k,  homo_radial, hetero_radial, mix_angular
+            yield k, homo_radial, hetero_radial, homo_angular, hetero_angular, mix_angular
 
-    @memorize
-    def _distance_ij(self, j, k, Rc, atoms):
-        r, R = [], []
-        for n in frange(atoms.n_neighbours(k+1)):
+    def _neighbour(self, k, n_neighb, atoms):
+        r = []
+        R = []
+        cos = []
+        for l in range(n_neighb):
             dist = farray(0.0)
             diff = fzeros(3)
-            atoms.neighbour(k+1, n, distance=dist, diff=diff)
+            atoms.neighbour(k+1, l+1, distance=dist, diff=diff)
             r.append(diff.tolist())
             R.append(dist.tolist())
-        return r, R
+            cos.append([0.0 if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
+                        for m in range(n_neighb)])
+        return r, R, cos
 
-    @memorize
-    def _cosine_ijk(self, j, k, Rc, atoms):
-        n_neighb = atoms.n_neighbours(k+1)
-        cos = [[0.0 if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
-                for m in range(n_neighb)]
-               for l in range(n_neighb)]
-        return cos
-
-    @memorize
-    def _deriv_R(self, j, k, Rc, neighbours, r, R):
-        n_neighb = len(neighbours)
+    def _deriv_R(self, k, n_neighb, neighbours, r, R):
         dR = np.array([[- r[l][n/self.natom] / R[l] if n % self.natom == k
                         else + r[l][n/self.natom] / R[l] if n % self.natom == neighbours[l]
                         else 0.0
@@ -364,9 +372,7 @@ class DataSet(object):
                        for l in range(n_neighb)])
         return dR
 
-    @memorize
-    def _deriv_cosine(self, j, k, Rc, neighbours, r, R, cos):
-        n_neighb = len(neighbours)
+    def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
         dcos = np.array([[[(r[l][n/self.natom] / R[l]**2 + r[m][n/self.natom] / R[m]**2) * cos[l][m]
                            - (r[l][n/self.natom] + r[m][n/self.natom]) / (R[l] * R[m]) if n % self.natom == k
                            else - (r[l][n/self.natom] / R[l]**2) * cos[l][m]
@@ -398,6 +404,7 @@ class DataGenerator(object):
                         break
                 else:
                     continue
+                print config
                 training_data = DataSet(config, 'training')
                 validation_data = DataSet(config, 'validation')
                 yield training_data, validation_data
@@ -408,6 +415,7 @@ class DataGenerator(object):
                         break
                 else:
                     continue
+                print config
                 test_data = DataSet(config, 'test')
                 yield test_data
 
