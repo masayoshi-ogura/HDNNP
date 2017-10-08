@@ -52,9 +52,9 @@ hidden_layers:
 nepoch:        {}
 nsample:       {}
 
-epoch          spent time     energy RMSE    force RMSE     RMSE
+epoch   spent time        training_RMSE     training_dRMSE    training_tRMSE    validation_RMSE   validation_dRMSE  validation_tRMSE
 """.format(config, training_data.natom, dict(training_data.composition['number']), training_data.ninput,
-           '\n\t\t'.join(map(str, hp.model)), hp.nepoch, training_data.nsample))
+           '\n\t\t'.join(map(str, hp.hidden_layers)), hp.nepoch, training_data.nsample))
         file.flush()
 
         training_animator = Animator('training')

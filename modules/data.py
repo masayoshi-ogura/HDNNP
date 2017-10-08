@@ -412,10 +412,9 @@ class DataGenerator(object):
                         break
                 else:
                     continue
-                print config
                 training_data = DataSet(config, 'training')
                 validation_data = DataSet(config, 'validation')
-                yield training_data, validation_data
+                yield config, training_data, validation_data
         elif self._mode == 'test':
             for config in config_type:
                 for type in file_.train_config:
@@ -423,9 +422,8 @@ class DataGenerator(object):
                         break
                 else:
                     continue
-                print config
                 test_data = DataSet(config, 'test')
-                yield test_data
+                yield config, test_data
 
     def _parse_xyzfile(self):
         print 'config_type.dill is not found.\nLoad all data from xyz file ...'
@@ -479,5 +477,6 @@ class DataGenerator(object):
 
 if __name__ == '__main__':
     generator = DataGenerator('training')
-    for _ in generator:
-        pass
+    for config, _ in generator:
+        if mpi.rank == 0:
+            print config
