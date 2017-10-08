@@ -353,36 +353,43 @@ class DataSet(object):
     def _neighbour(self, k, n_neighb, atoms):
         r = []
         R = []
-        cos = []
+        ra = r.append
+        Ra = R.append
         for l in range(n_neighb):
             dist = farray(0.0)
             diff = fzeros(3)
             atoms.neighbour(k+1, l+1, distance=dist, diff=diff)
-            r.append(diff.tolist())
-            R.append(dist.tolist())
-            cos.append([0.0 if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
-                        for m in range(n_neighb)])
+            ra(diff.tolist())
+            Ra(dist.tolist())
+        cos = [[0. if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
+                for m in range(n_neighb)]
+               for l in range(n_neighb)]
         return r, R, cos
 
     def _deriv_R(self, k, n_neighb, neighbours, r, R):
-        dR = np.array([[- r[l][n/self.natom] / R[l] if n % self.natom == k
-                        else + r[l][n/self.natom] / R[l] if n % self.natom == neighbours[l]
-                        else 0.0
-                        for n in range(self.nforce)]
-                       for l in range(n_neighb)])
+        dR = np.zeros((n_neighb, self.nforce))
+        for l in range(n_neighb):
+            for n in range(self.nforce):
+                if n % self.natom == k:
+                    dR[l, n] = - r[l][n/self.natom] / R[l]
+                elif n % self.natom == neighbours[l]:
+                    dR[l, n] = + r[l][n/self.natom] / R[l]
         return dR
 
     def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
-        dcos = np.array([[[(r[l][n/self.natom] / R[l]**2 + r[m][n/self.natom] / R[m]**2) * cos[l][m]
-                           - (r[l][n/self.natom] + r[m][n/self.natom]) / (R[l] * R[m]) if n % self.natom == k
-                           else - (r[l][n/self.natom] / R[l]**2) * cos[l][m]
-                           + r[m][n/self.natom] / (R[l] * R[m]) if n % self.natom == neighbours[l]
-                           else - (r[m][n/self.natom] / R[m]**2) * cos[l][m]
-                           + r[l][n/self.natom] / (R[l] * R[m]) if n % self.natom == neighbours[m]
-                           else 0.0
-                           for n in range(self.nforce)]
-                          for m in range(n_neighb)]
-                         for l in range(n_neighb)])
+        dcos = np.zeros((n_neighb, n_neighb, self.nforce))
+        for l in range(n_neighb):
+            for m in range(n_neighb):
+                for n in range(self.nforce):
+                    if n % self.natom == k:
+                        (r[l][n/self.natom] / R[l]**2 + r[m][n/self.natom] / R[m]**2) * cos[l][m] \
+                            - (r[l][n/self.natom] + r[m][n/self.natom]) / (R[l] * R[m])
+                    elif n % self.natom == neighbours[l]:
+                        - (r[l][n/self.natom] / R[l]**2) * cos[l][m] \
+                            + r[m][n/self.natom] / (R[l] * R[m])
+                    elif n % self.natom == neighbours[m]:
+                        - (r[m][n/self.natom] / R[m]**2) * cos[l][m] \
+                            + r[l][n/self.natom] / (R[l] * R[m])
         return dcos
 
 
