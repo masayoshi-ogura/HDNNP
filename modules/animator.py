@@ -40,24 +40,24 @@ class Animator(object):
             save_dir = path.join(file_.fig_dir, datestr)
             if not path.exists(save_dir):
                 mkdir(save_dir)
-            min = np.min(self.true[s])
-            max = np.max(self.true[s])
+            min = np.min(self._true[s])
+            max = np.max(self._true[s])
 
             if bool_.SAVE_GIF:
                 file = path.join(save_dir, '{}-{}-{}.gif'.format(config, self._type, s))
                 fig = plt.figure()
-                artists = [self.artist(i+1, self.preds[s][i], self.true[s], min, max) for i in range(hp.nepoch)]
+                artists = [self._artist(i+1, self._preds[s][i], self._true[s], min, max) for i in range(hp.nepoch)]
                 anime = ArtistAnimation(fig, artists, interval=50, blit=True)
                 anime.save(file, writer='imagemagick')
                 plt.close(fig)
 
             file = path.join(save_dir, '{}-{}-{}.png'.format(config, self._type, s))
             fig = plt.figure()
-            self.artist(hp.nepoch, self.preds[s][-1], self.true[s], min, max)
+            self._artist(hp.nepoch, self._preds[s][-1], self._true[s], min, max)
             fig.savefig(file)
             plt.close(fig)
 
-    def artist(self, i, pred, true, min, max):
+    def _artist(self, i, pred, true, min, max):
         artist = [plt.scatter(pred, true, c='blue'),
                   plt.xlim(min, max),
                   plt.ylim(min, max),

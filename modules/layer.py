@@ -117,8 +117,8 @@ class BatchNormalizationLayer(LayerBase):
             self.mu_EMA = mu
             self.sigma_EMA = sigma
         elif mode == 'test':
-            mu = self.mu_EMA
-            sigma = self.sigma_EMA
+            mu = self._mu_EMA
+            sigma = self._sigma_EMA
         self._norm = (input - mu) / sigma
         self._deriv_input = self._gamma * ((batch_size - 1) - self._norm**2) / (batch_size * sigma)
         output = self._gamma * self._norm + self._beta

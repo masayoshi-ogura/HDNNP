@@ -11,7 +11,7 @@ class SGDOptimizer(object):
         self._nesterov = nesterov
         self._momentum = momentum
         if nesterov:
-            self.velocities = [np.zeros_like(param) for param in params]
+            self._velocities = [np.zeros_like(param) for param in params]
 
     @property
     def params(self):
@@ -24,8 +24,8 @@ class SGDOptimizer(object):
 
         if self._nesterov:
             updates = [self._momentum * velocity - learning_rate * grad
-                       for velocity, grad in zip(self.velocities, grads)]
-            self.velocities = updates
+                       for velocity, grad in zip(self._velocities, grads)]
+            self._velocities = updates
         else:
             updates = [- learning_rate * grad for grad in grads]
         self._params = [param + update for param, update in zip(self._params, updates)]
