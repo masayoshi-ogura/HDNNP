@@ -284,8 +284,9 @@ class DataSet(object):
                     cache[('hetero', j, Rc)].append((k, hetero_rad, hetero_rad, hetero_ang))
                     cache[('mix', j, Rc)].append((k, homo_rad, hetero_rad, mix_ang))
                     yield cache[(con, j, Rc)][k]
-            for ret in cache[(con, j, Rc)]:
-                yield ret
+            else:
+                for ret in cache[(con, j, Rc)]:
+                    yield ret
         return helper
 
     @memorize_generator
