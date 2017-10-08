@@ -37,8 +37,8 @@ class DataSet(object):
         self._ninput = 2 * len(hp.Rcs) + \
             2 * len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             3 * len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
-        quo = self.nsample / mpi.size
-        rem = self.nsample % mpi.size
+        quo = self._nsample / mpi.size
+        rem = self._nsample % mpi.size
         self._count = np.array([quo+1 if i < rem else quo
                                 for i in range(mpi.size)], dtype=np.int32)
         self._disps = np.array([np.sum(self._count[:i])
@@ -91,20 +91,20 @@ class DataSet(object):
             self._Es = ndarray['E']
             self._Fs = ndarray['F']
         else:
-            self._Es = np.empty((self.nsample, 1))
-            self._Fs = np.empty((self.nsample, self.nforce, 1))
+            self._Es = np.empty((self._nsample, 1))
+            self._Fs = np.empty((self._nsample, self._nforce, 1))
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
-            Fs_send = np.array([data.force for data in self._atoms_objs]).reshape(-1, self.nforce, 1)
+            Fs_send = np.array([data.force for data in self._atoms_objs]).reshape(-1, self._nforce, 1)
             mpi.comm.Allgatherv((Es_send, (self._n), MPI.DOUBLE),
                                 (self._Es, (self._count, self._disps), MPI.DOUBLE))
-            num = self.nforce
+            num = self._nforce
             mpi.comm.Allgatherv((Fs_send, (self._n*num), MPI.DOUBLE),
                                 (self._Fs, (self._count*num, self._disps*num), MPI.DOUBLE))
             np.savez(EF_file, E=self._Es, F=self._Fs)
 
     def _make_input(self):
-        Gs = np.empty((self.nsample, self.ninput, self.natom))
-        dGs = np.empty((self.nsample, self.ninput, self.natom, self.nforce))
+        Gs = np.empty((self._nsample, self._ninput, self._natom))
+        dGs = np.empty((self._nsample, self._ninput, self._natom, self._nforce))
 
         n = 0
         for Rc in hp.Rcs:
@@ -114,13 +114,13 @@ class DataSet(object):
                 Gs[:, n:n+2] = ndarray['G']
                 dGs[:, n:n+2] = ndarray['dG']
             else:
-                G = np.empty((self.nsample, 2, self.natom))
-                dG = np.empty((self.nsample, 2, self.natom, self.nforce))
+                G = np.empty((self._nsample, 2, self._natom))
+                dG = np.empty((self._nsample, 2, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G1(Rc)
-                num = 2 * self.natom
+                num = 2 * self._natom
                 mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
                                     (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                num = 2 * self.natom * self.nforce
+                num = 2 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
                                     (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
                 np.savez(filename, G=G, dG=dG)
@@ -136,13 +136,13 @@ class DataSet(object):
                         Gs[:, n:n+2] = ndarray['G']
                         dGs[:, n:n+2] = ndarray['dG']
                     else:
-                        G = np.empty((self.nsample, 2, self.natom))
-                        dG = np.empty((self.nsample, 2, self.natom, self.nforce))
+                        G = np.empty((self._nsample, 2, self._natom))
+                        dG = np.empty((self._nsample, 2, self._natom, self._nforce))
                         G_send, dG_send = self._calc_G2(Rc, eta, Rs)
-                        num = 2 * self.natom
+                        num = 2 * self._natom
                         mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
                                             (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                        num = 2 * self.natom * self.nforce
+                        num = 2 * self._natom * self._nforce
                         mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
                                             (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
                         np.savez(filename, G=G, dG=dG)
@@ -158,13 +158,13 @@ class DataSet(object):
                             Gs[:, n:n+3] = ndarray['G']
                             dGs[:, n:n+3] = ndarray['dG']
                         else:
-                            G = np.empty((self.nsample, 3, self.natom))
-                            dG = np.empty((self.nsample, 3, self.natom, self.nforce))
+                            G = np.empty((self._nsample, 3, self._natom))
+                            dG = np.empty((self._nsample, 3, self._natom, self._nforce))
                             G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
-                            num = 3 * self.natom
+                            num = 3 * self._natom
                             mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
                                                 (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                            num = 3 * self.natom * self.nforce
+                            num = 3 * self._natom * self._nforce
                             mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
                                                 (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
                             np.savez(filename, G=G, dG=dG)
@@ -175,9 +175,9 @@ class DataSet(object):
         self._dGs = dGs.transpose(1, 0, 2, 3)
 
     def _calc_G1(self, Rc):
-        if len(self.composition['number']) == 2:
-            G = np.empty((self._n, 2, self.natom))
-            dG = np.empty((self._n, 2, self.natom, self.nforce))
+        if len(self._composition['number']) == 2:
+            G = np.empty((self._n, 2, self._natom))
+            dG = np.empty((self._n, 2, self._natom, self._nforce))
             for i, con in enumerate(['homo', 'hetero']):
                 for j, atoms in enumerate(self._atoms_objs):
                     for k, radial, _, _ in self._calc_geometry(con, j, Rc, atoms):
@@ -185,8 +185,8 @@ class DataSet(object):
                         G[j, i, k] = np.sum(fc)
                         dG[j, i, k] = - 3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
         else:
-            G = np.zeros((self._n, 2, self.natom))
-            dG = np.zeros((self._n, 2, self.natom, self.nforce))
+            G = np.zeros((self._n, 2, self._natom))
+            dG = np.zeros((self._n, 2, self._natom, self._nforce))
             for j, atoms in enumerate(self._atoms_objs):
                 for k, radial, _, _ in self._calc_geometry('homo', j, Rc, atoms):
                     R, fc, tanh, dR = radial
@@ -195,9 +195,9 @@ class DataSet(object):
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
-        if len(self.composition['number']) == 2:
-            G = np.empty((self._n, 2, self.natom))
-            dG = np.empty((self._n, 2, self.natom, self.nforce))
+        if len(self._composition['number']) == 2:
+            G = np.empty((self._n, 2, self._natom))
+            dG = np.empty((self._n, 2, self._natom, self._nforce))
             for i, con in enumerate(['homo', 'hetero']):
                 for j, atoms in enumerate(self._atoms_objs):
                     for k, radial, _, _ in self._calc_geometry(con, j, Rc, atoms):
@@ -206,8 +206,8 @@ class DataSet(object):
                         G[j, i, k] = np.sum(gi)
                         dG[j, i, k] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
         else:
-            G = np.zeros((self._n, 2, self.natom))
-            dG = np.zeros((self._n, 2, self.natom, self.nforce))
+            G = np.zeros((self._n, 2, self._natom))
+            dG = np.zeros((self._n, 2, self._natom, self._nforce))
             for j, atoms in enumerate(self._atoms_objs):
                 for k, radial, _, _ in self._calc_geometry('homo', j, Rc, atoms):
                     R, fc, tanh, dR = radial
@@ -217,9 +217,9 @@ class DataSet(object):
         return G, dG
 
     def _calc_G4(self, Rc, eta, lam, zeta):
-        if len(self.composition['number']) == 2:
-            G = np.empty((self._n, 3, self.natom))
-            dG = np.empty((self._n, 3, self.natom, self.nforce))
+        if len(self._composition['number']) == 2:
+            G = np.empty((self._n, 3, self._natom))
+            dG = np.empty((self._n, 3, self._natom, self._nforce))
             for i, con in enumerate(['homo', 'hetero']):
                 for j, atoms in enumerate(self._atoms_objs):
                     for k, radial1, radial2, angular in self._calc_geometry(con, j, Rc, atoms):
@@ -251,8 +251,8 @@ class DataSet(object):
                     dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
                     dG[j, 2, k] = dgi_radial1 + dgi_radial2 + dgi_angular
         else:
-            G = np.zeros((self._n, 3, self.natom))
-            dG = np.zeros((self._n, 3, self.natom, self.nforce))
+            G = np.zeros((self._n, 3, self._natom))
+            dG = np.zeros((self._n, 3, self._natom, self._nforce))
             for j, atoms in enumerate(self._atoms_objs):
                 for k, radial1, radial2, angular in self._calc_geometry('homo', j, Rc, atoms):
                     R1, fc1, tanh1, dR1 = radial1
@@ -294,16 +294,16 @@ class DataSet(object):
         atoms.set_cutoff(Rc)
         atoms.calc_connect()
 
-        zeros_radial = (np.zeros(1), np.zeros(1), np.ones(1), np.zeros((1, self.nforce)))
-        zeros_angular = (np.zeros((1, 1)), np.zeros((1, 1, self.nforce)))
-        for k in range(self.natom):
+        zeros_radial = (np.zeros(1), np.zeros(1), np.ones(1), np.zeros((1, self._nforce)))
+        zeros_angular = (np.zeros((1, 1)), np.zeros((1, 1, self._nforce)))
+        for k in range(self._natom):
             neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
             if len(neighbours) == 0:
                 yield k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
                 continue
 
-            symbol = self.composition['symbol'][k]  # symbol of the focused atom
-            index = self.composition['index'][symbol]  # index of the same species of the focused atom
+            symbol = self._composition['symbol'][k]  # symbol of the focused atom
+            index = self._composition['index'][symbol]  # index of the same species of the focused atom
             homo_neighbours = []
             hetero_neighbours = []
             for i, n in enumerate(neighbours):
@@ -368,29 +368,29 @@ class DataSet(object):
         return r, R, cos
 
     def _deriv_R(self, k, n_neighb, neighbours, r, R):
-        dR = np.zeros((n_neighb, self.nforce))
+        dR = np.zeros((n_neighb, self._nforce))
         for l in range(n_neighb):
-            for n in range(self.nforce):
-                if n % self.natom == k:
-                    dR[l, n] = - r[l][n/self.natom] / R[l]
-                elif n % self.natom == neighbours[l]:
-                    dR[l, n] = + r[l][n/self.natom] / R[l]
+            for n in range(self._nforce):
+                if n % self._natom == k:
+                    dR[l, n] = - r[l][n/self._natom] / R[l]
+                elif n % self._natom == neighbours[l]:
+                    dR[l, n] = + r[l][n/self._natom] / R[l]
         return dR
 
     def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
-        dcos = np.zeros((n_neighb, n_neighb, self.nforce))
+        dcos = np.zeros((n_neighb, n_neighb, self._nforce))
         for l in range(n_neighb):
             for m in range(n_neighb):
-                for n in range(self.nforce):
-                    if n % self.natom == k:
-                        (r[l][n/self.natom] / R[l]**2 + r[m][n/self.natom] / R[m]**2) * cos[l][m] \
-                            - (r[l][n/self.natom] + r[m][n/self.natom]) / (R[l] * R[m])
-                    elif n % self.natom == neighbours[l]:
-                        - (r[l][n/self.natom] / R[l]**2) * cos[l][m] \
-                            + r[m][n/self.natom] / (R[l] * R[m])
-                    elif n % self.natom == neighbours[m]:
-                        - (r[m][n/self.natom] / R[m]**2) * cos[l][m] \
-                            + r[l][n/self.natom] / (R[l] * R[m])
+                for n in range(self._nforce):
+                    if n % self._natom == k:
+                        (r[l][n/self._natom] / R[l]**2 + r[m][n/self._natom] / R[m]**2) * cos[l][m] \
+                            - (r[l][n/self._natom] + r[m][n/self._natom]) / (R[l] * R[m])
+                    elif n % self._natom == neighbours[l]:
+                        - (r[l][n/self._natom] / R[l]**2) * cos[l][m] \
+                            + r[m][n/self._natom] / (R[l] * R[m])
+                    elif n % self._natom == neighbours[m]:
+                        - (r[m][n/self._natom] / R[m]**2) * cos[l][m] \
+                            + r[l][n/self._natom] / (R[l] * R[m])
         return dcos
 
 
