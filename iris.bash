@@ -13,8 +13,8 @@ if [ "${mode}" = 'training' -o -z "${mode}" ]; then
 elif [ "${mode}" = 'test' ]; then
   mpirun -np 24 python test.py
 elif [ "${mode}" = 'preproc' ]; then
-  mpirun -np 24 python modules/generator.py
+  mpirun -np 24 python modules/data.py
 else
-  echo 'Usage: qsub -v mode=train|test|preproc iris.bash'
-  echo "       if you don't define \$mode, 'train' will be chosen."
+  echo 'Usage: qsub -v mode=training|test|preproc iris.bash'
+  echo "       if you don't define \$mode, 'training' will be chosen."
 fi
