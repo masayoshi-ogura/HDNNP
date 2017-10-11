@@ -25,6 +25,105 @@ except ImportError:
 
 
 class DataSet(object):
+    def __init__(self):
+        pass
+
+    @property
+    def nsample(self):
+        return self._nsample
+
+    @property
+    def ninput(self):
+        return self._ninput
+
+    @property
+    def nderivative(self):
+        return self._nderivative
+
+    @property
+    def input(self):
+        return self._input
+
+    @property
+    def label(self):
+        return self._label
+
+    @property
+    def dinput(self):
+        return self._dinput
+
+    @property
+    def dlabel(self):
+        return self._dlabel
+
+
+class FunctionData(DataSet):
+    def __init__(self, name, type):
+        if name == 'complex':
+            input, label, dinput, dlabel = self._make_complex()
+        elif name == 'LJ':
+            input, label, dinput, dlabel = self._make_LJ()
+        elif name == 'sin':
+            input, label, dinput, dlabel = self._make_sin()
+
+        np.random.seed(0)
+        np.random.shuffle(input)
+        np.random.seed(0)
+        np.random.shuffle(label)
+        np.random.seed(0)
+        np.random.shuffle(dinput)
+        np.random.seed(0)
+        np.random.shuffle(dlabel)
+
+        sep = self._nsample * 7 / 10
+        if type == 'training':
+            self._input = input[:sep]
+            self._label = label[:sep]
+            self._dinput = dinput[:sep]
+            self._dlabel = dlabel[:sep]
+        elif type == 'validation':
+            self._input = input[sep:]
+            self._label = label[sep:]
+            self._dinput = dinput[sep:]
+            self._dlabel = dlabel[sep:]
+
+    def _make_complex(self):
+        mesh = 10
+        self._nsample = mesh**3
+        self._ninput = 3
+        self._nderivative = 3
+        lin = np.linspace(0.1, 1.0, mesh)
+        x, y, z = np.meshgrid(lin, lin, lin)
+        x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
+        input = np.c_[x, y, z]
+        label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
+        dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
+        dlabel = np.c_[2**x - 1/(2*x),
+                       np.cos(y) - 1/(2*y) - 1/z,
+                       3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
+        return input, label, dinput, dlabel
+
+    def _make_LJ(self):
+        self._nsample = 1000
+        self._ninput = 1
+        self._nderivative = 1
+        input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
+        label = 0.001/input**4 - 0.009/input**3
+        dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
+        dlabel = (0.027/input**4 - 0.004/input**5).reshape(self._nsample, 1, 1)
+        return input, label, dinput, dlabel
+
+    def _make_sin(self):
+        self._nsample = 1000
+        self._ninput = 1
+        input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
+        label = np.sin(input)
+        dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
+        dlabel = np.cos(input).reshape(self._nsample, 1, 1)
+        return input, label, dinput, dlabel
+
+
+class AtomicStructureData(DataSet):
     def __init__(self, config, type):
         self._data_dir = path.join(file_.data_dir, config, type)
         with open(path.join(self._data_dir, '..', 'composition.dill')) as f:
@@ -53,20 +152,12 @@ class DataSet(object):
         return self._composition
 
     @property
-    def nsample(self):
-        return self._nsample
-
-    @property
     def natom(self):
         return self._natom
 
     @property
-    def nforce(self):
+    def nderivative(self):
         return self._nforce
-
-    @property
-    def ninput(self):
-        return self._ninput
 
     @property
     def input(self):
@@ -171,8 +262,8 @@ class DataSet(object):
                             Gs[:, n:n+3] = G
                             dGs[:, n:n+3] = dG
                         n += 3
-        self._Gs = Gs.transpose(1, 0, 2)
-        self._dGs = dGs.transpose(1, 0, 2, 3)
+        self._Gs = Gs.transpose(0, 2, 1)
+        self._dGs = dGs.transpose(0, 2, 3, 1)
 
     def _calc_G1(self, Rc):
         if len(self._composition['number']) == 2:
@@ -412,8 +503,8 @@ class DataGenerator(object):
                         break
                 else:
                     continue
-                training_data = DataSet(config, 'training')
-                validation_data = DataSet(config, 'validation')
+                training_data = AtomicStructureData(config, 'training')
+                validation_data = AtomicStructureData(config, 'validation')
                 yield config, training_data, validation_data
         elif self._mode == 'test':
             for config in config_type:
@@ -422,7 +513,7 @@ class DataGenerator(object):
                         break
                 else:
                     continue
-                test_data = DataSet(config, 'test')
+                test_data = AtomicStructureData(config, 'test')
                 yield config, test_data
 
     def _parse_xyzfile(self):

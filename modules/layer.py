@@ -44,9 +44,9 @@ class FullyConnectedLayer(LayerBase):
         doutput = np.tensordot(dinput, self._weight, ((2,), (0,)))
         return output, doutput
 
-    def backprop(self, output_error, doutput_error, d_size):
-        self._weight_grad = np.dot(self._input.T, output_error) \
-            + hp.mixing_beta / d_size * np.tensordot(self._dinput, doutput_error, ((0, 1), (0, 1)))
+    def backprop(self, output_error, doutput_error, batch_size, nderivative):
+        self._weight_grad = 1./batch_size * (np.dot(self._input.T, output_error)
+                                             + hp.mixing_beta / nderivative * np.tensordot(self._dinput, doutput_error, ((0, 1), (0, 1))))
         self._bias_grad = np.sum(output_error, axis=0)
 
         input_error = np.dot(output_error, self._weight.T)
@@ -125,11 +125,11 @@ class BatchNormalizationLayer(LayerBase):
         doutput = self._deriv_input[:, None, :] * dinput
         return output, doutput
 
-    def backprop(self, output_error, doutput_error, d_size):
-        self._beta_grad = np.sum(output_error, axis=0) \
-            + hp.mixing_beta / d_size * np.sum(doutput_error, axis=(0, 1))
-        self._gamma_grad = np.sum(output_error * self._norm, axis=0) \
-            + hp.mixing_beta / d_size * np.sum(doutput_error * self._norm[:, None, :], axis=(0, 1))
+    def backprop(self, output_error, doutput_error, batch_size, nderivative):
+        self._beta_grad = 1./batch_size * (np.sum(output_error, axis=0)
+                                           + hp.mixing_beta / nderivative * np.sum(doutput_error, axis=(0, 1)))
+        self._gamma_grad = 1./batch_size * (np.sum(output_error * self._norm, axis=0)
+                                            + hp.mixing_beta / nderivative * np.sum(doutput_error * self._norm[:, None, :], axis=(0, 1)))
 
         input_error = self._deriv_input * output_error
         dinput_error = self._deriv_input[:, None, :] * doutput_error

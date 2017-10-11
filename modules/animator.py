@@ -11,10 +11,9 @@ from config import file_
 
 
 class Animator(object):
-    def __init__(self, type):
+    def __init__(self):
         self._preds = defaultdict(list)
         self._true = {}
-        self._type = type
 
     @property
     def preds(self):
@@ -34,7 +33,7 @@ class Animator(object):
         self._true['energy'] = true[0].reshape(-1)
         self._true['force'] = true[1].reshape(-1)
 
-    def save_fig(self, datestr, config):
+    def save_fig(self, datestr, config, type):
         plt.ioff()
         for s in ['energy', 'force']:
             save_dir = path.join(file_.fig_dir, datestr)
@@ -44,14 +43,14 @@ class Animator(object):
             max = np.max(self._true[s])
 
             if bool_.SAVE_GIF:
-                file = path.join(save_dir, '{}-{}-{}.gif'.format(config, self._type, s))
+                file = path.join(save_dir, '{}-{}-{}.gif'.format(config, type, s))
                 fig = plt.figure()
                 artists = [self._artist(i+1, self._preds[s][i], self._true[s], min, max) for i in range(hp.nepoch)]
                 anime = ArtistAnimation(fig, artists, interval=50, blit=True)
                 anime.save(file, writer='imagemagick')
                 plt.close(fig)
 
-            file = path.join(save_dir, '{}-{}-{}.png'.format(config, self._type, s))
+            file = path.join(save_dir, '{}-{}-{}.png'.format(config, type, s))
             fig = plt.figure()
             self._artist(hp.nepoch, self._preds[s][-1], self._true[s], min, max)
             fig.savefig(file)
