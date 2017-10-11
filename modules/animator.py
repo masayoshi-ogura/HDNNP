@@ -45,7 +45,7 @@ class Animator(object):
             if bool_.SAVE_GIF:
                 file = path.join(save_dir, '{}-{}-{}.gif'.format(config, type, s))
                 fig = plt.figure()
-                artists = [self._artist(i+1, self._preds[s][i], self._true[s], min, max) for i in range(hp.nepoch)]
+                artists = [self._artist(i+1, self._preds[s][i], self._true[s], min, max) for i in xrange(hp.nepoch)]
                 anime = ArtistAnimation(fig, artists, interval=50, blit=True)
                 anime.save(file, writer='imagemagick')
                 plt.close(fig)

@@ -139,9 +139,9 @@ class AtomicStructureData(DataSet):
         quo = self._nsample / mpi.size
         rem = self._nsample % mpi.size
         self._count = np.array([quo+1 if i < rem else quo
-                                for i in range(mpi.size)], dtype=np.int32)
+                                for i in xrange(mpi.size)], dtype=np.int32)
         self._disps = np.array([np.sum(self._count[:i])
-                                for i in range(mpi.size)], dtype=np.int32)
+                                for i in xrange(mpi.size)], dtype=np.int32)
         self._n = self._count[mpi.rank]  # the number of allocated samples in this node
 
         self._make_label()
@@ -387,7 +387,7 @@ class AtomicStructureData(DataSet):
 
         zeros_radial = (np.zeros(1), np.zeros(1), np.ones(1), np.zeros((1, self._nforce)))
         zeros_angular = (np.zeros((1, 1)), np.zeros((1, 1, self._nforce)))
-        for k in range(self._natom):
+        for k in xrange(self._natom):
             neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
             if len(neighbours) == 0:
                 yield k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
@@ -447,21 +447,21 @@ class AtomicStructureData(DataSet):
         R = []
         ra = r.append
         Ra = R.append
-        for l in range(n_neighb):
+        for l in xrange(n_neighb):
             dist = farray(0.0)
             diff = fzeros(3)
             atoms.neighbour(k+1, l+1, distance=dist, diff=diff)
             ra(diff.tolist())
             Ra(dist.tolist())
         cos = [[0. if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
-                for m in range(n_neighb)]
-               for l in range(n_neighb)]
+                for m in xrange(n_neighb)]
+               for l in xrange(n_neighb)]
         return r, R, cos
 
     def _deriv_R(self, k, n_neighb, neighbours, r, R):
         dR = np.zeros((n_neighb, self._nforce))
-        for l in range(n_neighb):
-            for n in range(self._nforce):
+        for l in xrange(n_neighb):
+            for n in xrange(self._nforce):
                 if n % self._natom == k:
                     dR[l, n] = - r[l][n/self._natom] / R[l]
                 elif n % self._natom == neighbours[l]:
@@ -470,9 +470,9 @@ class AtomicStructureData(DataSet):
 
     def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
         dcos = np.zeros((n_neighb, n_neighb, self._nforce))
-        for l in range(n_neighb):
-            for m in range(n_neighb):
-                for n in range(self._nforce):
+        for l in xrange(n_neighb):
+            for m in xrange(n_neighb):
+                for n in xrange(self._nforce):
                     if n % self._natom == k:
                         (r[l][n/self._natom] / R[l]**2 + r[m][n/self._natom] / R[m]**2) * cos[l][m] \
                             - (r[l][n/self._natom] + r[m][n/self._natom]) / (R[l] * R[m])

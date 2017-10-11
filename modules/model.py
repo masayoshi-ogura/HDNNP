@@ -41,7 +41,7 @@ def allocate(size, symbol, natom):
         else:
             if min == 0 or min > obj:
                 min = obj
-                min_worker = {symbol[i]: worker[i] for i in range(len(symbol))}  # worker(node)
+                min_worker = {symbol[i]: worker[i] for i in xrange(len(symbol))}  # worker(node)
     return min_worker
 
 
@@ -49,7 +49,7 @@ class SingleNNP(object):
     def __init__(self, ninput, high_dimension=False):
         layers = [{'node': ninput}] + hp.hidden_layers + [{'node': 1}]
         self._layers = []
-        for i in range(len(hp.hidden_layers)):
+        for i in xrange(len(hp.hidden_layers)):
             self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node']))
             self._layers.append(BatchNormalizationLayer(layers[i+1]['node']))
             self._layers.append(ActivationLayer(layers[i+1]['activation']))
@@ -74,7 +74,7 @@ class SingleNNP(object):
         i = 0
         for layer in self._layers:
             num = len(layer.parameter)
-            layer.parameter = tuple(params[i+j] for j in range(num))
+            layer.parameter = tuple(params[i+j] for j in xrange(num))
             i += num
 
     @property
@@ -99,13 +99,13 @@ class SingleNNP(object):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
-        for m in range(hp.nepoch):
+        for m in xrange(hp.nepoch):
             batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
             if batch_size < 0 or batch_size > nsample:
                 batch_size = nsample
 
             niter = -(- nsample / batch_size)
-            for i in range(niter):
+            for i in xrange(niter):
                 sampling = np.random.randint(0, nsample, batch_size)
                 output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, 'training')
                 output_error = output - label[sampling]
@@ -203,13 +203,13 @@ class HDNNP(SingleNNP):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
-        for m in range(hp.nepoch):
+        for m in xrange(hp.nepoch):
             batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
             if batch_size < 0 or batch_size > nsample:
                 batch_size = nsample
 
             niter = -(- nsample / batch_size)
-            for i in range(niter):
+            for i in xrange(niter):
                 sampling = np.random.randint(0, nsample, batch_size)
                 self._all_comm.Bcast(sampling, root=0)
                 output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, nderivative, 'training')
@@ -273,10 +273,10 @@ class HDNNP(SingleNNP):
             low += num
         quo, rem = self._atomic_natom / w[self._symbol], self._atomic_natom % w[self._symbol]
         if self._atomic_rank < rem:
-            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in range(quo+1)]
+            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo+1)]
             self._index = list(composition['index'][self._symbol])[self._atomic_rank*(quo+1): (self._atomic_rank+1)*(quo+1)]
         else:
-            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in range(quo)]
+            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo)]
             self._index = list(composition['index'][self._symbol])[self._atomic_rank*quo+rem: (self._atomic_rank+1)*quo+rem]
 
         self._sync()
