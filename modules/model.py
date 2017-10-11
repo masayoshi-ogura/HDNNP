@@ -81,7 +81,7 @@ class SingleNNP(object):
     def grads(self):
         return [grad for layer in self._layers for grad in layer.gradient]
 
-    def feedforward(self, input, dinput, batch_size, _, mode):
+    def feedforward(self, input, dinput, batch_size, mode):
         for layer in self._layers:
             output, doutput = layer.feedforward(input, dinput, batch_size, mode)
             input, dinput = output, doutput
@@ -92,7 +92,7 @@ class SingleNNP(object):
             input_error, dinput_error = layer.backprop(output_error, doutput_error, batch_size, nderivative)
             output_error, doutput_error = input_error, dinput_error
 
-    def fit(self, training_data, validation_data, training_animator=None, validation_animator=None):
+    def fit(self, training_data, validation_data, training_animator, validation_animator):
         nsample = training_data.nsample
         nderivative = training_data.nderivative
         input = training_data.input
@@ -107,7 +107,7 @@ class SingleNNP(object):
             niter = -(- nsample / batch_size)
             for i in range(niter):
                 sampling = np.random.randint(0, nsample, batch_size)
-                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, nderivative, 'training')
+                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, 'training')
                 output_error = output - label[sampling]
                 doutput_error = doutput - dlabel[sampling]
                 self.backprop(output_error, doutput_error, batch_size, nderivative)
@@ -188,18 +188,38 @@ class HDNNP(SingleNNP):
         output_send = np.zeros((batch_size, 1))
         doutput_send = np.zeros((batch_size, nderivative, 1))
         for nnp, i in zip(self._nnp, self._index):
-            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :], batch_size, nderivative, mode)
+            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :], batch_size, mode)
             output_send += o
             doutput_send += do
         self._all_comm.Allreduce(output_send, output, op=MPI.SUM)
         self._all_comm.Allreduce(doutput_send, doutput, op=MPI.SUM)
-        doutput *= -1.  # F = - dE/dr
+        doutput *= -1.
         return output, doutput
 
-    def backprop(self, output_error, doutput_error, batch_size, nderivative):
-        doutput_error *= -1.  # F = - dE/dr
-        for nnp in self._nnp:
-            nnp.backprop(output_error, doutput_error, batch_size, nderivative)
+    def fit(self, training_data, validation_data, training_animator=None, validation_animator=None):
+        nsample = training_data.nsample
+        nderivative = training_data.nderivative
+        input = training_data.input
+        label = training_data.label
+        dinput = training_data.dinput
+        dlabel = training_data.dlabel
+        for m in range(hp.nepoch):
+            batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
+            if batch_size < 0 or batch_size > nsample:
+                batch_size = nsample
+
+            niter = -(- nsample / batch_size)
+            for i in range(niter):
+                sampling = np.random.randint(0, nsample, batch_size)
+                self._all_comm.Bcast(sampling, root=0)
+                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, nderivative, 'training')
+                output_error = output - label[sampling]
+                doutput_error = - (doutput - dlabel[sampling])
+                for nnp in self._nnp:
+                    nnp.backprop(output_error, doutput_error, batch_size, nderivative)
+                self._optimizer.update_params(self.grads)
+                self.params = self._optimizer.params
+            yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
 
     def save(self, subdir):
         save_dir = path.join(file_.save_dir, subdir)
