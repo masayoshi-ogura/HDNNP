@@ -11,6 +11,7 @@ from os import makedirs
 from re import match
 from random import shuffle
 from collections import defaultdict
+from itertools import product
 import dill
 import numpy as np
 from mpi4py import MPI
@@ -196,8 +197,9 @@ class AtomicStructureData(DataSet):
     def _make_input(self):
         Gs = np.empty((self._nsample, self._ninput, self._natom))
         dGs = np.empty((self._nsample, self._ninput, self._natom, self._nforce))
-
         n = 0
+
+        # type 1
         for Rc in hp.Rcs:
             filename = path.join(self._data_dir, 'G1-{}.npz'.format(Rc))
             if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
@@ -219,228 +221,173 @@ class AtomicStructureData(DataSet):
                 dGs[:, n:n+2] = dG
             n += 2
 
-            for eta in hp.etas:
-                for Rs in hp.Rss:
-                    filename = path.join(self._data_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
-                    if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
-                        ndarray = np.load(filename)
-                        Gs[:, n:n+2] = ndarray['G']
-                        dGs[:, n:n+2] = ndarray['dG']
-                    else:
-                        G = np.empty((self._nsample, 2, self._natom))
-                        dG = np.empty((self._nsample, 2, self._natom, self._nforce))
-                        G_send, dG_send = self._calc_G2(Rc, eta, Rs)
-                        num = 2 * self._natom
-                        mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                            (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                        num = 2 * self._natom * self._nforce
-                        mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                            (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
-                        np.savez(filename, G=G, dG=dG)
-                        Gs[:, n:n+2] = G
-                        dGs[:, n:n+2] = dG
-                    n += 2
+        # type 2
+        for Rc, eta, Rs in product(hp.Rcs, hp.etas, hp.Rss):
+            filename = path.join(self._data_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
+            if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
+                ndarray = np.load(filename)
+                Gs[:, n:n+2] = ndarray['G']
+                dGs[:, n:n+2] = ndarray['dG']
+            else:
+                G = np.empty((self._nsample, 2, self._natom))
+                dG = np.empty((self._nsample, 2, self._natom, self._nforce))
+                G_send, dG_send = self._calc_G2(Rc, eta, Rs)
+                num = 2 * self._natom
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
+                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
+                num = 2 * self._natom * self._nforce
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
+                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
+                np.savez(filename, G=G, dG=dG)
+                Gs[:, n:n+2] = G
+                dGs[:, n:n+2] = dG
+            n += 2
 
-                for lam in hp.lams:
-                    for zeta in hp.zetas:
-                        filename = path.join(self._data_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
-                        if path.exists(filename) and Gs[:, n:n+3].shape == np.load(filename)['G'].shape:
-                            ndarray = np.load(filename)
-                            Gs[:, n:n+3] = ndarray['G']
-                            dGs[:, n:n+3] = ndarray['dG']
-                        else:
-                            G = np.empty((self._nsample, 3, self._natom))
-                            dG = np.empty((self._nsample, 3, self._natom, self._nforce))
-                            G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
-                            num = 3 * self._natom
-                            mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                                (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                            num = 3 * self._natom * self._nforce
-                            mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                                (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
-                            np.savez(filename, G=G, dG=dG)
-                            Gs[:, n:n+3] = G
-                            dGs[:, n:n+3] = dG
-                        n += 3
+        # type 4
+        for Rc, eta, lam, zeta in product(hp.Rcs, hp.etas, hp.lams, hp.zetas):
+            filename = path.join(self._data_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
+            if path.exists(filename) and Gs[:, n:n+3].shape == np.load(filename)['G'].shape:
+                ndarray = np.load(filename)
+                Gs[:, n:n+3] = ndarray['G']
+                dGs[:, n:n+3] = ndarray['dG']
+            else:
+                G = np.empty((self._nsample, 3, self._natom))
+                dG = np.empty((self._nsample, 3, self._natom, self._nforce))
+                G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
+                num = 3 * self._natom
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
+                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
+                num = 3 * self._natom * self._nforce
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
+                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
+                np.savez(filename, G=G, dG=dG)
+                Gs[:, n:n+3] = G
+                dGs[:, n:n+3] = dG
+            n += 3
+
         self._Gs = Gs.transpose(0, 2, 1)
         self._dGs = dGs.transpose(0, 2, 3, 1)
 
     def _calc_G1(self, Rc):
-        if len(self._composition['number']) == 2:
-            G = np.empty((self._n, 2, self._natom))
-            dG = np.empty((self._n, 2, self._natom, self._nforce))
-            for i, con in enumerate(['homo', 'hetero']):
-                for j, atoms in enumerate(self._atoms_objs):
-                    for k, radial, _, _ in self._calc_geometry(con, j, Rc, atoms):
-                        R, fc, tanh, dR = radial
-                        G[j, i, k] = np.sum(fc)
-                        dG[j, i, k] = - 3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
-        else:
-            G = np.zeros((self._n, 2, self._natom))
-            dG = np.zeros((self._n, 2, self._natom, self._nforce))
-            for j, atoms in enumerate(self._atoms_objs):
-                for k, radial, _, _ in self._calc_geometry('homo', j, Rc, atoms):
-                    R, fc, tanh, dR = radial
-                    G[j, 0, k] = np.sum(fc)
-                    dG[j, 0, k] = -3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
+        G = np.zeros((self._n, 2, self._natom))
+        dG = np.zeros((self._n, 2, self._natom, self._nforce))
+        for index, (R, fc, tanh, dR), _, _ in self._calc_geometry(['homo', 'hetero'], Rc):
+            G[index] = np.sum(fc)
+            dG[index] = - 3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
-        if len(self._composition['number']) == 2:
-            G = np.empty((self._n, 2, self._natom))
-            dG = np.empty((self._n, 2, self._natom, self._nforce))
-            for i, con in enumerate(['homo', 'hetero']):
-                for j, atoms in enumerate(self._atoms_objs):
-                    for k, radial, _, _ in self._calc_geometry(con, j, Rc, atoms):
-                        R, fc, tanh, dR = radial
-                        gi = np.exp(- eta * (R - Rs)**2) * fc
-                        G[j, i, k] = np.sum(gi)
-                        dG[j, i, k] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
-        else:
-            G = np.zeros((self._n, 2, self._natom))
-            dG = np.zeros((self._n, 2, self._natom, self._nforce))
-            for j, atoms in enumerate(self._atoms_objs):
-                for k, radial, _, _ in self._calc_geometry('homo', j, Rc, atoms):
-                    R, fc, tanh, dR = radial
-                    gi = np.exp(- eta * (R - Rs)**2) * fc
-                    G[j, 0, k] = np.sum(gi)
-                    dG[j, 0, k] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
+        G = np.zeros((self._n, 2, self._natom))
+        dG = np.zeros((self._n, 2, self._natom, self._nforce))
+        for index, (R, fc, tanh, dR), _, _ in self._calc_geometry(['homo', 'hetero'], Rc):
+            gi = np.exp(- eta * (R - Rs)**2) * fc
+            G[index] = np.sum(gi)
+            dG[index] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lam, zeta):
-        if len(self._composition['number']) == 2:
-            G = np.empty((self._n, 3, self._natom))
-            dG = np.empty((self._n, 3, self._natom, self._nforce))
-            for i, con in enumerate(['homo', 'hetero']):
-                for j, atoms in enumerate(self._atoms_objs):
-                    for k, radial1, radial2, angular in self._calc_geometry(con, j, Rc, atoms):
-                        R1, fc1, tanh1, dR1 = radial1
-                        R2, fc2, tanh2, dR2 = radial2
-                        cos, dcos = angular
-                        ang = 1. + lam * cos
-                        ang[np.identity(len(R1), dtype=bool)] = 0.
-                        common = 2.**(-zeta) * ang**(zeta-1) \
-                            * (np.exp(-eta * R1**2) * fc1)[:, None] \
-                            * (np.exp(-eta * R2**2) * fc2)[None, :]
-                        G[j, i, k] = np.tensordot(common, ang)
-                        dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
-                        dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
-                        dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
-                        dG[j, i, k] = dgi_radial1 + dgi_radial2 + dgi_angular
-            for j, atoms in enumerate(self._atoms_objs):
-                for k, radial1, radial2, angular in self._calc_geometry('mix', j, Rc, atoms):
-                    R1, fc1, tanh1, dR1 = radial1
-                    R2, fc2, tanh2, dR2 = radial2
-                    cos, dcos = angular
-                    ang = 1. + lam * cos
-                    common = 2.**(1-zeta) * ang**(zeta-1) \
-                        * (np.exp(-eta * R1**2) * fc1)[:, None] \
-                        * (np.exp(-eta * R2**2) * fc2)[None, :]
-                    G[j, 2, k] = np.tensordot(common, ang)
-                    dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
-                    dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
-                    dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
-                    dG[j, 2, k] = dgi_radial1 + dgi_radial2 + dgi_angular
-        else:
-            G = np.zeros((self._n, 3, self._natom))
-            dG = np.zeros((self._n, 3, self._natom, self._nforce))
-            for j, atoms in enumerate(self._atoms_objs):
-                for k, radial1, radial2, angular in self._calc_geometry('homo', j, Rc, atoms):
-                    R1, fc1, tanh1, dR1 = radial1
-                    R2, fc2, tanh2, dR2 = radial2
-                    cos, dcos = angular
-                    ang = 1. + lam * cos
-                    ang[np.identity(len(R1), dtype=bool)] = 0.
-                    common = 2.**(-zeta) * ang**(zeta-1) \
-                        * (np.exp(-eta * R1**2) * fc1)[:, None] \
-                        * (np.exp(-eta * R2**2) * fc2)[None, :]
-                    G[j, 0, k] = np.tensordot(common, ang)
-                    dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
-                    dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
-                    dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
-                    dG[j, 0, k] = dgi_radial1 + dgi_radial2 + dgi_angular
+        G = np.zeros((self._n, 3, self._natom))
+        dG = np.zeros((self._n, 3, self._natom, self._nforce))
+        for index, (R1, fc1, tanh1, dR1), (R2, fc2, tanh2, dR2), (cos, dcos) in self._calc_geometry(['homo', 'hetero'], Rc):
+            ang = 1. + lam * cos
+            ang[np.identity(len(R1), dtype=bool)] = 0.
+            common = 2.**(-zeta) * ang**(zeta-1) \
+                * (np.exp(-eta * R1**2) * fc1)[:, None] \
+                * (np.exp(-eta * R2**2) * fc2)[None, :]
+            dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
+            dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
+            dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
+            G[index] = np.tensordot(common, ang)
+            dG[index] = dgi_radial1 + dgi_radial2 + dgi_angular
+        for index, (R1, fc1, tanh1, dR1), (R2, fc2, tanh2, dR2), (cos, dcos) in self._calc_geometry(['mix'], Rc):
+            ang = 1. + lam * cos
+            common = 2.**(1-zeta) * ang**(zeta-1) \
+                * (np.exp(-eta * R1**2) * fc1)[:, None] \
+                * (np.exp(-eta * R2**2) * fc2)[None, :]
+            dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
+            dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
+            dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
+            G[index] = np.tensordot(common, ang)
+            dG[index] = dgi_radial1 + dgi_radial2 + dgi_angular
         return G, dG
 
     def memorize_generator(f):
         cache = defaultdict(list)
         done = []
 
-        def helper(self, con, j, Rc, atoms):
+        def helper(self, connect_list, Rc):
             if self._name not in done:
                 cache.clear()
                 done.append(self._name)
-            if (con, j, Rc) not in cache:
-                for k, homo_rad, hetero_rad, homo_ang, hetero_ang, mix_ang in f(self, j, Rc, atoms):
-                    cache[('homo', j, Rc)].append((k, homo_rad, homo_rad, homo_ang))
-                    cache[('hetero', j, Rc)].append((k, hetero_rad, hetero_rad, hetero_ang))
-                    cache[('mix', j, Rc)].append((k, homo_rad, hetero_rad, mix_ang))
-                    yield cache[(con, j, Rc)][k]
-            else:
-                for ret in cache[(con, j, Rc)]:
-                    yield ret
+            for con in connect_list:
+                if (con, Rc) not in cache:
+                    for i, k, homo_rad, hetero_rad, homo_ang, hetero_ang, mix_ang in f(self, Rc):
+                        cache[('homo', Rc)].append(((i, 0, k), homo_rad, homo_rad, homo_ang))
+                        cache[('hetero', Rc)].append(((i, 1, k), hetero_rad, hetero_rad, hetero_ang))
+                        cache[('mix', Rc)].append(((i, 2, k), homo_rad, hetero_rad, mix_ang))
+                        yield cache[(con, Rc)][i*self._natom+k]
+                else:
+                    for ret in cache[(con, Rc)]:
+                        yield ret
         return helper
 
     @memorize_generator
-    def _calc_geometry(self, j, Rc, atoms):
-        atoms.set_cutoff(Rc)
-        atoms.calc_connect()
-
+    def _calc_geometry(self, Rc):
         zeros_radial = (np.zeros(1), np.zeros(1), np.ones(1), np.zeros((1, self._nforce)))
         zeros_angular = (np.zeros((1, 1)), np.zeros((1, 1, self._nforce)))
-        for k in xrange(self._natom):
-            neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
-            if len(neighbours) == 0:
-                yield k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
-                continue
+        for i, atoms in enumerate(self._atoms_objs):
+            atoms.set_cutoff(Rc)
+            atoms.calc_connect()
+            for k in xrange(self._natom):
+                neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
+                if len(neighbours) == 0:
+                    yield i, k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
+                    continue
 
-            symbol = self._composition['symbol'][k]  # symbol of the focused atom
-            index = self._composition['index'][symbol]  # index of the same species of the focused atom
-            homo_neighbours = []
-            hetero_neighbours = []
-            for i, n in enumerate(neighbours):
-                if n in index:
-                    homo_neighbours.append(i)
-                else:
-                    hetero_neighbours.append(i)
+                n_neighb = len(neighbours)
+                r, R, cos = self._neighbour(k, n_neighb, atoms)
+                dR = self._deriv_R(k, n_neighb, neighbours, r, R)
+                dcos = self._deriv_cosine(k, n_neighb, neighbours, r, R, cos)
+                R = np.array(R)
+                fc = np.tanh(1-R/Rc)**3
+                tanh = np.tanh(1-R/Rc)
+                cos = np.array(cos)
 
-            n_neighb = len(neighbours)
-            r, R, cos = self._neighbour(k, n_neighb, atoms)
-            dR = self._deriv_R(k, n_neighb, neighbours, r, R)
-            dcos = self._deriv_cosine(k, n_neighb, neighbours, r, R, cos)
-            R = np.array(R)
-            fc = np.tanh(1-R/Rc)**3
-            tanh = np.tanh(1-R/Rc)
-            cos = np.array(cos)
-            if not homo_neighbours:
-                yield k, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), zeros_angular
-                continue
-            elif not hetero_neighbours:
-                yield k, (R, fc, tanh, dR), zeros_radial, (cos, dcos), zeros_angular, zeros_angular
-                continue
+                symbol = self._composition['symbol'][k]  # symbol of the focused atom
+                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition['index'][symbol]]
+                n_homo = len(homo_indices)
+                if n_homo == 0:
+                    yield i, k, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), \
+                        (np.zeros((1, n_neighb)), np.zeros((1, n_neighb, self._nforce)))
+                    continue
+                elif n_homo == n_neighb:
+                    yield i, k, (R, fc, tanh, dR), zeros_radial, (cos, dcos), zeros_angular, \
+                        (np.zeros((n_neighb, 1)), np.zeros((n_neighb, 1, self._nforce)))
+                    continue
 
-            homo_R = np.delete(R, hetero_neighbours)
-            homo_fc = np.delete(fc, hetero_neighbours)
-            homo_tanh = np.delete(tanh, hetero_neighbours)
-            homo_dR = np.delete(dR, hetero_neighbours, axis=0)
-            homo_cos = np.delete(np.delete(cos, hetero_neighbours, axis=0), hetero_neighbours, axis=1)
-            homo_dcos = np.delete(np.delete(dcos, hetero_neighbours, axis=0), hetero_neighbours, axis=1)
-            homo_radial = (homo_R, homo_fc, homo_tanh, homo_dR)
-            homo_angular = (homo_cos, homo_dcos)
+                homo_R = np.take(R, homo_indices)
+                homo_fc = np.take(fc, homo_indices)
+                homo_tanh = np.take(tanh, homo_indices)
+                homo_dR = np.take(dR, homo_indices, axis=0)
+                homo_cos = np.take(np.take(cos, homo_indices, axis=0), homo_indices, axis=1)
+                homo_dcos = np.take(np.take(dcos, homo_indices, axis=0), homo_indices, axis=1)
+                homo_radial = (homo_R, homo_fc, homo_tanh, homo_dR)
+                homo_angular = (homo_cos, homo_dcos)
 
-            hetero_R = np.delete(R, homo_neighbours)
-            hetero_fc = np.delete(fc, homo_neighbours)
-            hetero_tanh = np.delete(tanh, homo_neighbours)
-            hetero_dR = np.delete(dR, homo_neighbours, axis=0)
-            hetero_cos = np.delete(np.delete(cos, homo_neighbours, axis=0), homo_neighbours, axis=1)
-            hetero_dcos = np.delete(np.delete(dcos, homo_neighbours, axis=0), homo_neighbours, axis=1)
-            hetero_radial = (hetero_R, hetero_fc, hetero_tanh, hetero_dR)
-            hetero_angular = (hetero_cos, hetero_dcos)
+                hetero_R = np.delete(R, homo_indices)
+                hetero_fc = np.delete(fc, homo_indices)
+                hetero_tanh = np.delete(tanh, homo_indices)
+                hetero_dR = np.delete(dR, homo_indices, axis=0)
+                hetero_cos = np.delete(np.delete(cos, homo_indices, axis=0), homo_indices, axis=1)
+                hetero_dcos = np.delete(np.delete(dcos, homo_indices, axis=0), homo_indices, axis=1)
+                hetero_radial = (hetero_R, hetero_fc, hetero_tanh, hetero_dR)
+                hetero_angular = (hetero_cos, hetero_dcos)
 
-            mix_cos = np.delete(np.delete(cos, hetero_neighbours, axis=0), homo_neighbours, axis=1)
-            mix_dcos = np.delete(np.delete(dcos, hetero_neighbours, axis=0), homo_neighbours, axis=1)
-            mix_angular = (mix_cos, mix_dcos)
+                mix_cos = np.delete(np.take(cos, homo_indices, axis=0), homo_indices, axis=1)
+                mix_dcos = np.delete(np.take(dcos, homo_indices, axis=0), homo_indices, axis=1)
+                mix_angular = (mix_cos, mix_dcos)
 
-            yield k, homo_radial, hetero_radial, homo_angular, hetero_angular, mix_angular
+                yield i, k, homo_radial, hetero_radial, homo_angular, hetero_angular, mix_angular
 
     def _neighbour(self, k, n_neighb, atoms):
         r = []
@@ -460,28 +407,25 @@ class AtomicStructureData(DataSet):
 
     def _deriv_R(self, k, n_neighb, neighbours, r, R):
         dR = np.zeros((n_neighb, self._nforce))
-        for l in xrange(n_neighb):
-            for n in xrange(self._nforce):
-                if n % self._natom == k:
-                    dR[l, n] = - r[l][n/self._natom] / R[l]
-                elif n % self._natom == neighbours[l]:
-                    dR[l, n] = + r[l][n/self._natom] / R[l]
+        for l, n in product(xrange(n_neighb), xrange(self._nforce)):
+            if n % self._natom == k:
+                dR[l, n] = - r[l][n/self._natom] / R[l]
+            elif n % self._natom == neighbours[l]:
+                dR[l, n] = + r[l][n/self._natom] / R[l]
         return dR
 
     def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
         dcos = np.zeros((n_neighb, n_neighb, self._nforce))
-        for l in xrange(n_neighb):
-            for m in xrange(n_neighb):
-                for n in xrange(self._nforce):
-                    if n % self._natom == k:
-                        (r[l][n/self._natom] / R[l]**2 + r[m][n/self._natom] / R[m]**2) * cos[l][m] \
-                            - (r[l][n/self._natom] + r[m][n/self._natom]) / (R[l] * R[m])
-                    elif n % self._natom == neighbours[l]:
-                        - (r[l][n/self._natom] / R[l]**2) * cos[l][m] \
-                            + r[m][n/self._natom] / (R[l] * R[m])
-                    elif n % self._natom == neighbours[m]:
-                        - (r[m][n/self._natom] / R[m]**2) * cos[l][m] \
-                            + r[l][n/self._natom] / (R[l] * R[m])
+        for l, m, n in product(xrange(n_neighb), xrange(n_neighb), xrange(self._nforce)):
+            if n % self._natom == k:
+                dcos[l, m, n] = (r[l][n/self._natom] / R[l]**2 + r[m][n/self._natom] / R[m]**2) * cos[l][m] \
+                    - (r[l][n/self._natom] + r[m][n/self._natom]) / (R[l] * R[m])
+            elif n % self._natom == neighbours[l]:
+                dcos[l, m, n] = - (r[l][n/self._natom] / R[l]**2) * cos[l][m] \
+                    + r[m][n/self._natom] / (R[l] * R[m])
+            elif n % self._natom == neighbours[m]:
+                dcos[l, m, n] = - (r[m][n/self._natom] / R[m]**2) * cos[l][m] \
+                    + r[l][n/self._natom] / (R[l] * R[m])
         return dcos
 
 
@@ -497,24 +441,16 @@ class DataGenerator(object):
         with open(self._config_type_file, 'r') as f:
             config_type = dill.load(f)
         if self._mode == 'training':
-            for config in config_type:
-                for type in file_.train_config:
-                    if type == 'all' or match(type, config):
-                        break
-                else:
-                    continue
-                training_data = AtomicStructureData(config, 'training')
-                validation_data = AtomicStructureData(config, 'validation')
-                yield config, training_data, validation_data
+            for type in file_.train_config:
+                for config in filter(lambda config: match(type, config), config_type):
+                    training_data = AtomicStructureData(config, 'training')
+                    validation_data = AtomicStructureData(config, 'validation')
+                    yield config, training_data, validation_data
         elif self._mode == 'test':
-            for config in config_type:
-                for type in file_.train_config:
-                    if type == 'all' or match(type, config):
-                        break
-                else:
-                    continue
-                test_data = AtomicStructureData(config, 'test')
-                yield config, test_data
+            for type in file_.train_config:
+                for config in filter(lambda config: match(type, config), config_type):
+                    test_data = AtomicStructureData(config, 'test')
+                    yield config, test_data
 
     def _parse_xyzfile(self):
         print 'config_type.dill is not found.\nLoad all data from xyz file ...'
@@ -562,6 +498,9 @@ class DataGenerator(object):
                     validation_writer.write(data)
                 else:
                     test_writer.write(data)
+            training_writer.close()
+            validation_writer.close()
+            test_writer.close()
             with open(path.join(data_dir, 'composition.dill'), 'w') as f:
                 dill.dump(composition, f)
 

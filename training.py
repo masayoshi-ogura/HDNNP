@@ -40,6 +40,7 @@ optimizer:           {}
     file.flush()
 
     for config, training_data, validation_data in generator:
+        print '-----------------------{}-------------------------'.format(config)
         natom = training_data.natom
         ninput = training_data.ninput
         nsample = training_data.nsample

@@ -20,7 +20,7 @@ def rmse(pred, true):
 
 
 def comb(n, r):
-    for c in combinations(range(1, n), r-1):
+    for c in combinations(xrange(1, n), r-1):
         ret = []
         low = 0
         for p in c:
@@ -155,8 +155,7 @@ class SingleNNP(object):
 
 class HDNNP(SingleNNP):
     def __init__(self, natom, ninput, composition):
-        self._all_natom = natom
-        self._active = self._allocate(ninput, composition)
+        self._active = self._allocate(natom, ninput, composition)
 
     @property
     def active(self):
@@ -238,22 +237,22 @@ class HDNNP(SingleNNP):
         if path.exists(optimizer_file) and path.exists(layer_file):
             with open(optimizer_file) as f:
                 self._optimizer = dill.load(f)
-            with open(layer_file) as f:
-                for nnp in self._nnp:
+            for nnp in self._nnp:
+                with open(layer_file) as f:
                     nnp.layers = dill.load(f)
         else:
             print 'pretrained data directory {} or {} is not found.\nInitialized parameters will be used.'.format(optimizer_file, layer_file)
 
-    def _allocate(self, ninput, composition):
+    def _allocate(self, natom, ninput, composition):
         s = composition['number'].keys()  # symbol list
         n = composition['number'].values()  # natom list
 
         # allocate worker for each atom
         if len(s) > mpi.size:
             raise ValueError('the number of process must be {} or more.'.format(len(s)))
-        elif mpi.size > self._all_natom:
-            self._all_comm = mpi.comm.Create(mpi.comm.Get_group().Incl(range(self._all_natom)))
-            if not mpi.rank < self._all_natom:
+        elif mpi.size > natom:
+            self._all_comm = mpi.comm.Create(mpi.comm.Get_group().Incl(xrange(natom)))
+            if not mpi.rank < natom:
                 return False
             self._all_rank = self._all_comm.Get_rank()
             w = composition['number']  # worker(node) ex.) {'Si': 3, 'Ge': 5}
@@ -267,11 +266,10 @@ class HDNNP(SingleNNP):
         for symbol, num in w.items():
             if low <= self._all_rank < low+num:
                 self._symbol = symbol
-                self._atomic_natom = composition['number'][symbol]
-                self._atomic_comm = self._all_comm.Create(self._all_comm.Get_group().Incl(range(low, low+num)))
+                self._atomic_comm = self._all_comm.Create(self._all_comm.Get_group().Incl(xrange(low, low+num)))
                 self._atomic_rank = self._atomic_comm.Get_rank()
             low += num
-        quo, rem = self._atomic_natom / w[self._symbol], self._atomic_natom % w[self._symbol]
+        quo, rem = composition['number'][self._symbol] / w[self._symbol], composition['number'][self._symbol] % w[self._symbol]
         if self._atomic_rank < rem:
             self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo+1)]
             self._index = list(composition['index'][self._symbol])[self._atomic_rank*(quo+1): (self._atomic_rank+1)*(quo+1)]
