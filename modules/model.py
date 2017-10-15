@@ -51,7 +51,7 @@ class SingleNNP(object):
         self._layers = []
         for i in xrange(len(hp.hidden_layers)):
             self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node']))
-            self._layers.append(BatchNormalizationLayer(layers[i+1]['node']))
+            # self._layers.append(BatchNormalizationLayer(layers[i+1]['node']))
             self._layers.append(ActivationLayer(layers[i+1]['activation']))
         self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node']))
         if not high_dimension:
@@ -81,7 +81,7 @@ class SingleNNP(object):
     def grads(self):
         return [grad for layer in self._layers for grad in layer.gradient]
 
-    def feedforward(self, input, dinput, batch_size, mode):
+    def feedforward(self, input, dinput, batch_size, _, mode):
         for layer in self._layers:
             output, doutput = layer.feedforward(input, dinput, batch_size, mode)
             input, dinput = output, doutput
@@ -107,7 +107,7 @@ class SingleNNP(object):
             niter = -(- nsample / batch_size)
             for i in xrange(niter):
                 sampling = np.random.randint(0, nsample, batch_size)
-                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, 'training')
+                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, None, 'training')
                 output_error = output - label[sampling]
                 doutput_error = doutput - dlabel[sampling]
                 self.backprop(output_error, doutput_error, batch_size, nderivative)
@@ -187,7 +187,7 @@ class HDNNP(SingleNNP):
         output_send = np.zeros((batch_size, 1))
         doutput_send = np.zeros((batch_size, nderivative, 1))
         for nnp, i in zip(self._nnp, self._index):
-            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :], batch_size, mode)
+            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :], batch_size, None, mode)
             output_send += o
             doutput_send += do
         self._all_comm.Allreduce(output_send, output, op=MPI.SUM)

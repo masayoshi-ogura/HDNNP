@@ -2,7 +2,7 @@ unset logscale y
 set yrange [*:*]
 stats output every ::30 nooutput
 set logscale y
-set yrange [1e-3:1e2]
+set yrange [1e-4:1e2]
 
 set term x11 0
 set title 'training data'

@@ -89,40 +89,42 @@ class BatchNormalizationLayer(LayerBase):
         return self._beta_grad, self._gamma_grad
 
     @property
-    def mu_EMA(self):
-        return self._mu_EMA
+    def mean_EMA(self):
+        return self._mean_EMA
 
-    @mu_EMA.setter
-    def mu_EMA(self, mu):
-        if hasattr(self, '_mu_EMA'):
-            self._mu_EMA = hp.smooth_factor * mu + (1 - hp.smooth_factor) * self._mu_EMA
+    @mean_EMA.setter
+    def mean_EMA(self, mean):
+        if hasattr(self, '_mean_EMA'):
+            self._mean_EMA = hp.smooth_factor * mean + (1 - hp.smooth_factor) * self._mean_EMA
         else:
-            self._mu_EMA = mu
+            self._mean_EMA = mean
 
     @property
-    def sigma_EMA(self):
-        return self._sigma_EMA
+    def variance_EMA(self):
+        return self._variance_EMA
 
-    @sigma_EMA.setter
-    def sigma_EMA(self, sigma):
-        if hasattr(self, '_sigma_EMA'):
-            self._sigma_EMA = hp.smooth_factor * sigma + (1 - hp.smooth_factor) * self._sigma_EMA
+    @variance_EMA.setter
+    def variance_EMA(self, variance):
+        if hasattr(self, '_variance_EMA'):
+            self._variance_EMA = hp.smooth_factor * variance + (1 - hp.smooth_factor) * self._variance_EMA
         else:
-            self._sigma_EMA = sigma
+            self._variance_EMA = variance
 
-    def feedforward(self, input, dinput, batch_size, mode, eps=1e-5):
+    def feedforward(self, input, dinput, batch_size, mode, eps=1e-3):
         if mode == 'training':
-            mu = np.mean(input, axis=0)
-            sigma = np.sqrt(np.var(input, axis=0) + eps)
-            self.mu_EMA = mu
-            self.sigma_EMA = sigma
+            mean = np.mean(input, axis=0)
+            variance = np.var(input, axis=0)
+            self.mean_EMA = mean
+            self.variance_EMA = variance
         elif mode == 'test':
-            mu = self._mu_EMA
-            sigma = self._sigma_EMA
-        self._norm = (input - mu) / sigma
-        self._deriv_input = self._gamma * ((batch_size - 1) - self._norm**2) / (batch_size * sigma)
+            mean = self._mean_EMA
+            variance = self._variance_EMA
+        self._stddev = np.sqrt(variance + eps)
+        self._coef = self._gamma / self._stddev
+        self._xmean = input - mean
+        self._norm = self._xmean / self._stddev
         output = self._gamma * self._norm + self._beta
-        doutput = self._deriv_input[:, None, :] * dinput
+        doutput = (self._coef / batch_size * ((batch_size - 1) - self._norm**2))[:, None, :] * dinput
         return output, doutput
 
     def backprop(self, output_error, doutput_error, batch_size, nderivative):
@@ -131,6 +133,12 @@ class BatchNormalizationLayer(LayerBase):
         self._gamma_grad = 1./batch_size * (np.sum(output_error * self._norm, axis=0)
                                             + hp.mixing_beta / nderivative * np.sum(doutput_error * self._norm[:, None, :], axis=(0, 1)))
 
-        input_error = self._deriv_input * output_error
-        dinput_error = self._deriv_input[:, None, :] * doutput_error
+        input_error = self._coef * (output_error - np.mean(output_error, axis=0)
+                                    - self._xmean
+                                    * np.mean(output_error * self._xmean, axis=0)
+                                    / self._stddev**2)
+        dinput_error = self._coef * (doutput_error - np.mean(doutput_error, axis=0)
+                                     - self._xmean[:, None, :]
+                                     * (np.mean(doutput_error * self._xmean[:, None, :], axis=0)
+                                     / self._stddev**2)[None, :, :])
         return input_error, dinput_error

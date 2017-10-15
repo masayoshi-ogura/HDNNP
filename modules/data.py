@@ -78,11 +78,13 @@ class FunctionData(DataSet):
 
         sep = self._nsample * 7 / 10
         if type == 'training':
+            self._nsample = self._nsample * 7 / 10
             self._input = input[:sep]
             self._label = label[:sep]
             self._dinput = dinput[:sep]
             self._dlabel = dlabel[:sep]
         elif type == 'validation':
+            self._nsample = self._nsample - self._nsample * 7 / 10
             self._input = input[sep:]
             self._label = label[sep:]
             self._dinput = dinput[sep:]
@@ -117,6 +119,7 @@ class FunctionData(DataSet):
     def _make_sin(self):
         self._nsample = 1000
         self._ninput = 1
+        self._nderivative = 1
         input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
         label = np.sin(input)
         dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
@@ -442,13 +445,13 @@ class DataGenerator(object):
             config_type = dill.load(f)
         if self._mode == 'training':
             for type in file_.train_config:
-                for config in filter(lambda config: match(type, config), config_type):
+                for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                     training_data = AtomicStructureData(config, 'training')
                     validation_data = AtomicStructureData(config, 'validation')
                     yield config, training_data, validation_data
         elif self._mode == 'test':
             for type in file_.train_config:
-                for config in filter(lambda config: match(type, config), config_type):
+                for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                     test_data = AtomicStructureData(config, 'test')
                     yield config, test_data
 
