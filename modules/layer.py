@@ -3,7 +3,7 @@
 import numpy as np
 
 from config import hp
-from activation_function import ACTIVATIONS, DERIVATIVES
+from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
 
 
 class LayerBase(object):
@@ -47,7 +47,7 @@ class FullyConnectedLayer(LayerBase):
     def backprop(self, output_error, doutput_error, batch_size, nderivative):
         self._weight_grad = 1./batch_size * (np.dot(self._input.T, output_error)
                                              + hp.mixing_beta / nderivative * np.tensordot(self._dinput, doutput_error, ((0, 1), (0, 1))))
-        self._bias_grad = np.sum(output_error, axis=0)
+        self._bias_grad = np.mean(output_error, axis=0)
 
         input_error = np.dot(output_error, self._weight.T)
         dinput_error = np.tensordot(doutput_error, self._weight, ((2,), (1,)))
@@ -58,35 +58,46 @@ class ActivationLayer(LayerBase):
     def __init__(self, activation):
         self._activation = ACTIVATIONS[activation]
         self._deriv_activation = DERIVATIVES[activation]
+        self._second_deriv_activation = SECOND_DERIVATIVES[activation]
 
     def feedforward(self, input, dinput, *_):
-        self._deriv_input = self._deriv_activation(input)
+        self._deriv = self._deriv_activation(input)
+        self._deriv2 = self._deriv + input * self._second_deriv_activation(input)
+
         output = self._activation(input)
-        doutput = self._deriv_input[:, None, :] * dinput
+        doutput = self._deriv[:, None, :] * dinput
         return output, doutput
 
     def backprop(self, output_error, doutput_error, *_):
-        input_error = self._deriv_input * output_error
-        dinput_error = self._deriv_input[:, None, :] * doutput_error
+        input_error = self._deriv * output_error
+        dinput_error = self._deriv2[:, None, :] * doutput_error
         return input_error, dinput_error
 
 
 class BatchNormalizationLayer(LayerBase):
-    def __init__(self, nodes):
+    def __init__(self, nodes, trainable=True):
         self._beta = np.zeros(nodes)
         self._gamma = np.ones(nodes)
+        self._trainable = trainable
 
     @property
     def parameter(self):
-        return self._beta, self._gamma
+        if self._trainable:
+            return self._beta, self._gamma
+        else:
+            return ()
 
     @parameter.setter
     def parameter(self, parameter):
-        self._beta, self._gamma = parameter
+        if self._trainable:
+            self._beta, self._gamma = parameter
 
     @property
     def gradient(self):
-        return self._beta_grad, self._gamma_grad
+        if self._trainable:
+            return self._beta_grad, self._gamma_grad
+        else:
+            return ()
 
     @property
     def mean_EMA(self):
@@ -119,26 +130,21 @@ class BatchNormalizationLayer(LayerBase):
         elif mode == 'test':
             mean = self._mean_EMA
             variance = self._variance_EMA
-        self._stddev = np.sqrt(variance + eps)
-        self._coef = self._gamma / self._stddev
-        self._xmean = input - mean
-        self._norm = self._xmean / self._stddev
+        stddev = np.sqrt(variance + eps)
+        self._norm = (input - mean) / stddev
+        self._deriv = (batch_size - 1 - self._norm**2) / (batch_size * stddev)
+        self._deriv2 = self._deriv * (1 - (3. / batch_size) / stddev * (input * self._norm))
+
         output = self._gamma * self._norm + self._beta
-        doutput = (self._coef / batch_size * ((batch_size - 1) - self._norm**2))[:, None, :] * dinput
+        doutput = (self._gamma * self._deriv)[:, None, :] * dinput
         return output, doutput
 
     def backprop(self, output_error, doutput_error, batch_size, nderivative):
-        self._beta_grad = 1./batch_size * (np.sum(output_error, axis=0)
-                                           + hp.mixing_beta / nderivative * np.sum(doutput_error, axis=(0, 1)))
-        self._gamma_grad = 1./batch_size * (np.sum(output_error * self._norm, axis=0)
-                                            + hp.mixing_beta / nderivative * np.sum(doutput_error * self._norm[:, None, :], axis=(0, 1)))
+        if self._trainable:
+            self._beta_grad = np.mean(output_error, axis=0)
+            self._gamma_grad = 1./batch_size * (np.sum(output_error * self._norm, axis=0)
+                                                + hp.mixing_beta / nderivative * np.sum(doutput_error * self._norm[:, None, :], axis=(0, 1)))
 
-        input_error = self._coef * (output_error - np.mean(output_error, axis=0)
-                                    - self._xmean
-                                    * np.mean(output_error * self._xmean, axis=0)
-                                    / self._stddev**2)
-        dinput_error = self._coef * (doutput_error - np.mean(doutput_error, axis=0)
-                                     - self._xmean[:, None, :]
-                                     * (np.mean(doutput_error * self._xmean[:, None, :], axis=0)
-                                     / self._stddev**2)[None, :, :])
+        input_error = self._gamma * self._deriv * output_error
+        dinput_error = (self._gamma * self._deriv2)[:, None, :] * doutput_error
         return input_error, dinput_error

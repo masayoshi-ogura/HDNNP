@@ -51,8 +51,8 @@ class SingleNNP(object):
         self._layers = []
         for i in xrange(len(hp.hidden_layers)):
             self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node']))
-            # self._layers.append(BatchNormalizationLayer(layers[i+1]['node']))
             self._layers.append(ActivationLayer(layers[i+1]['activation']))
+            self._layers.append(BatchNormalizationLayer(layers[i+1]['node'], trainable=True))
         self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node']))
         if not high_dimension:
             self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
@@ -240,8 +240,6 @@ class HDNNP(SingleNNP):
             for nnp in self._nnp:
                 with open(layer_file) as f:
                     nnp.layers = dill.load(f)
-        else:
-            print 'pretrained data directory {} or {} is not found.\nInitialized parameters will be used.'.format(optimizer_file, layer_file)
 
     def _allocate(self, natom, ninput, composition):
         s = composition['number'].keys()  # symbol list
