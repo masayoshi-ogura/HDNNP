@@ -52,7 +52,7 @@ class SingleNNP(object):
         for i in xrange(len(hp.hidden_layers)):
             self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node']))
             self._layers.append(ActivationLayer(layers[i+1]['activation']))
-            self._layers.append(BatchNormalizationLayer(layers[i+1]['node'], trainable=True))
+            # self._layers.append(BatchNormalizationLayer(layers[i+1]['node'], trainable=True))
         self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node']))
         if not high_dimension:
             self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
@@ -74,7 +74,7 @@ class SingleNNP(object):
         i = 0
         for layer in self._layers:
             num = len(layer.parameter)
-            layer.parameter = tuple(params[i+j] for j in xrange(num))
+            layer.parameter = tuple(params[i:i+num])
             i += num
 
     @property
@@ -99,21 +99,27 @@ class SingleNNP(object):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
-        for m in xrange(hp.nepoch):
-            batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-            if batch_size < 0 or batch_size > nsample:
-                batch_size = nsample
+        if hp.optimizer in ['sgd', 'adam']:
+            for m in xrange(hp.nepoch):
+                batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
+                if batch_size < 0 or batch_size > nsample:
+                    batch_size = nsample
 
-            niter = -(- nsample / batch_size)
-            for i in xrange(niter):
-                sampling = np.random.randint(0, nsample, batch_size)
-                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, None, 'training')
-                output_error = output - label[sampling]
-                doutput_error = doutput - dlabel[sampling]
-                self.backprop(output_error, doutput_error, batch_size, nderivative)
-                self._optimizer.update_params(self.grads)
+                niter = -(- nsample / batch_size)
+                for i in xrange(niter):
+                    sampling = np.random.randint(0, nsample, batch_size)
+                    output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, None, 'training')
+                    output_error = output - label[sampling]
+                    doutput_error = doutput - dlabel[sampling]
+                    self.backprop(output_error, doutput_error, batch_size, nderivative)
+                    self._optimizer.update_params(self.grads)
+                    self.params = self._optimizer.params
+                yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
+        elif hp.optimizer == 'bfgs':
+            for m in xrange(hp.nepoch):
+                self._optimizer.update_params((self, input, label, dinput, dlabel, nsample, nderivative))
                 self.params = self._optimizer.params
-            yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
+                yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
 
     def evaluate(self, ite, nsample, dataset, animator):
         nsample = dataset.nsample

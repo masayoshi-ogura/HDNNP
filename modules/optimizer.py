@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import minimize
 import math
 
 from config import hp
@@ -60,7 +61,43 @@ class AdamOptimizer(object):
 
 
 class BFGSOptimizer(object):
-    pass
+    def __init__(self, params):
+        self._shapes = [param.shape for param in params]
+        self._disps = np.add.accumulate([param.size for param in params])
+        self._params = self._pack(params)
+
+    @property
+    def params(self):
+        return self._unpack(self._params)
+
+    def update_params(self, args):
+        def loss_func(params, nnp, input, label, dinput, dlabel, nsample, nderivative):
+            nnp.params = self._unpack(params)
+            output, doutput = nnp.feedforward(input, dinput, nsample, None, 'training')
+            return 1./2 * (np.mean((label - output)**2) + hp.mixing_beta * np.mean((dlabel - doutput)**2))
+
+        def loss_grad(params, nnp, input, label, dinput, dlabel, nsample, nderivative):
+            nnp.params = self._unpack(params)
+            output, doutput = nnp.feedforward(input, dinput, nsample, None, 'training')
+            output_error = output - label
+            doutput_error = doutput - dlabel
+            nnp.backprop(output_error, doutput_error, nsample, nderivative)
+            return self._pack(nnp.grads)
+
+        response = minimize(loss_func,
+                            self._params,
+                            method='BFGS',
+                            args=args,
+                            jac=loss_grad,
+                            options={'disp': False, 'maxiter': 100})
+        self._params = response.x
+
+    def _pack(self, params):
+        return np.concatenate([param.flatten() for param in params])
+
+    def _unpack(self, flatten):
+        return [f.reshape(shape)
+                for f, shape in zip(np.split(flatten, self._disps), self._shapes)]
 
 
 OPTIMIZERS = {'sgd': SGDOptimizer, 'adam': AdamOptimizer, 'bfgs': BFGSOptimizer}
