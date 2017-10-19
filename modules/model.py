@@ -1,263 +1,285 @@
 # -*- coding: utf-8 -*-
 
+from config import hp
+from config import file_
+from config import mpi
+
 from os import path
 from os import makedirs
 from itertools import combinations
 import numpy as np
 from mpi4py import MPI
+import dill
 
-from config import hp
-from config import bool_
-from config import file_
-from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
+from layer import FullyConnectedLayer, ActivationLayer, BatchNormalizationLayer
 from optimizer import OPTIMIZERS
 
 
+def rmse(pred, true):
+    return np.sqrt(((pred - true)**2).mean())
+
+
+def comb(n, r):
+    for c in combinations(xrange(1, n), r-1):
+        ret = []
+        low = 0
+        for p in c:
+            ret.append(p - low)
+            low = p
+        ret.append(n - low)
+        yield ret
+
+
+def allocate(size, symbol, natom):
+    min = 0
+    for worker in comb(size, len(symbol)):
+        obj = 0
+        for w, n in zip(worker, natom):
+            if w > n:
+                break
+            obj += n*(-(-n/w))**2
+        else:
+            if min == 0 or min > obj:
+                min = obj
+                min_worker = {symbol[i]: worker[i] for i in xrange(len(symbol))}  # worker(node)
+    return min_worker
+
+
 class SingleNNP(object):
-    def __init__(self, all_natom, ninput):
-        self.all_natom = all_natom
-        self.shape = (ninput,) + hp.hidden_layer + (1,)
-        self.nlayer = len(hp.hidden_layer)
-        self.nweight = len(hp.hidden_layer) + 1
-        self.learning_rate = hp.learning_rate
-        self.mixing_beta = hp.mixing_beta
-        self.activation = ACTIVATIONS[hp.activation]
-        self.deriv_activation = DERIVATIVES[hp.activation]
-        self.second_deriv_activation = SECOND_DERIVATIVES[hp.activation]
+    def __init__(self, ninput, high_dimension=False):
+        layers = [{'node': ninput}] + hp.hidden_layers + [{'node': 1}]
+        self._layers = []
+        for i in xrange(len(hp.hidden_layers)):
+            self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node']))
+            self._layers.append(ActivationLayer(layers[i+1]['activation']))
+            self._layers.append(BatchNormalizationLayer(layers[i+1]['node'], trainable=True))
+        self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node']))
+        if not high_dimension:
+            self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
 
-        self.weights, self.bias = [], []
-        for i in range(self.nweight):
-            self.weights.append(np.random.normal(0.0, 0.5, (self.shape[i], self.shape[i+1])))
-            self.bias.append(np.random.normal(0.0, 0.5, (self.shape[i+1])))
+    @property
+    def layers(self):
+        return self._layers
 
-    # def loss_func(self, E_true, E_pred, F_true, F_pred):
-    #     # sync weights between the NNP of the same atom
-    #     for i in range(self.nweight):
-    #         tmp_weights = np.zeros_like(self.weights[i])
-    #         tmp_bias = np.zeros_like(self.bias[i])
-    #         self.comm.Allreduce(self.weights[i], tmp_weights, op=MPI.SUM)
-    #         self.comm.Allreduce(self.bias[i], tmp_bias, op=MPI.SUM)
-    #         self.weights[i] = tmp_weights / self.natom
-    #         self.bias[i] = tmp_bias / self.natom
-    #     # loss function
-    #     loss = (E_pred - E_true)**2 + hp.mixing_beta * (F_pred - F_true)**2 / (3 * self.natom)
-    #     return loss
+    @layers.setter
+    def layers(self, layers):
+        self._layers = layers
 
-    def feedforward(self, Gi, dGi, size):
-        # "inputs" means "linear transformation's input", not "each layer's input"
-        # "outputs" means "linear transformation's output", not "each layer's output"
-        self.inputs, self.outputs, self.deriv_inputs, self.deriv_outputs = [], [], [], []
-        for i in range(self.nweight):
-            if i == 0:
-                self.inputs.append(Gi)
-                self.deriv_inputs.append(dGi)
-            else:
-                self.inputs.append(self.activation(self.outputs[i-1]))
-                self.deriv_inputs.append(self.deriv_activation(self.outputs[i-1])[:, None, :] * self.deriv_outputs[i-1])
-            self.outputs.append(np.dot(self.inputs[i], self.weights[i]) + self.bias[i])
-            self.deriv_outputs.append(np.tensordot(self.deriv_inputs[i], self.weights[i], ((2,), (0,))))
-        Ei = self.outputs[-1]
-        Fi = - self.deriv_outputs[-1]
-        return Ei, Fi
+    @property
+    def params(self):
+        return [param for layer in self._layers for param in layer.parameter]
 
-    def backprop(self, Gi, dGi, E_error, F_error):
-        # backprop
-        weight_grads = [np.zeros_like(weight) for weight in self.weights]
-        bias_grads = [np.zeros_like(bias) for bias in self.bias]
+    @params.setter
+    def params(self, params):
+        i = 0
+        for layer in self._layers:
+            num = len(layer.parameter)
+            layer.parameter = tuple(params[i+j] for j in xrange(num))
+            i += num
 
-        for i in reversed(range(self.nweight)):
-            # energy
-            e_delta = self.deriv_activation(self.outputs[i]) * np.dot(e_delta, self.weights[i+1].T) \
-                if 'e_delta' in locals() else E_error  # squared loss
-                # if 'e_delta' in locals() else np.clip(E_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += np.dot(self.inputs[i].T, e_delta)
-            bias_grads[i] += np.sum(e_delta, axis=0)
+    @property
+    def grads(self):
+        return [grad for layer in self._layers for grad in layer.gradient]
 
-            # force
-            f_delta = (self.second_deriv_activation(self.outputs[i]) * np.dot(self.inputs[i], self.weights[i]) +
-                       self.deriv_activation(self.outputs[i]))[:, None, :] * np.tensordot(f_delta, self.weights[i+1], ((2,), (1,))) \
-                if 'f_delta' in locals() else F_error  # squared loss
-                # if 'f_delta' in locals() else np.clip(F_error, -1.0, 1.0)  # Huber loss
-            weight_grads[i] += (hp.mixing_beta / (3 * self.all_natom)) * \
-                np.tensordot(- self.deriv_inputs[i], f_delta, ((0, 1), (0, 1)))
+    def feedforward(self, input, dinput, batch_size, _, mode):
+        for layer in self._layers:
+            output, doutput = layer.feedforward(input, dinput, batch_size, mode)
+            input, dinput = output, doutput
+        return output, doutput
 
-        return weight_grads, bias_grads
+    def backprop(self, output_error, doutput_error, batch_size, nderivative):
+        for layer in reversed(self._layers):
+            input_error, dinput_error = layer.backprop(output_error, doutput_error, batch_size, nderivative)
+            output_error, doutput_error = input_error, dinput_error
 
-
-class HDNNP(object):
-    def __init__(self, natom, nsample):
-        self.all_natom = natom
-        self.nsample = nsample
-        if bool_.SAVE_FIG:
-            from animator import Animator
-            self.animator = Animator(natom, nsample)
-
-    def inference(self, Gs, dGs, size):
-        E, E_tmp = np.zeros((size, 1)), np.zeros((size, 1))
-        F, F_tmp = np.zeros((size, 3*self.all_natom, 1)), np.zeros((size, 3*self.all_natom, 1))
-        for nnp, i in zip(self.nnp, self.index):
-            Ei, Fi = nnp.feedforward(Gs[:, i, :], dGs[:, i, :, :], size)
-            E_tmp += Ei
-            F_tmp += Fi
-        self.all_comm.Allreduce(E_tmp, E, op=MPI.SUM)
-        self.all_comm.Allreduce(F_tmp, F, op=MPI.SUM)
-        return E, F
-
-    def training(self, m, Es, Fs, Gs, dGs):
-        if hp.optimizer in ['sgd', 'adam']:
+    def fit(self, training_data, validation_data, training_animator, validation_animator):
+        nsample = training_data.nsample
+        nderivative = training_data.nderivative
+        input = training_data.input
+        label = training_data.label
+        dinput = training_data.dinput
+        dlabel = training_data.dlabel
+        for m in xrange(hp.nepoch):
             batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-            if batch_size < 0 or batch_size > self.nsample:
-                batch_size = self.nsample
+            if batch_size < 0 or batch_size > nsample:
+                batch_size = nsample
 
-            niter = -(- self.nsample / batch_size)
-            for m in range(niter):
-                sampling = np.random.randint(0, self.nsample, batch_size)
-                self.all_comm.Bcast(sampling, root=0)
+            niter = -(- nsample / batch_size)
+            for i in xrange(niter):
+                sampling = np.random.randint(0, nsample, batch_size)
+                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, None, 'training')
+                output_error = output - label[sampling]
+                doutput_error = doutput - dlabel[sampling]
+                self.backprop(output_error, doutput_error, batch_size, nderivative)
+                self._optimizer.update_params(self.grads)
+                self.params = self._optimizer.params
+            yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
 
-                weight_grads = [np.zeros_like(weight) for weight in self.nnp[0].weights]
-                bias_grads = [np.zeros_like(bias) for bias in self.nnp[0].bias]
-                weight_para = [np.zeros_like(weight) for weight in self.nnp[0].weights]
-                bias_para = [np.zeros_like(bias) for bias in self.nnp[0].bias]
-                E_pred, F_pred = self.inference(Gs[sampling], dGs[sampling], batch_size)
-                E_error = E_pred - Es[sampling]
-                F_error = F_pred - Fs[sampling]
-                for nnp, i in zip(self.nnp, self.index):
-                    w_tmp, b_tmp = nnp.backprop(Gs[sampling, i, :], dGs[sampling, i, :, :], E_error, F_error)
-                    for w_p, b_p, w_t, b_t in zip(weight_para, bias_para, w_tmp, b_tmp):
-                        w_p += w_t / (batch_size * self.atomic_natom)
-                        b_p += b_t / (batch_size * self.atomic_natom)
-                for w_g, b_g, w_p, b_p in zip(weight_grads, bias_grads, weight_para, bias_para):
-                    self.atomic_comm.Allreduce(w_p, w_g, op=MPI.SUM)
-                    self.atomic_comm.Allreduce(b_p, b_g, op=MPI.SUM)
+    def evaluate(self, ite, nsample, dataset, animator):
+        nsample = dataset.nsample
+        nderivative = dataset.nderivative
+        input = dataset.input
+        label = dataset.label
+        dinput = dataset.dinput
+        dlabel = dataset.dlabel
+        output, doutput = self.feedforward(input, dinput, nsample, nderivative, 'test')
 
-                weights, bias = self.optimizer.update_params(weight_grads, bias_grads)
-                for nnp in self.nnp:
-                    nnp.weights = weights
-                    nnp.bias = bias
-        elif hp.optimizer == 'bfgs':
-            print 'Info: BFGS is off-line learning method. "batch_size" is ignored.'
-            # TODO: BFGS optimize
-            self.optimizer.update_params()
+        if animator:
+            if ite == 0:
+                animator.true = (label, dlabel)
+            animator.preds = (output, doutput)
+
+        RMSE = rmse(output, label)
+        dRMSE = rmse(doutput, dlabel)
+        total_RMSE = RMSE + hp.mixing_beta * dRMSE
+        return RMSE, dRMSE, total_RMSE
+
+    def save(self, subdir):
+        save_dir = path.join(file_.save_dir, subdir)
+        makedirs(save_dir)
+        with open(path.join(save_dir, 'optimizer.dill'), 'w') as f:
+            dill.dump(self._optimizer, f)
+        with open(path.join(save_dir, 'layers.dill'), 'w') as f:
+            dill.dump(self._layers, f)
+
+    def load(self, subdir):
+        load_dir = path.join(file_.save_dir, subdir)
+        if path.exists(load_dir):
+            with open(path.join(load_dir, 'optimizer.dill'), 'r') as f:
+                self._optimizer = dill.load(f)
+            with open(path.join(load_dir, 'layers.dill'), 'r') as f:
+                self._layers = dill.load(f)
         else:
-            raise ValueError('invalid optimizer: select sgd or adam or bfgs')
+            print 'pretrained data directory {} is not found. Initialized parameters will be used.'.format(load_dir)
 
-    def calc_RMSE(self, m, Es, Fs, Gs, dGs):
-        def rmse(pred, true):
-            return np.sqrt(((pred - true)**2).mean())
 
-        if bool_.SAVE_FIG and m == 0:
-            self.animator.set_true(Es, Fs)
-        E_preds, F_preds = self.inference(Gs, dGs, self.nsample)
+class HDNNP(SingleNNP):
+    def __init__(self, natom, ninput, composition):
+        self._active = self._allocate(natom, ninput, composition)
 
-        if bool_.SAVE_FIG:
-            self.animator.set_pred(m, E_preds, F_preds)
-        E_RMSE = rmse(E_preds, Es)
-        F_RMSE = rmse(F_preds, Fs)
-        RMSE = E_RMSE + hp.mixing_beta * F_RMSE
-        return E_RMSE, F_RMSE, RMSE
+    @property
+    def active(self):
+        return self._active
 
-    def save_fig(self, datestr, config, ext):
-        if self.all_rank == 0:
-            print 'saving figures ...'
-            self.animator.save_fig(datestr, config, ext)
+    @property
+    def params(self):
+        return [param for layer in self._nnp[0].layers for param in layer.parameter]
 
-    def save_w(self, datestr):
-        weight_save_dir = path.join(file_.weight_dir, datestr)
-        if self.all_rank == 0 and not path.exists(weight_save_dir):
-            makedirs(weight_save_dir)
-        self.all_comm.Barrier()
-        if self.atomic_rank == 0:
-            weights = {str(i): self.nnp[0].weights[i] for i in range(self.nnp[0].nweight)}
-            bias = {str(i): self.nnp[0].bias[i] for i in range(self.nnp[0].nweight)}
-            np.savez(path.join(weight_save_dir, '{}_weights.npz'.format(self.symbol)), **weights)
-            np.savez(path.join(weight_save_dir, '{}_bias.npz'.format(self.symbol)), **bias)
+    @params.setter
+    def params(self, params):
+        for nnp in self._nnp:
+            nnp.params = params
 
-    def load_w(self, datestr):
-        weight_file = path.join(file_.weight_dir, datestr, '{}_weights.npz'.format(self.symbol))
-        bias_file = path.join(file_.weight_dir, datestr, '{}_bias.npz'.format(self.symbol))
-        if path.exists(weight_file):
-            weights = np.load(weight_file)
-            bias = np.load(bias_file)
-            for nnp in self.nnp:
-                for i in range(nnp.nweight):
-                    nnp.weights[i] = weights[str(i)]
-                    nnp.bias[i] = bias[str(i)]
-        else:
-            if self.atomic_rank == 0:
-                print 'weight params file {} is not found. use initialized parameters.'.format(weight_file)
-            pass
+    @property
+    def grads(self):
+        grads_send = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
+        grads = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
+        for nnp in self._nnp:
+            for send, grad in zip(grads_send, nnp.grads):
+                send += grad
+        for send, recv in zip(grads_send, grads):
+            self._all_comm.Allreduce(send, recv, op=MPI.SUM)
+        return grads
 
-    def sync_w(self):
-        for i in range(self.nnp[0].nweight):
-            self.atomic_comm.Bcast(self.nnp[0].weights[i], root=0)
-            self.atomic_comm.Bcast(self.nnp[0].bias[i], root=0)
+    def feedforward(self, input, dinput, batch_size, nderivative, mode):
+        output = np.zeros((batch_size, 1))
+        doutput = np.zeros((batch_size, nderivative, 1))
+        output_send = np.zeros((batch_size, 1))
+        doutput_send = np.zeros((batch_size, nderivative, 1))
+        for nnp, i in zip(self._nnp, self._index):
+            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :], batch_size, None, mode)
+            output_send += o
+            doutput_send += do
+        self._all_comm.Allreduce(output_send, output, op=MPI.SUM)
+        self._all_comm.Allreduce(doutput_send, doutput, op=MPI.SUM)
+        doutput *= -1.
+        return output, doutput
 
-        for nnp in self.nnp:
-            nnp.weights = self.nnp[0].weights
-            nnp.bias = self.nnp[0].bias
+    def fit(self, training_data, validation_data, training_animator=None, validation_animator=None):
+        nsample = training_data.nsample
+        nderivative = training_data.nderivative
+        input = training_data.input
+        label = training_data.label
+        dinput = training_data.dinput
+        dlabel = training_data.dlabel
+        for m in xrange(hp.nepoch):
+            batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
+            if batch_size < 0 or batch_size > nsample:
+                batch_size = nsample
 
-    def initialize(self, comm, rank, size, ninput, composition):
-        def comb(n, r):
-            for c in combinations(range(1, n), r-1):
-                ret = []
-                low = 0
-                for p in c:
-                    ret.append(p - low)
-                    low = p
-                ret.append(n - low)
-                yield ret
+            niter = -(- nsample / batch_size)
+            for i in xrange(niter):
+                sampling = np.random.randint(0, nsample, batch_size)
+                self._all_comm.Bcast(sampling, root=0)
+                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, nderivative, 'training')
+                output_error = output - label[sampling]
+                doutput_error = - (doutput - dlabel[sampling])
+                for nnp in self._nnp:
+                    nnp.backprop(output_error, doutput_error, batch_size, nderivative)
+                self._optimizer.update_params(self.grads)
+                self.params = self._optimizer.params
+            yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
 
-        def allocate(size, symbol, natom):
-            min = 0
-            for worker in comb(size, len(symbol)):
-                obj = 0
-                for w, n in zip(worker, natom):
-                    if w > n:
-                        break
-                    obj += n*(-(-n/w))**2
-                else:
-                    if min == 0 or min > obj:
-                        min = obj
-                        min_worker = {symbol[i]: worker[i] for i in range(len(symbol))}  # worker(node)
-            return min_worker
+    def save(self, subdir):
+        save_dir = path.join(file_.save_dir, subdir)
+        if self._all_rank == 0 and not path.exists(save_dir):
+            makedirs(save_dir)
+        self._all_comm.Barrier()
+        if self._atomic_rank == 0:
+            with open(path.join(save_dir, '{}_optimizer.dill'.format(self._symbol)), 'w') as f:
+                dill.dump(self._optimizer, f)
+            with open(path.join(save_dir, '{}_layers.dill'.format(self._symbol)), 'w') as f:
+                dill.dump(self._nnp[0].layers, f)
 
+    def load(self, subdir):
+        optimizer_file = path.join(file_.save_dir, subdir, '{}_optimizer.dill'.format(self._symbol))
+        layer_file = path.join(file_.save_dir, subdir, '{}_layers.dill'.format(self._symbol))
+        if path.exists(optimizer_file) and path.exists(layer_file):
+            with open(optimizer_file) as f:
+                self._optimizer = dill.load(f)
+            for nnp in self._nnp:
+                with open(layer_file) as f:
+                    nnp.layers = dill.load(f)
+
+    def _allocate(self, natom, ninput, composition):
         s = composition['number'].keys()  # symbol list
         n = composition['number'].values()  # natom list
 
         # allocate worker for each atom
-        if len(s) > size:
+        if len(s) > mpi.size:
             raise ValueError('the number of process must be {} or more.'.format(len(s)))
-        elif size > self.all_natom:
-            self.all_comm = comm.Create(comm.Get_group().Incl(range(self.all_natom)))
-            if not rank < self.all_natom:
+        elif mpi.size > natom:
+            self._all_comm = mpi.comm.Create(mpi.comm.Get_group().Incl(xrange(natom)))
+            if not mpi.rank < natom:
                 return False
-            self.all_rank = self.all_comm.Get_rank()
+            self._all_rank = self._all_comm.Get_rank()
             w = composition['number']  # worker(node) ex.) {'Si': 3, 'Ge': 5}
         else:
-            self.all_comm = comm
-            self.all_rank = rank
-            w = allocate(size, s, n)
+            self._all_comm = mpi.comm
+            self._all_rank = mpi.rank
+            w = allocate(mpi.size, s, n)
 
         # split MPI communicator and set SingleNNP instances and initialize them
         low = 0
         for symbol, num in w.items():
-            if low <= rank < low+num:
-                self.symbol = symbol
-                atomic_group = self.all_comm.Get_group().Incl(range(low, low+num))
-                self.atomic_comm = self.all_comm.Create(atomic_group)
-                self.atomic_rank = self.atomic_comm.Get_rank()
+            if low <= self._all_rank < low+num:
+                self._symbol = symbol
+                self._atomic_comm = self._all_comm.Create(self._all_comm.Get_group().Incl(xrange(low, low+num)))
+                self._atomic_rank = self._atomic_comm.Get_rank()
             low += num
-        self.atomic_natom = composition['number'][self.symbol]
-        self.nnp = [SingleNNP(self.all_natom, ninput)]
-        quo, rem = self.atomic_natom / w[self.symbol], self.atomic_natom % w[self.symbol]
-        if self.atomic_rank < rem:
-            self.nnp *= quo+1
-            self.index = list(composition['index'][self.symbol])[self.atomic_rank*(quo+1): (self.atomic_rank+1)*(quo+1)]
+        quo, rem = composition['number'][self._symbol] / w[self._symbol], composition['number'][self._symbol] % w[self._symbol]
+        if self._atomic_rank < rem:
+            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo+1)]
+            self._index = list(composition['index'][self._symbol])[self._atomic_rank*(quo+1): (self._atomic_rank+1)*(quo+1)]
         else:
-            self.nnp *= quo
-            self.index = list(composition['index'][self.symbol])[self.atomic_rank*quo+rem: (self.atomic_rank+1)*quo+rem]
+            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo)]
+            self._index = list(composition['index'][self._symbol])[self._atomic_rank*quo+rem: (self._atomic_rank+1)*quo+rem]
 
-        self.sync_w()
-        self.optimizer = OPTIMIZERS[hp.optimizer](self.nnp[0].weights, self.nnp[0].bias)
-
+        self._sync()
+        self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
         return True
+
+    def _sync(self):
+        self._nnp[0].layers = self._atomic_comm.bcast(self._nnp[0].layers, root=0)
+        for nnp in self._nnp:
+            nnp.layers = self._nnp[0].layers

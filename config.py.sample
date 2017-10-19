@@ -17,29 +17,30 @@ class hp:
     zetas = []
     # about training
     learning_rate =
-    learning_rate_decay = 1e-3  # after 1000 ite., lr becomes 1/2.
+    learning_rate_decay =
     mixing_beta =
-    momentum = 0.9  # for sgd(Nesterov)
-    adam_beta1 = 0.9  # for adam
-    adam_beta2 = 0.999  # for adam
-    epsilon = 1e-8  # for adam
-    hidden_layer = ()
+    smooth_factor =
     nepoch =
     batch_size =
-    batch_size_growth = 1e-3  # after 1000 ite., batch_size becomes x2.
-    optimizer = 'sgd' | 'adam' | 'bfgs'
-    activation = 'sigmoid' | 'tanh' | 'relu'
+    batch_size_growth =
+    optimizer =
+    hidden_layers = [{}]
 
 
 class bool_:
-    SAVE_FIG =
-    LOCAL =
+    SAVE_GIF =
 
 
 class file_:
     xyz_file =
     train_config = ['all']  # config_type use for training. if 'all', all config_type will be used
-    weight_dir = 'weight_params'
-    test_weight = ''  # specify datestr(cf. MMDD-hhmmss)
+    progress_dir = 'out'
+    save_dir = 'savedmodel'
     data_dir = 'data'
     fig_dir = 'figure'
+
+
+class mpi:
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
