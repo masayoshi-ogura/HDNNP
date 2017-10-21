@@ -11,7 +11,7 @@ import numpy as np
 from mpi4py import MPI
 import dill
 
-from layer import FullyConnectedLayer, ActivationLayer, BatchNormalizationLayer
+from layer import FullyConnectedLayer, ActivationLayer
 from optimizer import OPTIMIZERS
 
 
@@ -81,16 +81,19 @@ class SingleNNP(object):
     def grads(self):
         return [grad for layer in self._layers for grad in layer.gradient]
 
-    def feedforward(self, input, dinput, batch_size, _, mode):
+    def feedforward(self, input, dinput, *_):
         for layer in self._layers:
-            output, doutput = layer.feedforward(input, dinput, batch_size, mode)
+            output, doutput = layer.feedforward(input, dinput)
             input, dinput = output, doutput
         return output, doutput
 
     def backprop(self, output_error, doutput_error, batch_size, nderivative):
+        output_error = output_error / batch_size
+        doutput_error1 = doutput_error * hp.mixing_beta / (batch_size * nderivative)
+        doutput_error2 = np.zeros_like(doutput_error)
         for layer in reversed(self._layers):
-            input_error, dinput_error = layer.backprop(output_error, doutput_error, batch_size, nderivative)
-            output_error, doutput_error = input_error, dinput_error
+            input_error, dinput_error1, dinput_error2 = layer.backprop(output_error, doutput_error1, doutput_error2)
+            output_error, doutput_error1, doutput_error2 = input_error, dinput_error1, dinput_error2
 
     def fit(self, training_data, validation_data, training_animator, validation_animator):
         nsample = training_data.nsample
@@ -108,27 +111,25 @@ class SingleNNP(object):
                 niter = -(- nsample / batch_size)
                 for i in xrange(niter):
                     sampling = np.random.randint(0, nsample, batch_size)
-                    output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, None, 'training')
+                    output, doutput = self.feedforward(input[sampling], dinput[sampling])
                     output_error = output - label[sampling]
                     doutput_error = doutput - dlabel[sampling]
                     self.backprop(output_error, doutput_error, batch_size, nderivative)
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
-                yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
-        elif hp.optimizer == 'bfgs':
-            for m in xrange(hp.nepoch):
-                self._optimizer.update_params((self, input, label, dinput, dlabel, nsample, nderivative))
-                self.params = self._optimizer.params
-                yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
+                yield m, self.evaluate(m, training_data, training_animator), self.evaluate(m, validation_data, validation_animator)
+        elif hp.optimizer in ['bfgs', 'cg']:
+            self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
+            yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
 
-    def evaluate(self, ite, nsample, dataset, animator):
+    def evaluate(self, ite, dataset, animator):
         nsample = dataset.nsample
         nderivative = dataset.nderivative
         input = dataset.input
         label = dataset.label
         dinput = dataset.dinput
         dlabel = dataset.dlabel
-        output, doutput = self.feedforward(input, dinput, nsample, nderivative, 'test')
+        output, doutput = self.feedforward(input, dinput, nsample, nderivative)
 
         if animator:
             if ite == 0:
@@ -169,10 +170,27 @@ class HDNNP(SingleNNP):
 
     @property
     def params(self):
-        return [param for layer in self._nnp[0].layers for param in layer.parameter]
+        params = [param for layer in self._nnp[0].layers for param in layer.parameter]
+        if hp.optimizer in ['sgd', 'adam']:
+            return params
+        elif hp.optimizer in ['bfgs', 'cg']:
+            if self._atomic_rank == 0:
+                cat_params = self._root_comm.allreduce(params, op=MPI.SUM)
+            else:
+                cat_params = None
+            cat_params = self._atomic_comm.bcast(cat_params, root=0)
+            return cat_params
 
     @params.setter
     def params(self, params):
+        if hp.optimizer in ['bfgs', 'cg']:
+            if self._atomic_rank == 0:
+                s = len(params) * self._root_rank / self._root_size
+                e = len(params) * (self._root_rank + 1) / self._root_size
+            else:
+                s, e = None, None
+            (s, e) = self._atomic_comm.bcast((s, e), root=0)
+            params = params[s:e]
         for nnp in self._nnp:
             nnp.params = params
 
@@ -184,22 +202,36 @@ class HDNNP(SingleNNP):
             for send, grad in zip(grads_send, nnp.grads):
                 send += grad
         for send, recv in zip(grads_send, grads):
-            self._all_comm.Allreduce(send, recv, op=MPI.SUM)
-        return grads
+            self._atomic_comm.Allreduce(send, recv, op=MPI.SUM)
 
-    def feedforward(self, input, dinput, batch_size, nderivative, mode):
+        if hp.optimizer in ['sgd', 'adam']:
+            return grads
+        elif hp.optimizer in ['bfgs', 'cg']:
+            if self._atomic_rank == 0:
+                cat_grads = self._root_comm.allreduce(grads, op=MPI.SUM)
+            else:
+                cat_grads = None
+            cat_grads = self._atomic_comm.bcast(cat_grads, root=0)
+            return cat_grads
+
+    def feedforward(self, input, dinput, batch_size, nderivative):
         output = np.zeros((batch_size, 1))
         doutput = np.zeros((batch_size, nderivative, 1))
         output_send = np.zeros((batch_size, 1))
         doutput_send = np.zeros((batch_size, nderivative, 1))
         for nnp, i in zip(self._nnp, self._index):
-            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :], batch_size, None, mode)
+            o, do = nnp.feedforward(input[:, i, :], dinput[:, i, :, :])
             output_send += o
             doutput_send += do
         self._all_comm.Allreduce(output_send, output, op=MPI.SUM)
         self._all_comm.Allreduce(doutput_send, doutput, op=MPI.SUM)
         doutput *= -1.
         return output, doutput
+
+    def backprop(self, output_error, doutput_error, batch_size, nderivative):
+        doutput_error *= -1.
+        for nnp in self._nnp:
+            nnp.backprop(output_error, doutput_error, batch_size, nderivative)
 
     def fit(self, training_data, validation_data, training_animator=None, validation_animator=None):
         nsample = training_data.nsample
@@ -208,23 +240,26 @@ class HDNNP(SingleNNP):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
-        for m in xrange(hp.nepoch):
-            batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-            if batch_size < 0 or batch_size > nsample:
-                batch_size = nsample
+        if hp.optimizer in ['sgd', 'adam']:
+            for m in xrange(hp.nepoch):
+                batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
+                if batch_size < 0 or batch_size > nsample:
+                    batch_size = nsample
 
-            niter = -(- nsample / batch_size)
-            for i in xrange(niter):
-                sampling = np.random.randint(0, nsample, batch_size)
-                self._all_comm.Bcast(sampling, root=0)
-                output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, nderivative, 'training')
-                output_error = output - label[sampling]
-                doutput_error = - (doutput - dlabel[sampling])
-                for nnp in self._nnp:
-                    nnp.backprop(output_error, doutput_error, batch_size, nderivative)
-                self._optimizer.update_params(self.grads)
-                self.params = self._optimizer.params
-            yield m, self.evaluate(m, nsample, training_data, training_animator), self.evaluate(m, nsample, validation_data, validation_animator)
+                niter = -(- nsample / batch_size)
+                for i in xrange(niter):
+                    sampling = np.random.randint(0, nsample, batch_size)
+                    self._all_comm.Bcast(sampling, root=0)
+                    output, doutput = self.feedforward(input[sampling], dinput[sampling], batch_size, nderivative)
+                    output_error = output - label[sampling]
+                    doutput_error = doutput - dlabel[sampling]
+                    self.backprop(output_error, doutput_error, batch_size, nderivative)
+                    self._optimizer.update_params(self.grads)
+                    self.params = self._optimizer.params
+                yield m, self.evaluate(m, training_data, training_animator), self.evaluate(m, validation_data, validation_animator)
+        elif hp.optimizer in ['bfgs', 'cg']:
+            self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
+            yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
 
     def save(self, subdir):
         save_dir = path.join(file_.save_dir, subdir)
@@ -267,12 +302,19 @@ class HDNNP(SingleNNP):
 
         # split MPI communicator and set SingleNNP instances and initialize them
         low = 0
+        root_nodes = []
         for symbol, num in w.items():
+            root_nodes.append(low)
             if low <= self._all_rank < low+num:
                 self._symbol = symbol
                 self._atomic_comm = self._all_comm.Create(self._all_comm.Get_group().Incl(xrange(low, low+num)))
                 self._atomic_rank = self._atomic_comm.Get_rank()
             low += num
+        self._root_comm = self._all_comm.Create(self._all_comm.Get_group().Incl(root_nodes))
+        if self._atomic_rank == 0:
+            self._root_rank = self._root_comm.Get_rank()
+            self._root_size = self._root_comm.Get_size()
+
         quo, rem = composition['number'][self._symbol] / w[self._symbol], composition['number'][self._symbol] % w[self._symbol]
         if self._atomic_rank < rem:
             self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo+1)]
@@ -281,11 +323,10 @@ class HDNNP(SingleNNP):
             self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo)]
             self._index = list(composition['index'][self._symbol])[self._atomic_rank*quo+rem: (self._atomic_rank+1)*quo+rem]
 
-        self._sync()
+        self.sync()
         self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
         return True
 
-    def _sync(self):
-        self._nnp[0].layers = self._atomic_comm.bcast(self._nnp[0].layers, root=0)
-        for nnp in self._nnp:
-            nnp.layers = self._nnp[0].layers
+    def sync(self):
+        params = self._atomic_comm.bcast(self.params, root=0)
+        self.params = params

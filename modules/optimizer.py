@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, check_grad
 import math
 
 from config import hp
@@ -60,36 +60,50 @@ class AdamOptimizer(object):
                         for param, m, v in zip(self._params, self._ms, self._vs)]
 
 
-class BFGSOptimizer(object):
+class qNewtonOptimizer(object):
     def __init__(self, params):
         self._shapes = [param.shape for param in params]
         self._disps = np.add.accumulate([param.size for param in params])
         self._params = self._pack(params)
 
-    @property
-    def params(self):
-        return self._unpack(self._params)
-
-    def update_params(self, args):
+    def update_params(self, *args):
         def loss_func(params, nnp, input, label, dinput, dlabel, nsample, nderivative):
             nnp.params = self._unpack(params)
-            output, doutput = nnp.feedforward(input, dinput, nsample, None, 'training')
-            return 1./2 * (np.mean((label - output)**2) + hp.mixing_beta * np.mean((dlabel - doutput)**2))
+            self.output, self.doutput = nnp.feedforward(input, dinput, nsample, nderivative)
+            return 1./2 * (((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean())
 
-        def loss_grad(params, nnp, input, label, dinput, dlabel, nsample, nderivative):
-            nnp.params = self._unpack(params)
-            output, doutput = nnp.feedforward(input, dinput, nsample, None, 'training')
-            output_error = output - label
-            doutput_error = doutput - dlabel
+        def loss_grad(_, nnp, input, label, dinput, dlabel, nsample, nderivative):
+            output_error = self.output - label
+            doutput_error = self.doutput - dlabel
             nnp.backprop(output_error, doutput_error, nsample, nderivative)
             return self._pack(nnp.grads)
 
+        def generate_callback(label, dlabel):
+            result = {'iteration': 0, 'output': [], 'doutput': []}
+
+            def callback(params):
+                print 'Iteration: {}'.format(result['iteration'])
+                print 'RMSE: {}'.format(np.sqrt(((label - self.output)**2).mean()) + hp.mixing_beta * np.sqrt(((dlabel - self.doutput)**2).mean()))
+                # print 'Loss Func: {}'.format(1./2 * (((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean()))
+                # print 'check_grad: {}'.format(check_grad(loss_func, loss_grad, params, *args))
+                result['iteration'] += 1
+                # result['output'].append(self.output)
+                # result['doutput'].append(self.doutput)
+            return result, callback
+
+        loss_func(self._params, *args)
+        result, callback_func = generate_callback(args[2], args[4])
+        if hp.optimizer == 'bfgs':
+            method = 'BFGS'
+        elif hp.optimizer == 'cg':
+            method = 'CG'
         response = minimize(loss_func,
                             self._params,
-                            method='BFGS',
+                            method=method,
                             args=args,
                             jac=loss_grad,
-                            options={'disp': False, 'maxiter': 100})
+                            callback=callback_func,
+                            options={'disp': True, 'maxiter': hp.nepoch})
         self._params = response.x
 
     def _pack(self, params):
@@ -100,4 +114,4 @@ class BFGSOptimizer(object):
                 for f, shape in zip(np.split(flatten, self._disps), self._shapes)]
 
 
-OPTIMIZERS = {'sgd': SGDOptimizer, 'adam': AdamOptimizer, 'bfgs': BFGSOptimizer}
+OPTIMIZERS = {'sgd': SGDOptimizer, 'adam': AdamOptimizer, 'bfgs': qNewtonOptimizer, 'cg': qNewtonOptimizer}
