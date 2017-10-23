@@ -118,7 +118,7 @@ class SingleNNP(object):
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
                 yield m, self.evaluate(m, training_data, training_animator), self.evaluate(m, validation_data, validation_animator)
-        elif hp.optimizer in ['bfgs', 'cg']:
+        elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
             yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
 
@@ -173,7 +173,7 @@ class HDNNP(SingleNNP):
         params = [param for layer in self._nnp[0].layers for param in layer.parameter]
         if hp.optimizer in ['sgd', 'adam']:
             return params
-        elif hp.optimizer in ['bfgs', 'cg']:
+        elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             if self._atomic_rank == 0:
                 cat_params = self._root_comm.allreduce(params, op=MPI.SUM)
             else:
@@ -183,7 +183,7 @@ class HDNNP(SingleNNP):
 
     @params.setter
     def params(self, params):
-        if hp.optimizer in ['bfgs', 'cg']:
+        if hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             if self._atomic_rank == 0:
                 s = len(params) * self._root_rank / self._root_size
                 e = len(params) * (self._root_rank + 1) / self._root_size
@@ -206,7 +206,7 @@ class HDNNP(SingleNNP):
 
         if hp.optimizer in ['sgd', 'adam']:
             return grads
-        elif hp.optimizer in ['bfgs', 'cg']:
+        elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             if self._atomic_rank == 0:
                 cat_grads = self._root_comm.allreduce(grads, op=MPI.SUM)
             else:
@@ -257,7 +257,7 @@ class HDNNP(SingleNNP):
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
                 yield m, self.evaluate(m, training_data, training_animator), self.evaluate(m, validation_data, validation_animator)
-        elif hp.optimizer in ['bfgs', 'cg']:
+        elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
             yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
 

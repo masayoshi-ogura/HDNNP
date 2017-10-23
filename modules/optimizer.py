@@ -94,17 +94,36 @@ class qNewtonOptimizer(object):
         loss_func(self._params, *args)
         result, callback_func = generate_callback(args[2], args[4])
         if hp.optimizer == 'bfgs':
-            method = 'BFGS'
+            minimize(loss_func,
+                     self._params,
+                     method='BFGS',
+                     args=args,
+                     jac=loss_grad,
+                     callback=callback_func,
+                     options={'disp': True, 'maxiter': hp.nepoch})
         elif hp.optimizer == 'cg':
-            method = 'CG'
-        response = minimize(loss_func,
-                            self._params,
-                            method=method,
-                            args=args,
-                            jac=loss_grad,
-                            callback=callback_func,
-                            options={'disp': True, 'maxiter': hp.nepoch})
-        self._params = response.x
+            minimize(loss_func,
+                     self._params,
+                     method='CG',
+                     args=args,
+                     jac=loss_grad,
+                     callback=callback_func,
+                     options={'disp': True, 'maxiter': hp.nepoch})
+        elif hp.optimizer == 'cg-bfgs':
+            response = minimize(loss_func,
+                                self._params,
+                                method='CG',
+                                args=args,
+                                jac=loss_grad,
+                                callback=callback_func,
+                                options={'disp': True, 'maxiter': hp.nepoch})
+            minimize(loss_func,
+                     response.x,
+                     method='BFGS',
+                     args=args,
+                     jac=loss_grad,
+                     callback=callback_func,
+                     options={'disp': True, 'maxiter': hp.nepoch})
 
     def _pack(self, params):
         return np.concatenate([param.flatten() for param in params])
@@ -114,4 +133,4 @@ class qNewtonOptimizer(object):
                 for f, shape in zip(np.split(flatten, self._disps), self._shapes)]
 
 
-OPTIMIZERS = {'sgd': SGDOptimizer, 'adam': AdamOptimizer, 'bfgs': qNewtonOptimizer, 'cg': qNewtonOptimizer}
+OPTIMIZERS = {'sgd': SGDOptimizer, 'adam': AdamOptimizer, 'bfgs': qNewtonOptimizer, 'cg': qNewtonOptimizer, 'cg-bfgs': qNewtonOptimizer}
