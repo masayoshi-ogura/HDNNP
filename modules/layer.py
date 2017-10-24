@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from config import hp
+# from config import hp
 from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
 
 
@@ -21,9 +21,11 @@ class LayerBase(object):
 
 
 class FullyConnectedLayer(LayerBase):
-    def __init__(self, input_nodes, output_nodes):
+    def __init__(self, input_nodes, output_nodes, final):
+        self._ninput = input_nodes
         self._weight = np.random.normal(0.0, 1.0, (input_nodes, output_nodes))
         self._bias = np.random.normal(0.0, 1.0, (output_nodes))
+        self._final = final
 
     @property
     def parameter(self):
@@ -42,9 +44,17 @@ class FullyConnectedLayer(LayerBase):
         self._dinput = dinput
         output = np.dot(input, self._weight) + self._bias
         doutput = np.tensordot(dinput, self._weight, ((2,), (0,)))
+        if not self._final:
+            output /= self._ninput
+            doutput /= self._ninput
         return output, doutput
 
     def backprop(self, output_error, doutput_error1, doutput_error2):
+        if not self._final:
+            output_error /= self._ninput
+            doutput_error1 /= self._ninput
+            doutput_error2 /= self._ninput
+
         self._weight_grad = np.dot(self._input.T, output_error) \
             + np.tensordot(self._dinput, doutput_error1, ((0, 1), (0, 1))) \
             + np.tensordot(self._input, doutput_error2, ((0,), (0,))).sum(axis=1)
