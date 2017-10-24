@@ -24,6 +24,8 @@ try:
 except ImportError:
     print 'Warning: can\'t import quippy.'
 
+from preconditioning import PRECOND
+
 
 class DataSet(object):
     def __init__(self):
@@ -37,6 +39,10 @@ class DataSet(object):
     def ninput(self):
         return self._ninput
 
+    @ninput.setter
+    def ninput(self, ninput):
+        self._ninput = ninput
+
     @property
     def nderivative(self):
         return self._nderivative
@@ -45,6 +51,10 @@ class DataSet(object):
     def input(self):
         return self._input
 
+    @input.setter
+    def input(self, input):
+        self._input = input
+
     @property
     def label(self):
         return self._label
@@ -52,6 +62,10 @@ class DataSet(object):
     @property
     def dinput(self):
         return self._dinput
+
+    @dinput.setter
+    def dinput(self, dinput):
+        self._dinput = dinput
 
     @property
     def dlabel(self):
@@ -167,6 +181,10 @@ class AtomicStructureData(DataSet):
     def input(self):
         return self._Gs
 
+    @input.setter
+    def input(self, input):
+        self._Gs = input
+
     @property
     def label(self):
         return self._Es
@@ -174,6 +192,10 @@ class AtomicStructureData(DataSet):
     @property
     def dinput(self):
         return self._dGs
+
+    @dinput.setter
+    def dinput(self, dinput):
+        self._dGs = dinput
 
     @property
     def dlabel(self):
@@ -433,8 +455,9 @@ class AtomicStructureData(DataSet):
 
 
 class DataGenerator(object):
-    def __init__(self, mode):
+    def __init__(self, mode, precond=None):
         self._mode = mode
+        self._precond = PRECOND[precond]()
         self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
         if mpi.rank == 0 and not path.exists(self._config_type_file):
             self._parse_xyzfile()
@@ -448,12 +471,23 @@ class DataGenerator(object):
                 for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                     training_data = AtomicStructureData(config, 'training')
                     validation_data = AtomicStructureData(config, 'validation')
+                    self._precond.decompose(training_data)
+                    self._precond.decompose(validation_data)
                     yield config, training_data, validation_data
         elif self._mode == 'test':
             for type in file_.train_config:
                 for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                     test_data = AtomicStructureData(config, 'test')
+                    self._precond.decompose(test_data)
                     yield config, test_data
+
+    def save(self, save_dir):
+        with open(path.join(save_dir, 'preconditioning.dill'), 'w') as f:
+            dill.dump(self._precond, f)
+
+    def load(self, save_dir):
+        with open(path.join(save_dir, 'preconditioning.dill'), 'r') as f:
+            self._precond = dill.load(f)
 
     def _parse_xyzfile(self):
         print 'config_type.dill is not found.\nLoad all data from xyz file ...'

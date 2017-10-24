@@ -8,6 +8,7 @@ from config import file_
 from sys import argv
 from time import time
 from os import path
+from os import makedirs
 from datetime import datetime
 import matplotlib.pyplot as plt
 
@@ -17,6 +18,8 @@ from modules.model import SingleNNP
 from modules.animator import Animator
 
 datestr = datetime.now().strftime('%m%d-%H%M%S')
+save_dir = path.join(file_.save_dir, datestr)
+makedirs(save_dir)
 file = open(path.join(file_.progress_dir, 'progress-{}.out'.format(datestr)), 'w')
 stime = time()
 file.write("""
@@ -51,7 +54,7 @@ file.flush()
 training_animator = Animator()
 validation_animator = Animator()
 nnp = SingleNNP(training_data.ninput)
-nnp.load(datestr)
+nnp.load(save_dir)
 
 for m, (t_RMSE, t_dRMSE, t_tRMSE), (v_RMSE, v_dRMSE, v_tRMSE) in nnp.fit(training_data, validation_data, training_animator, validation_animator):
     file.write('{:<7} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f}\n'
@@ -60,7 +63,7 @@ for m, (t_RMSE, t_dRMSE, t_tRMSE), (v_RMSE, v_dRMSE, v_tRMSE) in nnp.fit(trainin
 
 training_animator.save_fig(datestr, argv[1], 'training')
 validation_animator.save_fig(datestr, argv[1], 'validation')
-nnp.save(datestr)
+nnp.save(save_dir)
 file.close()
 
 if argv[1] in ['LJ', 'sin']:
