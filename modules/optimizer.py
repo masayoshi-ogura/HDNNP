@@ -70,7 +70,7 @@ class qNewtonOptimizer(object):
         def loss_func(params, nnp, input, label, dinput, dlabel, nsample, nderivative):
             nnp.params = self._unpack(params)
             self.output, self.doutput = nnp.feedforward(input, dinput, nsample, nderivative)
-            return 1./2 * (((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean())
+            return 1./2 * ((1 - hp.mixing_beta) * ((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean())
 
         def loss_grad(_, nnp, input, label, dinput, dlabel, nsample, nderivative):
             output_error = self.output - label
@@ -83,8 +83,8 @@ class qNewtonOptimizer(object):
 
             def callback(params):
                 print 'Iteration: {}'.format(result['iteration'])
-                print 'RMSE: {}'.format(np.sqrt(((label - self.output)**2).mean()) + hp.mixing_beta * np.sqrt(((dlabel - self.doutput)**2).mean()))
-                # print 'Loss Func: {}'.format(1./2 * (((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean()))
+                print 'RMSE: {}'.format((1 - hp.mixing_beta) * np.sqrt(((label - self.output)**2).mean()) + hp.mixing_beta * np.sqrt(((dlabel - self.doutput)**2).mean()))
+                # print 'Loss Func: {}'.format(1./2 * ((1 - hp.mixing_beta) * ((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean()))
                 # print 'check_grad: {}'.format(check_grad(loss_func, loss_grad, params, *args))
                 result['iteration'] += 1
                 # result['output'].append(self.output)

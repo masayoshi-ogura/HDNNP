@@ -20,7 +20,7 @@ class hp:
     # about training
     learning_rate =
     learning_rate_decay =
-    mixing_beta =
+    mixing_beta =  # must be 0. ~ 1.
     smooth_factor =
     nepoch =
     batch_size =

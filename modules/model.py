@@ -86,7 +86,7 @@ class SingleNNP(object):
         return output, doutput
 
     def backprop(self, output_error, doutput_error, batch_size, nderivative):
-        output_error = output_error / batch_size
+        output_error = (1 - hp.mixing_beta) * output_error / batch_size
         doutput_error1 = doutput_error * hp.mixing_beta / (batch_size * nderivative)
         doutput_error2 = np.zeros_like(doutput_error)
         for layer in reversed(self._layers):
@@ -136,7 +136,7 @@ class SingleNNP(object):
 
         RMSE = rmse(output, label)
         dRMSE = rmse(doutput, dlabel)
-        total_RMSE = RMSE + hp.mixing_beta * dRMSE
+        total_RMSE = (1 - hp.mixing_beta) * RMSE + hp.mixing_beta * dRMSE
         return RMSE, dRMSE, total_RMSE
 
     def save(self, save_dir):
