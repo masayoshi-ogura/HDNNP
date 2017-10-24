@@ -7,8 +7,6 @@
 #
 ###########################################################
 
-from mpi4py import MPI
-
 
 class hp:
     # about symmetric functions
