@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from config import hp
-from config import file_
 from config import mpi
 
 from os import path
-from os import makedirs
 from itertools import combinations
 import numpy as np
 from mpi4py import MPI
@@ -50,10 +48,10 @@ class SingleNNP(object):
         layers = [{'node': ninput}] + hp.hidden_layers + [{'node': 1}]
         self._layers = []
         for i in xrange(len(hp.hidden_layers)):
-            self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node']))
+            self._layers.append(FullyConnectedLayer(layers[i]['node'], layers[i+1]['node'], final=False))
             self._layers.append(ActivationLayer(layers[i+1]['activation']))
             # self._layers.append(BatchNormalizationLayer(layers[i+1]['node'], trainable=True))
-        self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node']))
+        self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node'], final=True))
         if not high_dimension:
             self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
 
@@ -141,23 +139,18 @@ class SingleNNP(object):
         total_RMSE = RMSE + hp.mixing_beta * dRMSE
         return RMSE, dRMSE, total_RMSE
 
-    def save(self, subdir):
-        save_dir = path.join(file_.save_dir, subdir)
-        makedirs(save_dir)
+    def save(self, save_dir):
         with open(path.join(save_dir, 'optimizer.dill'), 'w') as f:
             dill.dump(self._optimizer, f)
         with open(path.join(save_dir, 'layers.dill'), 'w') as f:
             dill.dump(self._layers, f)
 
-    def load(self, subdir):
-        load_dir = path.join(file_.save_dir, subdir)
-        if path.exists(load_dir):
-            with open(path.join(load_dir, 'optimizer.dill'), 'r') as f:
+    def load(self, save_dir):
+        if path.exists(save_dir):
+            with open(path.join(save_dir, 'optimizer.dill'), 'r') as f:
                 self._optimizer = dill.load(f)
-            with open(path.join(load_dir, 'layers.dill'), 'r') as f:
+            with open(path.join(save_dir, 'layers.dill'), 'r') as f:
                 self._layers = dill.load(f)
-        else:
-            print 'pretrained data directory {} is not found. Initialized parameters will be used.'.format(load_dir)
 
 
 class HDNNP(SingleNNP):
@@ -261,20 +254,16 @@ class HDNNP(SingleNNP):
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
             yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
 
-    def save(self, subdir):
-        save_dir = path.join(file_.save_dir, subdir)
-        if self._all_rank == 0 and not path.exists(save_dir):
-            makedirs(save_dir)
-        self._all_comm.Barrier()
+    def save(self, save_dir):
         if self._atomic_rank == 0:
             with open(path.join(save_dir, '{}_optimizer.dill'.format(self._symbol)), 'w') as f:
                 dill.dump(self._optimizer, f)
             with open(path.join(save_dir, '{}_layers.dill'.format(self._symbol)), 'w') as f:
                 dill.dump(self._nnp[0].layers, f)
 
-    def load(self, subdir):
-        optimizer_file = path.join(file_.save_dir, subdir, '{}_optimizer.dill'.format(self._symbol))
-        layer_file = path.join(file_.save_dir, subdir, '{}_layers.dill'.format(self._symbol))
+    def load(self, save_dir):
+        optimizer_file = path.join(save_dir, '{}_optimizer.dill'.format(self._symbol))
+        layer_file = path.join(save_dir, '{}_layers.dill'.format(self._symbol))
         if path.exists(optimizer_file) and path.exists(layer_file):
             with open(optimizer_file) as f:
                 self._optimizer = dill.load(f)

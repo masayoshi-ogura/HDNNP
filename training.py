@@ -8,6 +8,7 @@ from config import mpi
 # import python modules
 from time import time
 from os import path
+from os import makedirs
 from datetime import datetime
 
 # import own modules
@@ -16,7 +17,8 @@ from modules.model import HDNNP
 from modules.animator import Animator
 
 datestr = datetime.now().strftime('%m%d-%H%M%S')
-generator = DataGenerator('training')
+save_dir = path.join(file_.save_dir, datestr)
+generator = DataGenerator('training', precond='pca')
 if mpi.rank == 0:
     file = open(path.join(file_.progress_dir, 'progress-{}.out'.format(datestr)), 'w')
     stime = time()
@@ -38,6 +40,7 @@ optimizer:           {}
            hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.smooth_factor,
            hp.batch_size, hp.batch_size_growth, hp.optimizer))
     file.flush()
+    makedirs(save_dir)
 
     for config, training_data, validation_data in generator:
         print '-----------------------{}-------------------------'.format(config)
@@ -65,7 +68,7 @@ epoch   spent time        training_RMSE     training_dRMSE    training_tRMSE    
         training_animator = Animator()
         validation_animator = Animator()
         hdnnp = HDNNP(natom, ninput, composition)
-        hdnnp.load(datestr)
+        hdnnp.load(save_dir)
 
         for m, training_RMSE, validation_RMSE in hdnnp.fit(training_data, validation_data, training_animator, validation_animator):
             t_RMSE, t_dRMSE, t_tRMSE = training_RMSE
@@ -76,9 +79,10 @@ epoch   spent time        training_RMSE     training_dRMSE    training_tRMSE    
 
         training_animator.save_fig(datestr, config, 'training')
         validation_animator.save_fig(datestr, config, 'validation')
-        hdnnp.save(datestr)
+        hdnnp.save(save_dir)
         mpi.comm.Barrier()
     file.close()
+    generator.save(save_dir)
 else:
     for config, training_data, validation_data in generator:
         natom = training_data.natom
@@ -86,8 +90,8 @@ else:
         composition = training_data.composition
         hdnnp = HDNNP(natom, ninput, composition)
         if hdnnp.active:
-            hdnnp.load(datestr)
+            hdnnp.load(save_dir)
             for m, training_RMSE, validation_RMSE in hdnnp.fit(training_data, validation_data):
                 pass
-            hdnnp.save(datestr)
+            hdnnp.save(save_dir)
         mpi.comm.Barrier()
