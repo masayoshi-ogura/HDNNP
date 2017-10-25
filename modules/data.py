@@ -146,9 +146,9 @@ class AtomicStructureData(DataSet):
         self._data_dir = path.join(file_.data_dir, config, type)
         with open(path.join(self._data_dir, '..', 'composition.dill')) as f:
             self._composition = dill.load(f)
-        self._atoms_objs = AtomsList(path.join(self._data_dir, 'structure.xyz'), start=mpi.rank, step=mpi.size)
-        self._nsample = len(AtomsReader(path.join(self._data_dir, 'structure.xyz')))
-        self._natom = self._atoms_objs[0].n
+        xyz_file = path.join(self._data_dir, 'structure.xyz')
+        self._nsample = len(AtomsReader(xyz_file))
+        self._natom = AtomsReader(xyz_file)[0].n
         self._nforce = 3 * self._natom
         self._name = config + type
         self._ninput = 2 * len(hp.Rcs) + \
@@ -161,6 +161,10 @@ class AtomicStructureData(DataSet):
         self._disps = np.array([np.sum(self._count[:i])
                                 for i in xrange(mpi.size)], dtype=np.int32)
         self._n = self._count[mpi.rank]  # the number of allocated samples in this node
+        if mpi.rank < self._nsample:
+            self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size)
+        else:
+            self._atoms_objs = []
 
         self._make_label()
         self._make_input()
