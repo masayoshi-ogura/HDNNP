@@ -25,6 +25,7 @@ except ImportError:
     print 'Warning: can\'t import quippy.'
 
 from preconditioning import PRECOND
+from util import mpiprint
 
 
 class DataSet(object):
@@ -212,6 +213,7 @@ class AtomicStructureData(DataSet):
             self._Es = ndarray['E']
             self._Fs = ndarray['F']
         else:
+            mpiprint('{} does\'nt exist. calculating ...'.format(EF_file))
             self._Es = np.empty((self._nsample, 1))
             self._Fs = np.empty((self._nsample, self._nforce, 1))
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
@@ -236,6 +238,7 @@ class AtomicStructureData(DataSet):
                 Gs[:, n:n+2] = ndarray['G']
                 dGs[:, n:n+2] = ndarray['dG']
             else:
+                mpiprint('{} does\'nt exist. calculating ...'.format(filename))
                 G = np.empty((self._nsample, 2, self._natom))
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G1(Rc)
@@ -258,6 +261,7 @@ class AtomicStructureData(DataSet):
                 Gs[:, n:n+2] = ndarray['G']
                 dGs[:, n:n+2] = ndarray['dG']
             else:
+                mpiprint('{} does\'nt exist. calculating ...'.format(filename))
                 G = np.empty((self._nsample, 2, self._natom))
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
@@ -280,6 +284,7 @@ class AtomicStructureData(DataSet):
                 Gs[:, n:n+3] = ndarray['G']
                 dGs[:, n:n+3] = ndarray['dG']
             else:
+                mpiprint('{} does\'nt exist. calculating ...'.format(filename))
                 G = np.empty((self._nsample, 3, self._natom))
                 dG = np.empty((self._nsample, 3, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
@@ -473,15 +478,23 @@ class DataGenerator(object):
         if self._mode == 'training':
             for type in file_.train_config:
                 for config in filter(lambda config: match(type, config) or type == 'all', config_type):
+                    mpiprint('---------------------------{}---------------------------'.format(config))
+                    mpiprint('make training dataset ...')
                     training_data = AtomicStructureData(config, 'training')
+                    mpiprint('decompose training dataset ...')
                     self._precond.decompose(training_data)
+                    mpiprint('make validation dataset ...')
                     validation_data = AtomicStructureData(config, 'validation')
+                    mpiprint('decompose validation dataset ...')
                     self._precond.decompose(validation_data)
                     yield config, training_data, validation_data
         elif self._mode == 'test':
             for type in file_.train_config:
                 for config in filter(lambda config: match(type, config) or type == 'all', config_type):
+                    mpiprint('---------------------------{}---------------------------'.format(config))
+                    mpiprint('make test dataset ...')
                     test_data = AtomicStructureData(config, 'test')
+                    mpiprint('decompose test dataset ...')
                     self._precond.decompose(test_data)
                     yield config, test_data
 
@@ -549,5 +562,4 @@ class DataGenerator(object):
 if __name__ == '__main__':
     generator = DataGenerator('training')
     for config, _ in generator:
-        if mpi.rank == 0:
-            print config
+        pass

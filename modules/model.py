@@ -161,12 +161,30 @@ class HDNNP(SingleNNP):
     def active(self):
         return self._active
 
-    @property
-    def params(self):
-        params = [param for layer in self._nnp[0].layers for param in layer.parameter]
-        if hp.optimizer in ['sgd', 'adam']:
-            return params
-        elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
+    if hp.optimizer in ['sgd', 'adam']:
+        @property
+        def params(self):
+            return [param for layer in self._nnp[0].layers for param in layer.parameter]
+
+        @params.setter
+        def params(self, params):
+            for nnp in self._nnp:
+                nnp.params = params
+
+        @property
+        def grads(self):
+            grads_send = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
+            grads = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
+            for nnp in self._nnp:
+                for send, grad in zip(grads_send, nnp.grads):
+                    send += grad
+            for send, recv in zip(grads_send, grads):
+                self._all_comm.Allreduce(send, recv, op=MPI.SUM)
+            return grads
+    elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
+        @property
+        def params(self):
+            params = [param for layer in self._nnp[0].layers for param in layer.parameter]
             if self._atomic_rank == 0:
                 cat_params = self._root_comm.allreduce(params, op=MPI.SUM)
             else:
@@ -174,9 +192,8 @@ class HDNNP(SingleNNP):
             cat_params = self._atomic_comm.bcast(cat_params, root=0)
             return cat_params
 
-    @params.setter
-    def params(self, params):
-        if hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
+        @params.setter
+        def params(self, params):
             if self._atomic_rank == 0:
                 s = len(params) * self._root_rank / self._root_size
                 e = len(params) * (self._root_rank + 1) / self._root_size
@@ -184,22 +201,19 @@ class HDNNP(SingleNNP):
                 s, e = None, None
             (s, e) = self._atomic_comm.bcast((s, e), root=0)
             params = params[s:e]
-        for nnp in self._nnp:
-            nnp.params = params
+            for nnp in self._nnp:
+                nnp.params = params
 
-    @property
-    def grads(self):
-        grads_send = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
-        grads = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
-        for nnp in self._nnp:
-            for send, grad in zip(grads_send, nnp.grads):
-                send += grad
-        for send, recv in zip(grads_send, grads):
-            self._atomic_comm.Allreduce(send, recv, op=MPI.SUM)
+        @property
+        def grads(self):
+            grads_send = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
+            grads = [np.zeros_like(param) for layer in self._nnp[0].layers for param in layer.parameter]
+            for nnp in self._nnp:
+                for send, grad in zip(grads_send, nnp.grads):
+                    send += grad
+            for send, recv in zip(grads_send, grads):
+                self._atomic_comm.Allreduce(send, recv, op=MPI.SUM)
 
-        if hp.optimizer in ['sgd', 'adam']:
-            return grads
-        elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             if self._atomic_rank == 0:
                 cat_grads = self._root_comm.allreduce(grads, op=MPI.SUM)
             else:

@@ -19,16 +19,11 @@ def relu(x):
 
 
 def leaky_relu(x, a=0.01):
-    ret = x.copy()
-    ret[x < 0.] *= a
-    return ret
+    return np.where(x < 0.0, x * a, x)
 
 
 def elu(x):
-    ret = x.copy()
-    filter = x < 0.
-    ret[filter] = np.exp(x[filter]) - 1.
-    return ret
+    return np.where(x < 0.0, np.exp(x) - 1., x)
 
 
 def truncated(x, n=2):
@@ -68,16 +63,11 @@ def d_relu(x):
 
 
 def d_leaky_relu(x, a=0.01):
-    ret = np.ones_like(x)
-    ret[x < 0.] = a
-    return ret
+    return np.where(x < 0., a, 1.)
 
 
 def d_elu(x):
-    ret = np.ones_like(x)
-    filter = x < 0.
-    ret[filter] = np.exp(x[filter])
-    return ret
+    return np.where(x < 0., np.exp(x), 1.)
 
 
 def d_truncated(x, n=2):
@@ -121,10 +111,7 @@ def d2_leaky_relu(x):
 
 
 def d2_elu(x):
-    ret = np.zeros_like(x)
-    filter = x < 0.
-    ret[filter] = np.exp(x[filter])
-    return ret
+    return np.where(x < 0., np.exp(x), 0.)
 
 
 def d2_truncated(x, n=2):

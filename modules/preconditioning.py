@@ -3,6 +3,8 @@
 import numpy as np
 from sklearn import decomposition
 
+from util import mpiprint
+
 
 class PreconditionBase(object):
     def __init__(self):
@@ -30,7 +32,7 @@ class PCA(PreconditionBase):
                 self._ncomponent = max(self._ncomponent,
                                        sum(np.add.accumulate(pca.explained_variance_ratio_) < self._threshold))
             # adjust ncomponent to max of it
-            print 'decompose from {} to {}'.format(dataset.input.shape[-1], self._ncomponent)
+            mpiprint('decompose from {} to {}'.format(dataset.input.shape[-1], self._ncomponent))
             for symbol, component in self._components.items():
                 self._components[symbol] = component[:self._ncomponent].T
 

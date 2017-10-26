@@ -1,8 +1,11 @@
-import numpy as np
-from scipy.optimize import minimize, check_grad
-import math
-
 from config import hp
+
+import numpy as np
+from scipy.optimize import minimize
+# from scipy.optimize import check_grad
+# import math
+
+from util import mpiprint
 
 
 class SGDOptimizer(object):
@@ -19,8 +22,8 @@ class SGDOptimizer(object):
         return self._params
 
     def update_params(self, grads):
-        # learning_rate = hp.learning_rate / (1 + hp.learning_rate_decay * self._t)
-        learning_rate = hp.learning_rate * math.exp(- hp.learning_rate_decay * self._t)
+        learning_rate = hp.learning_rate / (1 + hp.learning_rate_decay * self._t)
+        # learning_rate = hp.learning_rate * math.exp(- hp.learning_rate_decay * self._t)
         self._t += 1
 
         if self._nesterov:
@@ -46,8 +49,8 @@ class AdamOptimizer(object):
         return self._params
 
     def update_params(self, grads, eps=1e-8):
-        # learning_rate = hp.learning_rate / (1 + hp.learning_rate_decay * self._t)
-        learning_rate = hp.learning_rate * math.exp(- hp.learning_rate_decay * self._t)
+        learning_rate = hp.learning_rate / (1 + hp.learning_rate_decay * self._t)
+        # learning_rate = hp.learning_rate * math.exp(- hp.learning_rate_decay * self._t)
         self._t += 1
 
         self._ms = [self._beta1 * m + (1 - self._beta1) * grad
@@ -82,10 +85,16 @@ class qNewtonOptimizer(object):
             result = {'iteration': 0, 'output': [], 'doutput': []}
 
             def callback(params):
-                print 'Iteration: {}'.format(result['iteration'])
-                print 'RMSE: {}'.format((1 - hp.mixing_beta) * np.sqrt(((label - self.output)**2).mean()) + hp.mixing_beta * np.sqrt(((dlabel - self.doutput)**2).mean()))
-                # print 'Loss Func: {}'.format(1./2 * ((1 - hp.mixing_beta) * ((label - self.output)**2).mean() + hp.mixing_beta * ((dlabel - self.doutput)**2).mean()))
-                # print 'check_grad: {}'.format(check_grad(loss_func, loss_grad, params, *args))
+                mpiprint('Iteration: {}'
+                         .format(result['iteration']))
+                mpiprint('RMSE: {}'
+                         .format((1 - hp.mixing_beta) * np.sqrt(((label - self.output)**2).mean())
+                                 + hp.mixing_beta * np.sqrt(((dlabel - self.doutput)**2).mean())))
+                # mpiprint('Loss Func: {}'
+                #          .format(1./2 * ((1 - hp.mixing_beta) * ((label - self.output)**2).mean()
+                #                          + hp.mixing_beta * ((dlabel - self.doutput)**2).mean())))
+                # mpiprint('check_grad: {}'
+                #          .format(check_grad(loss_func, loss_grad, params, *args)))
                 result['iteration'] += 1
                 # result['output'].append(self.output)
                 # result['doutput'].append(self.doutput)

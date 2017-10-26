@@ -33,7 +33,7 @@ class Animator(object):
         self._true['energy'] = true[0].reshape(-1)
         self._true['force'] = true[1].reshape(-1)
 
-    def save_fig(self, datestr, config, type):
+    def save(self, datestr, config, type):
         plt.ioff()
         for s in ['energy', 'force']:
             save_dir = path.join(file_.fig_dir, datestr)
