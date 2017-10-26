@@ -61,8 +61,8 @@ for m, (t_RMSE, t_dRMSE, t_tRMSE), (v_RMSE, v_dRMSE, v_tRMSE) in nnp.fit(trainin
                .format(m+1, time()-stime, t_RMSE, t_dRMSE, t_tRMSE, v_RMSE, v_dRMSE, v_tRMSE))
     file.flush()
 
-training_animator.save_fig(datestr, argv[1], 'training')
-validation_animator.save_fig(datestr, argv[1], 'validation')
+training_animator.save(datestr, argv[1], 'training')
+validation_animator.save(datestr, argv[1], 'validation')
 nnp.save(save_dir)
 file.close()
 
