@@ -28,6 +28,10 @@ class FullyConnectedLayer(LayerBase):
         self._final = final
 
     @property
+    def ninput(self):
+        return self._ninput
+
+    @property
     def parameter(self):
         return self._weight, self._bias
 

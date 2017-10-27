@@ -36,7 +36,7 @@ class bool_:
 class file_:
     xyz_file =
     train_config = ['all']  # config_type use for training. if 'all', all config_type will be used
-    progress_dir = 'out'
+    out_dir = 'output'
     save_dir = 'savedmodel'
     data_dir = 'data'
     fig_dir = 'figure'
@@ -46,3 +46,9 @@ class mpi:
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
+
+
+class visual:
+    vmin = -1
+    vmax = 1
+    cmap = 'RdBu'

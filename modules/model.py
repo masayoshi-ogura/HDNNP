@@ -4,28 +4,15 @@ from config import hp
 from config import mpi
 
 from os import path
-from itertools import combinations
+from os import mkdir
 import numpy as np
 from mpi4py import MPI
 import dill
 
 from layer import FullyConnectedLayer, ActivationLayer
 from optimizer import OPTIMIZERS
-
-
-def rmse(pred, true):
-    return np.sqrt(((pred - true)**2).mean())
-
-
-def comb(n, r):
-    for c in combinations(xrange(1, n), r-1):
-        ret = []
-        low = 0
-        for p in c:
-            ret.append(p - low)
-            low = p
-        ret.append(n - low)
-        yield ret
+from util import rmse
+from util import comb
 
 
 def allocate(size, symbol, natom):
@@ -44,7 +31,7 @@ def allocate(size, symbol, natom):
 
 
 class SingleNNP(object):
-    def __init__(self, ninput, high_dimension=False):
+    def __init__(self, ninput, has_optimizer=True):
         layers = [{'node': ninput}] + hp.hidden_layers + [{'node': 1}]
         self._layers = []
         for i in xrange(len(hp.hidden_layers)):
@@ -52,8 +39,13 @@ class SingleNNP(object):
             self._layers.append(ActivationLayer(layers[i+1]['activation']))
             # self._layers.append(BatchNormalizationLayer(layers[i+1]['node'], trainable=True))
         self._layers.append(FullyConnectedLayer(layers[-2]['node'], layers[-1]['node'], final=True))
-        if not high_dimension:
+        if has_optimizer:
             self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
+
+    @property
+    def shape(self):
+        shape = [layer.ninput for layer in self._layers if layer.__class__ == FullyConnectedLayer] + [1]
+        return shape
 
     @property
     def layers(self):
@@ -93,7 +85,7 @@ class SingleNNP(object):
             input_error, dinput_error1, dinput_error2 = layer.backprop(output_error, doutput_error1, doutput_error2)
             output_error, doutput_error1, doutput_error2 = input_error, dinput_error1, dinput_error2
 
-    def fit(self, training_data, validation_data, training_animator, validation_animator):
+    def fit(self, training_data, validation_data):
         nsample = training_data.nsample
         nderivative = training_data.nderivative
         input = training_data.input
@@ -115,12 +107,12 @@ class SingleNNP(object):
                     self.backprop(output_error, doutput_error, batch_size, nderivative)
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
-                yield m, self.evaluate(m, training_data, training_animator), self.evaluate(m, validation_data, validation_animator)
+                yield m, self.evaluate(m, training_data), self.evaluate(m, validation_data)
         elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
-            yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
+            yield 0, self.evaluate(0, training_data), self.evaluate(0, validation_data)
 
-    def evaluate(self, ite, dataset, animator):
+    def evaluate(self, ite, dataset):
         nsample = dataset.nsample
         nderivative = dataset.nderivative
         input = dataset.input
@@ -129,15 +121,10 @@ class SingleNNP(object):
         dlabel = dataset.dlabel
         output, doutput = self.feedforward(input, dinput, nsample, nderivative)
 
-        if animator:
-            if ite == 0:
-                animator.true = (label, dlabel)
-            animator.preds = (output, doutput)
-
         RMSE = rmse(output, label)
         dRMSE = rmse(doutput, dlabel)
         total_RMSE = (1 - hp.mixing_beta) * RMSE + hp.mixing_beta * dRMSE
-        return RMSE, dRMSE, total_RMSE
+        return output, doutput, RMSE, dRMSE, total_RMSE
 
     def save(self, save_dir):
         with open(path.join(save_dir, 'optimizer.dill'), 'w') as f:
@@ -146,11 +133,15 @@ class SingleNNP(object):
             dill.dump(self._layers, f)
 
     def load(self, save_dir):
-        if path.exists(save_dir):
-            with open(path.join(save_dir, 'optimizer.dill'), 'r') as f:
+        optimizer_file = path.join(save_dir, 'optimizer.dill')
+        layer_file = path.join(save_dir, 'layers.dill')
+        if path.exists(optimizer_file) and path.exists(layer_file):
+            with open(optimizer_file) as f:
                 self._optimizer = dill.load(f)
-            with open(path.join(save_dir, 'layers.dill'), 'r') as f:
+            with open(layer_file) as f:
                 self._layers = dill.load(f)
+            return True
+        return False
 
 
 class HDNNP(SingleNNP):
@@ -240,7 +231,7 @@ class HDNNP(SingleNNP):
         for nnp in self._nnp:
             nnp.backprop(output_error, doutput_error, batch_size, nderivative)
 
-    def fit(self, training_data, validation_data, training_animator=None, validation_animator=None):
+    def fit(self, training_data, validation_data):
         nsample = training_data.nsample
         nderivative = training_data.nderivative
         input = training_data.input
@@ -263,21 +254,24 @@ class HDNNP(SingleNNP):
                     self.backprop(output_error, doutput_error, batch_size, nderivative)
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
-                yield m, self.evaluate(m, training_data, training_animator), self.evaluate(m, validation_data, validation_animator)
+                yield m, self.evaluate(m, training_data), self.evaluate(m, validation_data)
         elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
-            yield 0, self.evaluate(0, training_data, training_animator), self.evaluate(0, validation_data, validation_animator)
+            yield 0, self.evaluate(0, training_data), self.evaluate(0, validation_data)
 
     def save(self, save_dir):
+        save_dir = path.join(save_dir, self._symbol)
         if self._atomic_rank == 0:
-            with open(path.join(save_dir, '{}_optimizer.dill'.format(self._symbol)), 'w') as f:
+            if not path.exists(save_dir):
+                mkdir(save_dir)
+            with open(path.join(save_dir, 'optimizer.dill'), 'w') as f:
                 dill.dump(self._optimizer, f)
-            with open(path.join(save_dir, '{}_layers.dill'.format(self._symbol)), 'w') as f:
+            with open(path.join(save_dir, 'layers.dill'), 'w') as f:
                 dill.dump(self._nnp[0].layers, f)
 
     def load(self, save_dir):
-        optimizer_file = path.join(save_dir, '{}_optimizer.dill'.format(self._symbol))
-        layer_file = path.join(save_dir, '{}_layers.dill'.format(self._symbol))
+        optimizer_file = path.join(save_dir, self._symbol, 'optimizer.dill')
+        layer_file = path.join(save_dir, self._symbol, 'layers.dill')
         if path.exists(optimizer_file) and path.exists(layer_file):
             with open(optimizer_file) as f:
                 self._optimizer = dill.load(f)
@@ -320,10 +314,10 @@ class HDNNP(SingleNNP):
 
         quo, rem = composition['number'][self._symbol] / w[self._symbol], composition['number'][self._symbol] % w[self._symbol]
         if self._atomic_rank < rem:
-            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo+1)]
+            self._nnp = [SingleNNP(ninput, has_optimizer=False) for _ in xrange(quo+1)]
             self._index = list(composition['index'][self._symbol])[self._atomic_rank*(quo+1): (self._atomic_rank+1)*(quo+1)]
         else:
-            self._nnp = [SingleNNP(ninput, high_dimension=True) for _ in xrange(quo)]
+            self._nnp = [SingleNNP(ninput, has_optimizer=False) for _ in xrange(quo)]
             self._index = list(composition['index'][self._symbol])[self._atomic_rank*quo+rem: (self._atomic_rank+1)*quo+rem]
 
         self.sync()
