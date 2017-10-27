@@ -29,15 +29,19 @@ def visualize_network(datestr):
     nnp = SingleNNP(1, has_optimizer=False)
     if nnp.load(savedmodel):
         print 'the saved model is SingleNNP.'
-        visualize_SingleNNP(nnp, datestr)
+        save_dir = path.join(file_.fig_dir, datestr)
+        visualize_SingleNNP(nnp, save_dir)
+        visualize_each_layer(nnp, save_dir)
     else:
         print 'the saved model is HDNNP.'
         for x in listdir(savedmodel):
             if nnp.load(path.join(savedmodel, x)):
-                visualize_SingleNNP(nnp, datestr, x)
+                save_dir = path.join(file_.fig_dir, datestr)
+                visualize_SingleNNP(nnp, save_dir, x)
+                visualize_each_layer(nnp, save_dir, x)
 
 
-def visualize_SingleNNP(nnp, datestr, element=None):
+def visualize_SingleNNP(nnp, save_dir, prefix=None):
     nlayer = len(nnp.shape)
     ymax = float(max(nnp.shape))
 
@@ -111,8 +115,28 @@ def visualize_SingleNNP(nnp, datestr, element=None):
     nx.draw_networkx_labels(G, pos, labels, font_size=16)
     plt.colorbar(edges)
     plt.xlim(-0, nlayer+1)
-    basename = '{}_network.png'.format(element) if element else 'network.png'
-    plt.savefig(path.join(file_.fig_dir, datestr, basename))
+    basename = '{}_network.png'.format(prefix) if prefix else 'network.png'
+    plt.savefig(path.join(save_dir, basename))
+    plt.clf()
+
+
+def visualize_each_layer(nnp, save_dir, prefix=None):
+    shape = nnp.shape
+    params = nnp.params
+    nlayer = len(shape)
+    for i in range(nlayer - 1):
+        data = np.r_[np.flip(params[2*i], axis=0),
+                     params[2*i+1].reshape(1, -1)]
+        plt.imshow(data, cmap=visual.cmap, vmin=visual.vmin, vmax=visual.vmax)
+        plt.xlabel('1 <- (output) -> {}'.format(shape[i+1]))
+        plt.ylabel('bias, 1 <- (input) -> {}'.format(shape[i]))
+        plt.xticks([])
+        plt.yticks([])
+        plt.colorbar()
+        basename = '{}_layer{}-{}.png'.format(prefix, i+1, i+2) \
+            if prefix else 'layer{}-{}.png'.format(i+1, i+2)
+        plt.savefig(path.join(save_dir, basename))
+        plt.clf()
 
 
 def visualize_correlation_scatter(datestr):
