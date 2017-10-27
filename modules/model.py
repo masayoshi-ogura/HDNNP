@@ -94,9 +94,10 @@ class SingleNNP(object):
         dlabel = training_data.dlabel
         if hp.optimizer in ['sgd', 'adam']:
             for m in xrange(hp.nepoch):
-                batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-                if batch_size < 0 or batch_size > nsample:
+                if hp.batch_size < 0 or hp.batch_size > nsample:
                     batch_size = nsample
+                else:
+                    batch_size = hp.batch_size
 
                 niter = -(- nsample / batch_size)
                 for i in xrange(niter):
@@ -240,9 +241,10 @@ class HDNNP(SingleNNP):
         dlabel = training_data.dlabel
         if hp.optimizer in ['sgd', 'adam']:
             for m in xrange(hp.nepoch):
-                batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-                if batch_size < 0 or batch_size > nsample:
+                if hp.batch_size < 0 or hp.batch_size > nsample:
                     batch_size = nsample
+                else:
+                    batch_size = hp.batch_size
 
                 niter = -(- nsample / batch_size)
                 for i in xrange(niter):
