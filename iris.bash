@@ -10,6 +10,7 @@ export PYTHONHOME=/home/ogura/python/Python-2.7.9
 
 if [ "${mode}" = 'training' -o -z "${mode}" ]; then
   mpirun -np 24 python training.py
+  python visualize.py
 elif [ "${mode}" = 'test' ]; then
   mpirun -np 24 python test.py
 elif [ "${mode}" = 'preproc' ]; then

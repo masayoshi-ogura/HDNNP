@@ -6,6 +6,7 @@ from scipy.optimize import minimize
 # import math
 
 from util import mpiprint
+from util import rmse
 
 
 class SGDOptimizer(object):
@@ -88,8 +89,8 @@ class qNewtonOptimizer(object):
                 mpiprint('Iteration: {}'
                          .format(result['iteration']))
                 mpiprint('RMSE: {}'
-                         .format((1 - hp.mixing_beta) * np.sqrt(((label - self.output)**2).mean())
-                                 + hp.mixing_beta * np.sqrt(((dlabel - self.doutput)**2).mean())))
+                         .format((1 - hp.mixing_beta) * rmse(self.output, label)
+                                 + hp.mixing_beta * rmse(self.doutput, dlabel)))
                 # mpiprint('Loss Func: {}'
                 #          .format(1./2 * ((1 - hp.mixing_beta) * ((label - self.output)**2).mean()
                 #                          + hp.mixing_beta * ((dlabel - self.doutput)**2).mean())))

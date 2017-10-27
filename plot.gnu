@@ -3,7 +3,7 @@
 #        all ... plot all of blocks.
 #        live ... plot latest block.
 
-output = "`find . -name progress* | sort | tail -n 1 | head -n 1`"
+output = "`find . -name *progress.dat | sort | tail -n 1 | head -n 1`"
 print output
 set xlabel 'iteration'
 set ylabel 'eV, eV/angstrom'

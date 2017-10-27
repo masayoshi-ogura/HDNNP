@@ -213,7 +213,7 @@ class AtomicStructureData(DataSet):
             self._Es = ndarray['E']
             self._Fs = ndarray['F']
         else:
-            mpiprint('{} does\'nt exist. calculating ...'.format(EF_file))
+            mpiprint('{} doesn\'t exist. calculating ...'.format(EF_file))
             self._Es = np.empty((self._nsample, 1))
             self._Fs = np.empty((self._nsample, self._nforce, 1))
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)

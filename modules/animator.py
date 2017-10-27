@@ -1,73 +1,43 @@
-from os import path
-from os import mkdir
-import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.animation import ArtistAnimation
-from collections import defaultdict
-import networkx as nx
-from itertools import product
-
 from config import hp
 from config import bool_
 from config import file_
 from config import visual
 
+from os import path
+from os import listdir
+from glob import iglob
+import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.animation import ArtistAnimation
+import networkx as nx
+from itertools import product
 
-class Animator(object):
-    def __init__(self):
-        self._preds = defaultdict(list)
-        self._true = {}
+from model import SingleNNP
 
-    @property
-    def preds(self):
-        return self._preds
-
-    @preds.setter
-    def preds(self, pred):
-        self._preds['energy'].append(pred[0].reshape(-1))
-        self._preds['force'].append(pred[1].reshape(-1))
-
-    @property
-    def true(self):
-        return self._true
-
-    @true.setter
-    def true(self, true):
-        self._true['energy'] = true[0].reshape(-1)
-        self._true['force'] = true[1].reshape(-1)
-
-    def save(self, datestr, config, type):
-        plt.ioff()
-        for s in ['energy', 'force']:
-            save_dir = path.join(file_.fig_dir, datestr)
-            if not path.exists(save_dir):
-                mkdir(save_dir)
-            min = np.min(self._true[s])
-            max = np.max(self._true[s])
-
-            if bool_.SAVE_GIF:
-                file = path.join(save_dir, '{}-{}-{}.gif'.format(config, type, s))
-                fig = plt.figure()
-                artists = [self._artist(i+1, self._preds[s][i], self._true[s], min, max) for i in xrange(hp.nepoch)]
-                anime = ArtistAnimation(fig, artists, interval=50, blit=True)
-                anime.save(file, writer='imagemagick')
-                plt.close(fig)
-
-            file = path.join(save_dir, '{}-{}-{}.png'.format(config, type, s))
-            fig = plt.figure()
-            self._artist(hp.nepoch, self._preds[s][-1], self._true[s], min, max)
-            fig.savefig(file)
-            plt.close(fig)
-
-    def _artist(self, i, pred, true, min, max):
-        artist = [plt.scatter(pred, true, c='blue'),
-                  plt.xlim(min, max),
-                  plt.ylim(min, max),
-                  plt.text(0.5, 0.9, 'epochs={}'.format(i), fontsize=12.0, ha='center', transform=plt.gcf().transFigure)]
-        return artist
+plt.ioff()
 
 
-def visualize_SingleNNP(nnp, subdir):
+def visualize_network(datestr):
+    savedmodel = path.join(file_.save_dir, datestr)
+    if not path.exists(savedmodel):
+        raise
+
+    print 'visualize the network of {}'.format(savedmodel)
+    print 'range of coloring is [{} : {}]'.format(visual.vmin, visual.vmax)
+    print 'color map: {}'.format(visual.cmap)
+
+    nnp = SingleNNP(1, has_optimizer=False)
+    if nnp.load(savedmodel):
+        print 'the saved model is SingleNNP.'
+        visualize_SingleNNP(nnp, datestr)
+    else:
+        print 'the saved model is HDNNP.'
+        for x in listdir(savedmodel):
+            if nnp.load(path.join(savedmodel, x)):
+                visualize_SingleNNP(nnp, datestr, x)
+
+
+def visualize_SingleNNP(nnp, datestr, element=None):
     nlayer = len(nnp.shape)
     ymax = float(max(nnp.shape))
 
@@ -141,4 +111,40 @@ def visualize_SingleNNP(nnp, subdir):
     nx.draw_networkx_labels(G, pos, labels, font_size=16)
     plt.colorbar(edges)
     plt.xlim(-0, nlayer+1)
-    plt.savefig(path.join(file_.fig_dir, subdir, 'network.png'))
+    basename = '{}_network.png'.format(element) if element else 'network.png'
+    plt.savefig(path.join(file_.fig_dir, datestr, basename))
+
+
+def visualize_correlation_scatter(datestr):
+    def artist(i, pred, true, min, max):
+        artist = [plt.scatter(pred, true, c='blue'),
+                  plt.xlim(min, max),
+                  plt.ylim(min, max),
+                  plt.text(0.5, 0.9, 'epochs={}'.format(i), fontsize=12.0, ha='center', transform=plt.gcf().transFigure)]
+        return artist
+
+    out_dir = path.join(file_.out_dir, datestr)
+    fig_dir = path.join(file_.fig_dir, datestr)
+    if not path.exists(out_dir):
+        raise
+
+    for output_file in iglob(path.join(out_dir, '*.npz')):
+        config = path.basename(output_file).split('.')[0]
+        output_data = np.load(output_file)
+        print 'visualize the correlation scatter of {}'.format(output_file)
+
+        for key, ndarray in output_data.items():
+            min = np.min(ndarray[0])
+            max = np.max(ndarray[0])
+            # gif
+            if bool_.SAVE_GIF:
+                fig = plt.figure()
+                artists = [artist(i+1, ndarray[i+1], ndarray[0], min, max) for i in xrange(hp.nepoch)]
+                anime = ArtistAnimation(fig, artists, interval=50, blit=True)
+                anime.save(path.join(fig_dir, '{}_{}.gif'.format(config, key)), writer='imagemagick')
+                plt.close(fig)
+            # png
+            fig = plt.figure()
+            artist(hp.nepoch, ndarray[-1], ndarray[0], min, max)
+            fig.savefig(path.join(fig_dir, '{}_{}.png'.format(config, key)))
+            plt.close(fig)

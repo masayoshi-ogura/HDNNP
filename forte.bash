@@ -10,6 +10,7 @@ source /var/mpi-selector/data/openmpi-1.5.1-intel64-v12.0.0u1.sh
 
 if [ "${mode}" = 'training' -o -z "${mode}" ]; then
   mpirun -machinefile $PBS_NODEFILE -np $NPROCS python training.py
+  python visualize.py
 elif [ "${mode}" = 'test' ]; then
   mpirun -machinefile $PBS_NODEFILE -np $NPROCS python test.py
 elif [ "${mode}" = 'preproc' ]; then
