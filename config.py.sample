@@ -51,3 +51,4 @@ class mpi:
 class visual:
     vmin = -1
     vmax = 1
+    cmap = 'RdBu'

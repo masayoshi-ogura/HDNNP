@@ -4,6 +4,7 @@ from config import hp
 from config import mpi
 
 from os import path
+from os import mkdir
 from itertools import combinations
 import numpy as np
 from mpi4py import MPI
@@ -158,6 +159,8 @@ class SingleNNP(object):
                 self._optimizer = dill.load(f)
             with open(layer_file) as f:
                 self._layers = dill.load(f)
+            return True
+        return False
 
 
 class HDNNP(SingleNNP):
@@ -277,14 +280,15 @@ class HDNNP(SingleNNP):
 
     def save(self, save_dir):
         if self._atomic_rank == 0:
-            with open(path.join(save_dir, '{}_optimizer.dill'.format(self._symbol)), 'w') as f:
+            mkdir(path.join(save_dir, self._symbol))
+            with open(path.join(save_dir, self._symbol, 'optimizer.dill'), 'w') as f:
                 dill.dump(self._optimizer, f)
-            with open(path.join(save_dir, '{}_layers.dill'.format(self._symbol)), 'w') as f:
+            with open(path.join(save_dir, self._symbol, 'layers.dill'), 'w') as f:
                 dill.dump(self._nnp[0].layers, f)
 
     def load(self, save_dir):
-        optimizer_file = path.join(save_dir, '{}_optimizer.dill'.format(self._symbol))
-        layer_file = path.join(save_dir, '{}_layers.dill'.format(self._symbol))
+        optimizer_file = path.join(save_dir, self._symbol, 'optimizer.dill')
+        layer_file = path.join(save_dir, self._symbol, 'layers.dill')
         if path.exists(optimizer_file) and path.exists(layer_file):
             with open(optimizer_file) as f:
                 self._optimizer = dill.load(f)
