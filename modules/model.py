@@ -56,6 +56,11 @@ class SingleNNP(object):
             self._optimizer = OPTIMIZERS[hp.optimizer](self.params)
 
     @property
+    def shape(self):
+        shape = [layer.ninput for layer in self._layers if layer.__class__ == FullyConnectedLayer] + [1]
+        return shape
+
+    @property
     def layers(self):
         return self._layers
 
@@ -146,10 +151,12 @@ class SingleNNP(object):
             dill.dump(self._layers, f)
 
     def load(self, save_dir):
-        if path.exists(save_dir):
-            with open(path.join(save_dir, 'optimizer.dill'), 'r') as f:
+        optimizer_file = path.join(save_dir, 'optimizer.dill')
+        layer_file = path.join(save_dir, 'layers.dill')
+        if path.exists(optimizer_file) and path.exists(layer_file):
+            with open(optimizer_file) as f:
                 self._optimizer = dill.load(f)
-            with open(path.join(save_dir, 'layers.dill'), 'r') as f:
+            with open(layer_file) as f:
                 self._layers = dill.load(f)
 
 

@@ -46,3 +46,8 @@ class mpi:
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
+
+
+class visual:
+    vmin = -1
+    vmax = 1

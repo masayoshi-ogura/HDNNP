@@ -22,14 +22,14 @@ save_dir = path.join(file_.save_dir, datestr)
 makedirs(save_dir)
 file = open(path.join(file_.progress_dir, 'progress-{}.out'.format(datestr)), 'w')
 stime = time()
-file.write("""
+file.write("""\
 learning_rate:       {}
 learning_rate_decay: {}
 mixing_beta:         {}
 smooth_factor:       {}
 batch_size:          {}
 batch_size_growth:   {}
-optimizer:           {}
+optimizer:           {}\
 """.format(hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.smooth_factor,
            hp.batch_size, hp.batch_size_growth, hp.optimizer))
 file.flush()
@@ -38,16 +38,18 @@ training_data = FunctionData(argv[1], 'training')
 validation_data = FunctionData(argv[1], 'validation')
 
 file.write("""
+
+
 -------------------{}-----------------------
 
 ninput:        {}
 hidden_layers:
-\t{}
+\t\t{}
 nepoch:        {}
 nsample:       {}
 
-epoch   spent time        training_RMSE     training_dRMSE    training_tRMSE    validation_RMSE   validation_dRMSE  validation_tRMSE
-""".format(argv[1], training_data.ninput, '\n\t'.join(map(str, hp.hidden_layers)), hp.nepoch, training_data.nsample))
+epoch   spent time        training_RMSE     training_dRMSE    training_tRMSE    validation_RMSE   validation_dRMSE  validation_tRMSE\
+""".format(argv[1], training_data.ninput, '\n\t\t'.join(map(str, hp.hidden_layers)), hp.nepoch, training_data.nsample))
 file.flush()
 
 # initialize NNP
@@ -57,8 +59,9 @@ nnp = SingleNNP(training_data.ninput)
 nnp.load(save_dir)
 
 for m, (t_RMSE, t_dRMSE, t_tRMSE), (v_RMSE, v_dRMSE, v_tRMSE) in nnp.fit(training_data, validation_data, training_animator, validation_animator):
-    file.write('{:<7} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f}\n'
-               .format(m+1, time()-stime, t_RMSE, t_dRMSE, t_tRMSE, v_RMSE, v_dRMSE, v_tRMSE))
+    file.write("""
+{:<7} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f} {:<17.12f}\
+""".format(m+1, time()-stime, t_RMSE, t_dRMSE, t_tRMSE, v_RMSE, v_dRMSE, v_tRMSE))
     file.flush()
 
 training_animator.save(datestr, argv[1], 'training')
