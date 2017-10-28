@@ -34,14 +34,13 @@ zeta: {}
 learning_rate:       {}
 learning_rate_decay: {}
 mixing_beta:         {}
-smooth_factor:       {}
+l1_norm:             {}
+l2_norm:             {}
 batch_size:          {}
-batch_size_growth:   {}
 optimizer:           {}\
 """.format(','.join(map(str, hp.Rcs)), ','.join(map(str, hp.etas)), ','.join(map(str, hp.Rss)),
            ','.join(map(str, hp.lams)), ','.join(map(str, hp.zetas)),
-           hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.smooth_factor,
-           hp.batch_size, hp.batch_size_growth, hp.optimizer))
+           hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.l1_norm, hp.l2_norm, hp.batch_size, hp.optimizer))
 
 generator = DataGenerator('training', precond='pca')
 for config, training_data, validation_data in generator:

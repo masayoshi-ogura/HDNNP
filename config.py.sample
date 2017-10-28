@@ -21,10 +21,10 @@ class hp:
     learning_rate =
     learning_rate_decay =
     mixing_beta =  # must be 0. ~ 1.
-    smooth_factor =
+    l1_norm =
+    l2_norm =
     nepoch =
     batch_size =
-    batch_size_growth =
     optimizer =
     hidden_layers = [{}]
 

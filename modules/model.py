@@ -11,6 +11,7 @@ import dill
 
 from layer import FullyConnectedLayer, ActivationLayer
 from optimizer import OPTIMIZERS
+from util import mpiprint
 from util import rmse
 from util import comb
 
@@ -92,11 +93,14 @@ class SingleNNP(object):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
+
+        mpiprint('Training start!')
         if hp.optimizer in ['sgd', 'adam']:
             for m in xrange(hp.nepoch):
-                batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-                if batch_size < 0 or batch_size > nsample:
+                if hp.batch_size < 0 or hp.batch_size > nsample:
                     batch_size = nsample
+                else:
+                    batch_size = hp.batch_size
 
                 niter = -(- nsample / batch_size)
                 for i in xrange(niter):
@@ -110,9 +114,9 @@ class SingleNNP(object):
                 yield m, self.evaluate(m, training_data), self.evaluate(m, validation_data)
         elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
-            yield 0, self.evaluate(0, training_data), self.evaluate(0, validation_data)
+            yield hp.nepoch-1, self.evaluate(training_data), self.evaluate(validation_data)
 
-    def evaluate(self, ite, dataset):
+    def evaluate(self, dataset):
         nsample = dataset.nsample
         nderivative = dataset.nderivative
         input = dataset.input
@@ -238,11 +242,14 @@ class HDNNP(SingleNNP):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
+
+        mpiprint('Training start!')
         if hp.optimizer in ['sgd', 'adam']:
             for m in xrange(hp.nepoch):
-                batch_size = int(hp.batch_size * (1 + hp.batch_size_growth * m))
-                if batch_size < 0 or batch_size > nsample:
+                if hp.batch_size < 0 or hp.batch_size > nsample:
                     batch_size = nsample
+                else:
+                    batch_size = hp.batch_size
 
                 niter = -(- nsample / batch_size)
                 for i in xrange(niter):
@@ -257,7 +264,7 @@ class HDNNP(SingleNNP):
                 yield m, self.evaluate(m, training_data), self.evaluate(m, validation_data)
         elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
-            yield 0, self.evaluate(0, training_data), self.evaluate(0, validation_data)
+            yield hp.nepoch-1, self.evaluate(training_data), self.evaluate(validation_data)
 
     def save(self, save_dir):
         save_dir = path.join(save_dir, self._symbol)

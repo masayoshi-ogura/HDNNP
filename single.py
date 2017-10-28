@@ -10,7 +10,6 @@ from time import time
 from os import path
 from os import makedirs
 from datetime import datetime
-import matplotlib.pyplot as plt
 import numpy as np
 
 # import own modules
@@ -28,12 +27,11 @@ progress.write("""\
 learning_rate:       {}
 learning_rate_decay: {}
 mixing_beta:         {}
-smooth_factor:       {}
+l1_norm:             {}
+l2_norm:             {}
 batch_size:          {}
-batch_size_growth:   {}
 optimizer:           {}\
-""".format(hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.smooth_factor,
-           hp.batch_size, hp.batch_size_growth, hp.optimizer))
+""".format(hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.l1_norm, hp.l2_norm, hp.batch_size, hp.optimizer))
 
 training_data = FunctionData(argv[1], 'training')
 validation_data = FunctionData(argv[1], 'validation')

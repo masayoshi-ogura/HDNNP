@@ -238,7 +238,7 @@ class AtomicStructureData(DataSet):
                 Gs[:, n:n+2] = ndarray['G']
                 dGs[:, n:n+2] = ndarray['dG']
             else:
-                mpiprint('{} does\'nt exist. calculating ...'.format(filename))
+                mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
                 G = np.empty((self._nsample, 2, self._natom))
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G1(Rc)
@@ -261,7 +261,7 @@ class AtomicStructureData(DataSet):
                 Gs[:, n:n+2] = ndarray['G']
                 dGs[:, n:n+2] = ndarray['dG']
             else:
-                mpiprint('{} does\'nt exist. calculating ...'.format(filename))
+                mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
                 G = np.empty((self._nsample, 2, self._natom))
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
@@ -284,7 +284,7 @@ class AtomicStructureData(DataSet):
                 Gs[:, n:n+3] = ndarray['G']
                 dGs[:, n:n+3] = ndarray['dG']
             else:
-                mpiprint('{} does\'nt exist. calculating ...'.format(filename))
+                mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
                 G = np.empty((self._nsample, 3, self._natom))
                 dG = np.empty((self._nsample, 3, self._natom, self._nforce))
                 G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
