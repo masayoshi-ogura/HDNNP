@@ -27,9 +27,11 @@ progress.write("""\
 learning_rate:       {}
 learning_rate_decay: {}
 mixing_beta:         {}
+l1_norm:             {}
+l2_norm:             {}
 batch_size:          {}
 optimizer:           {}\
-""".format(hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.batch_size, hp.optimizer))
+""".format(hp.learning_rate, hp.learning_rate_decay, hp.mixing_beta, hp.l1_norm, hp.l2_norm, hp.batch_size, hp.optimizer))
 
 training_data = FunctionData(argv[1], 'training')
 validation_data = FunctionData(argv[1], 'validation')

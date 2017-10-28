@@ -11,6 +11,7 @@ import dill
 
 from layer import FullyConnectedLayer, ActivationLayer
 from optimizer import OPTIMIZERS
+from util import mpiprint
 from util import rmse
 from util import comb
 
@@ -92,6 +93,8 @@ class SingleNNP(object):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
+
+        mpiprint('Training start!')
         if hp.optimizer in ['sgd', 'adam']:
             for m in xrange(hp.nepoch):
                 if hp.batch_size < 0 or hp.batch_size > nsample:
@@ -239,6 +242,8 @@ class HDNNP(SingleNNP):
         label = training_data.label
         dinput = training_data.dinput
         dlabel = training_data.dlabel
+
+        mpiprint('Training start!')
         if hp.optimizer in ['sgd', 'adam']:
             for m in xrange(hp.nepoch):
                 if hp.batch_size < 0 or hp.batch_size > nsample:

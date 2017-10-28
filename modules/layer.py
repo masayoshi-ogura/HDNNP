@@ -2,7 +2,7 @@
 
 import numpy as np
 
-# from config import hp
+from config import hp
 from activation_function import ACTIVATIONS, DERIVATIVES, SECOND_DERIVATIVES
 
 
@@ -61,9 +61,11 @@ class FullyConnectedLayer(LayerBase):
 
         self._weight_grad = np.dot(self._input.T, output_error) \
             + np.tensordot(self._dinput, doutput_error1, ((0, 1), (0, 1))) \
-            + np.tensordot(self._input, doutput_error2, ((0,), (0,))).sum(axis=1)
+            + np.tensordot(self._input, doutput_error2, ((0,), (0,))).sum(axis=1) \
+            + hp.l1_norm * np.where(self._weight < 0., -1., 1.) + hp.l2_norm * self._weight  # regularization
         self._bias_grad = np.sum(output_error, axis=0) \
-            + np.sum(doutput_error2, axis=(0, 1))
+            + np.sum(doutput_error2, axis=(0, 1)) \
+            + hp.l1_norm * np.where(self._bias < 0., -1., 1.) + hp.l2_norm * self._bias  # regularization
 
         input_error = np.dot(output_error, self._weight.T)
         dinput_error1 = np.tensordot(doutput_error1, self._weight, ((2,), (1,)))

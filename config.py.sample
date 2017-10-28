@@ -21,6 +21,8 @@ class hp:
     learning_rate =
     learning_rate_decay =
     mixing_beta =  # must be 0. ~ 1.
+    l1_norm =
+    l2_norm =
     nepoch =
     batch_size =
     optimizer =
