@@ -111,7 +111,7 @@ class SingleNNP(object):
                     self.backprop(output_error, doutput_error, batch_size, nderivative)
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
-                yield m, self.evaluate(m, training_data), self.evaluate(m, validation_data)
+                yield m, self.evaluate(training_data), self.evaluate(validation_data)
         elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
             yield hp.nepoch-1, self.evaluate(training_data), self.evaluate(validation_data)
@@ -261,7 +261,7 @@ class HDNNP(SingleNNP):
                     self.backprop(output_error, doutput_error, batch_size, nderivative)
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
-                yield m, self.evaluate(m, training_data), self.evaluate(m, validation_data)
+                yield m, self.evaluate(training_data), self.evaluate(validation_data)
         elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
             self._optimizer.update_params(self, input, label, dinput, dlabel, nsample, nderivative)
             yield hp.nepoch-1, self.evaluate(training_data), self.evaluate(validation_data)
