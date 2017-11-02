@@ -6,6 +6,7 @@ from config import visual
 from os import path
 from os import listdir
 from glob import iglob
+from re import search
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import ArtistAnimation
@@ -140,8 +141,10 @@ def visualize_each_layer(nnp, save_dir, prefix=None):
 
 
 def visualize_correlation_scatter(datestr):
-    def artist(i, pred, true, min, max):
+    def artist(i, pred, true, min, max, unit):
         artist = [plt.scatter(pred, true, c='blue'),
+                  plt.xlabel('NNP ({})'.format(unit)),
+                  plt.ylabel('DFT ({})'.format(unit)),
                   plt.xlim(min, max),
                   plt.ylim(min, max),
                   plt.text(0.5, 0.9, 'epochs={}'.format(i), fontsize=12.0, ha='center', transform=plt.gcf().transFigure)]
@@ -158,17 +161,21 @@ def visualize_correlation_scatter(datestr):
         print 'visualize the correlation scatter of {}'.format(output_file)
 
         for key, ndarray in output_data.items():
+            if search('energy', key):
+                unit = 'eV'
+            elif search('force', key):
+                unit = 'ev/$\AA$'
             min = np.min(ndarray[0])
             max = np.max(ndarray[0])
             # gif
             if bool_.SAVE_GIF:
                 fig = plt.figure()
-                artists = [artist(i+1, ndarray[i+1], ndarray[0], min, max) for i in xrange(hp.nepoch)]
+                artists = [artist(i+1, ndarray[i+1], ndarray[0], min, max, unit) for i in xrange(hp.nepoch)]
                 anime = ArtistAnimation(fig, artists, interval=50, blit=True)
                 anime.save(path.join(fig_dir, '{}_{}.gif'.format(config, key)), writer='imagemagick')
                 plt.close(fig)
             # png
             fig = plt.figure()
-            artist(hp.nepoch, ndarray[-1], ndarray[0], min, max)
+            artist(hp.nepoch, ndarray[-1], ndarray[0], min, max, unit)
             fig.savefig(path.join(fig_dir, '{}_{}.png'.format(config, key)))
             plt.close(fig)
