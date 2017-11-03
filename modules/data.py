@@ -74,36 +74,13 @@ class DataSet(object):
 
 
 class FunctionData(DataSet):
-    def __init__(self, name, type):
+    def __init__(self, name):
         if name == 'complex':
-            input, label, dinput, dlabel = self._make_complex()
+            self._make_complex()
         elif name == 'LJ':
-            input, label, dinput, dlabel = self._make_LJ()
+            self._make_LJ()
         elif name == 'sin':
-            input, label, dinput, dlabel = self._make_sin()
-
-        np.random.seed(0)
-        np.random.shuffle(input)
-        np.random.seed(0)
-        np.random.shuffle(label)
-        np.random.seed(0)
-        np.random.shuffle(dinput)
-        np.random.seed(0)
-        np.random.shuffle(dlabel)
-
-        sep = self._nsample * 7 / 10
-        if type == 'training':
-            self._nsample = self._nsample * 7 / 10
-            self._input = input[:sep]
-            self._label = label[:sep]
-            self._dinput = dinput[:sep]
-            self._dlabel = dlabel[:sep]
-        elif type == 'validation':
-            self._nsample = self._nsample - self._nsample * 7 / 10
-            self._input = input[sep:]
-            self._label = label[sep:]
-            self._dinput = dinput[sep:]
-            self._dlabel = dlabel[sep:]
+            self._make_sin()
 
     def _make_complex(self):
         mesh = 10
@@ -113,33 +90,30 @@ class FunctionData(DataSet):
         lin = np.linspace(0.1, 1.0, mesh)
         x, y, z = np.meshgrid(lin, lin, lin)
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
-        input = np.c_[x, y, z]
-        label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
-        dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
-        dlabel = np.c_[2**x - 1/(2*x),
-                       np.cos(y) - 1/(2*y) - 1/z,
-                       3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
-        return input, label, dinput, dlabel
+        self._input = np.c_[x, y, z]
+        self._label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
+        self._dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
+        self._dlabel = np.c_[2**x - 1/(2*x),
+                             np.cos(y) - 1/(2*y) - 1/z,
+                             3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
 
     def _make_LJ(self):
-        self._nsample = 1000
+        self._nsample = 100
         self._ninput = 1
         self._nderivative = 1
-        input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
-        label = 0.001/input**4 - 0.009/input**3
-        dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        dlabel = (0.027/input**4 - 0.004/input**5).reshape(self._nsample, 1, 1)
-        return input, label, dinput, dlabel
+        self._input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
+        self._label = 0.001/self._input**4 - 0.009/self._input**3
+        self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
+        self._dlabel = (0.027/self._input**4 - 0.004/self._input**5).reshape(self._nsample, 1, 1)
 
     def _make_sin(self):
-        self._nsample = 1000
+        self._nsample = 100
         self._ninput = 1
         self._nderivative = 1
-        input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
-        label = np.sin(input)
-        dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        dlabel = np.cos(input).reshape(self._nsample, 1, 1)
-        return input, label, dinput, dlabel
+        self._input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
+        self._label = np.sin(self._input)
+        self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
+        self._dlabel = np.cos(self._input).reshape(self._nsample, 1, 1)
 
 
 class AtomicStructureData(DataSet):

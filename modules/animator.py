@@ -44,8 +44,7 @@ def visualize_network(datestr):
 
 def visualize_SingleNNP(nnp, save_dir, prefix=None):
     nlayer = len(nnp.shape)
-    ymax = float(max(nnp.shape))
-
+    ymax = float(max(nnp.shape)) 
     G = nx.Graph()
     pos = {}
     weight = []
@@ -165,6 +164,13 @@ def visualize_correlation_scatter(datestr):
                 unit = 'eV'
             elif search('force', key):
                 unit = 'ev/$\AA$'
+            else:
+                unit = ''
+                fig = plt.figure()
+                plt.scatter(range(len(ndarray[0])), ndarray[0])
+                plt.scatter(range(len(ndarray[0])), ndarray[-1])
+                fig.savefig(path.join(fig_dir, '{}_{}_outline.png'.format(config, key)))
+                plt.close(fig)
             min = np.min(ndarray[0])
             max = np.max(ndarray[0])
             # gif
