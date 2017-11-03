@@ -438,7 +438,7 @@ class AtomicStructureData(DataSet):
 
 
 class DataGenerator(object):
-    def __init__(self, mode):
+    def __init__(self):
         self._precond = PRECOND[hp.preconditioning]()
         self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
         if mpi.rank == 0 and not path.exists(self._config_type_file):

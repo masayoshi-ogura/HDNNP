@@ -20,6 +20,14 @@ def mpisave(obj, *args):
 def mpimkdir(path):
     if mpi.rank == 0:
         makedirs(path)
+    mpi.comm.Barrier()
+
+
+def mpiwrite(f, str):
+    if f.__class__ is file:
+        f.write(str)
+    else:
+        f.Write(str)
 
 
 def rmse(pred, true):
