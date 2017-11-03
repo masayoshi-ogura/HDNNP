@@ -113,33 +113,42 @@ class SingleNNP(object):
 
             if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
-                mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE')
+                mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE\n')
                 for m, result in self._gradient_descent(dataset):
                     mpiwrite(progress, '{} {} {} {}\n'.format(m+1, *result))
 
-    # elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
-    #     def fit(self, dataset, progress):
-    #         mpiprint('Training start!')
-    #         nsample = dataset.nsample
-    #
-    #         if bool_.VALIDATION:
-    #             for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
-    #                 mpiprint('Validation iteration: {}'.format(i+1))
-    #                 self._optimizer.update_params(self, dataset, progress, training_indices, validation_indices)
-    #                 self.clear()
-    #             mpiwrite(progress, """VALIDATION RESULT""".format())
-    #
-    #         if bool_.SAVE_MODEL:
-    #             mpiprint('Final training start with full dataset')
-    #             self._optimizer.update_params(self, dataset, progress)
+    elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
+        def fit(self, dataset, progress):
+            mpiprint('Training start!')
+            nsample = dataset.nsample
+            mpiprint('nsample: {}'.format(nsample))
+            mpiwrite(progress, 'nsample: {}\n'.format(nsample))
+
+            if bool_.VALIDATION:
+                final_result = []
+                for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
+                    mpiprint('Validation iteration: {}'.format(i+1))
+                    mpiwrite(progress, '\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
+                    result = self._quasi_newton(dataset, progress, training_indices, validation_indices)
+                    mpiprint('\tFinal RMSE: {} {} {} {} {} {}'.format(*result))
+                    final_result.append(result)
+                    self.clear()
+                final_result = np.c_[final_result].mean(axis=0)
+                mpiprint('Validation result: {} {} {} {} {} {}'.format(*final_result))
+                mpiwrite(progress, 'VALIDATION RESULT\n{} {} {} {} {} {}\n'.format(*final_result))
+
+            if bool_.SAVE_MODEL:
+                mpiprint('Final training start with full dataset')
+                mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE\n')
+                self._quasi_newton(dataset, progress)
 
     def _gradient_descent(self, dataset, training_indices=None, validation_indices=None):
-        nsample = dataset.nsample if training_indices is None else len(training_indices)
-        nderivative = dataset.nderivative
         input = dataset.input
         label = dataset.label
         dinput = dataset.dinput
         dlabel = dataset.dlabel
+        nsample = dataset.nsample if training_indices is None else len(training_indices)
+        nderivative = dataset.nderivative
         if hp.batch_size < 0 or hp.batch_size > nsample:
             batch_size = nsample
         else:
@@ -147,10 +156,10 @@ class SingleNNP(object):
         niter = -(- nsample / batch_size)
 
         if training_indices is None:
-            self._output = np.empty((hp.nepoch+1,) + label.shape)
-            self._doutput = np.empty((hp.nepoch+1,) + dlabel.shape)
-            self._output[0] = label
-            self._doutput[0] = dlabel
+            self.output = np.empty((hp.nepoch+1,) + label.shape)
+            self.doutput = np.empty((hp.nepoch+1,) + dlabel.shape)
+            self.output[0] = label
+            self.doutput[0] = dlabel
             for m in xrange(hp.nepoch):
                 for _ in xrange(niter):
                     sampling = np.random.randint(0, nsample, batch_size)
@@ -161,8 +170,8 @@ class SingleNNP(object):
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
                 result = self.evaluate(dataset, np.arange(nsample))
-                self._output[m+1] = result[0]
-                self._doutput[m+1] = result[1]
+                self.output[m+1] = result[0]
+                self.doutput[m+1] = result[1]
                 yield m, result[2:]
 
         else:
@@ -179,13 +188,24 @@ class SingleNNP(object):
                                   + self.evaluate(dataset, validation_indices)[2:])
                 yield m, result
 
+    def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
+        if training_indices is None:
+            training_indices = np.arange(dataset.nsample)
+            self._optimizer.update_params(progress, self, dataset, training_indices)
+            result = self.evaluate(dataset, training_indices)
+            self.output = np.c_[[dataset.label, result[0]]]
+            self.doutput = np.c_[[dataset.dlabel, result[1]]]
+        else:
+            self._optimizer.update_params(progress, self, dataset, training_indices)
+            return np.array(self.evaluate(dataset, training_indices)[2:] + self.evaluate(dataset, validation_indices)[2:])
+
     def evaluate(self, dataset, indices):
-        nsample = len(indices)
-        nderivative = dataset.nderivative
         input = dataset.input[indices]
         label = dataset.label[indices]
         dinput = dataset.dinput[indices]
         dlabel = dataset.dlabel[indices]
+        nsample = len(indices)
+        nderivative = dataset.nderivative
         output, doutput = self.feedforward(input, dinput, nsample, nderivative)
 
         RMSE = rmse(output, label)
@@ -199,7 +219,7 @@ class SingleNNP(object):
                 dill.dump(self._optimizer, f)
             with open(path.join(save_dir, 'layers.dill'), 'w') as f:
                 dill.dump(self._layers, f)
-            np.savez(output_file, output=self._output, doutput=self._doutput)
+            np.savez(output_file, output=self.output, doutput=self.doutput)
 
     def load(self, save_dir):
         optimizer_file = path.join(save_dir, 'optimizer.dill')
@@ -319,10 +339,10 @@ class HDNNP(SingleNNP):
         niter = -(- nsample / batch_size)
 
         if training_indices is None:
-            self._output = np.empty((hp.nepoch+1,) + label.shape)
-            self._doutput = np.empty((hp.nepoch+1,) + dlabel.shape)
-            self._output[0] = label
-            self._doutput[0] = dlabel
+            self.output = np.empty((hp.nepoch+1,) + label.shape)
+            self.doutput = np.empty((hp.nepoch+1,) + dlabel.shape)
+            self.output[0] = label
+            self.doutput[0] = dlabel
             for m in xrange(hp.nepoch):
                 for _ in xrange(niter):
                     sampling = np.random.randint(0, nsample, batch_size)
@@ -334,8 +354,8 @@ class HDNNP(SingleNNP):
                     self._optimizer.update_params(self.grads)
                     self.params = self._optimizer.params
                 result = self.evaluate(dataset, np.arange(nsample))
-                self._output[m+1] = result[0]
-                self._doutput[m+1] = result[1]
+                self.output[m+1] = result[0]
+                self.doutput[m+1] = result[1]
                 yield m, result[2:]
 
         else:
@@ -355,6 +375,19 @@ class HDNNP(SingleNNP):
                                   + self.evaluate(dataset, validation_indices)[2:])
                 yield m, result
 
+    def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
+        if training_indices is None:
+            training_indices = np.arange(dataset.nsample)
+            self._optimizer.update_params(progress, self, dataset, training_indices)
+            result = self.evaluate(dataset, training_indices)
+            self.output = np.c_[[dataset.label, result[0]]]
+            self.doutput = np.c_[[dataset.dlabel, result[1]]]
+        else:
+            self._all_comm.Bcast(training_indices, root=0)
+            self._all_comm.Bcast(validation_indices, root=0)
+            self._optimizer.update_params(progress, self, dataset, training_indices)
+            return np.array(self.evaluate(dataset, training_indices)[2:] + self.evaluate(dataset, validation_indices)[2:])
+
     def save(self, save_dir, output_file):
         if bool_.SAVE_MODEL:
             save_dir = path.join(save_dir, self._symbol)
@@ -365,7 +398,7 @@ class HDNNP(SingleNNP):
                     dill.dump(self._optimizer, f)
                 with open(path.join(save_dir, 'layers.dill'), 'w') as f:
                     dill.dump(self._nnp[0].layers, f)
-            np.savez(output_file, energy=self._output, force=self._doutput)
+            np.savez(output_file, energy=self.output, force=self.doutput)
 
     def load(self, save_dir):
         optimizer_file = path.join(save_dir, self._symbol, 'optimizer.dill')

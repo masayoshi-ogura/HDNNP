@@ -78,6 +78,7 @@ class FullyConnectedLayer(LayerBase):
     def clear(self):
         self._weight = np.random.normal(0.0, 1.0, self._weight.shape)
         self._bias = np.random.normal(0.0, 1.0, self._bias.shape)
+        return self
 
 
 class ActivationLayer(LayerBase):
