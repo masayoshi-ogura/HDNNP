@@ -29,6 +29,7 @@ class hp:
     hidden_layers = [{}]
     validation =
     split =
+    preconditioning =
 
 
 class bool_:

@@ -94,120 +94,107 @@ class SingleNNP(object):
         def fit(self, dataset, progress):
             mpiprint('Training start!')
             nsample = dataset.nsample
-            nderivative = dataset.nderivative
-            input = dataset.input
-            label = dataset.label
-            dinput = dataset.dinput
-            dlabel = dataset.dlabel
-            self._output = np.empty((hp.nepoch+1,) + label.shape)
-            self._doutput = np.empty((hp.nepoch+1,) + dlabel.shape)
-            self._output[0] = label
-            self._doutput[0] = dlabel
+            mpiprint('nsample: {}'.format(nsample))
+            progress.write('nsample: {}\n'.format(nsample))
 
-            final_result = []
-            for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
-                mpiprint('Validation iteration: {}'.format(i+1))
-                progress.write("""
-Validation iteration: {}\
-""".format(i+1))
-                for m in xrange(hp.nepoch):
-                    training_nsample = len(training_indices)
-                    if hp.batch_size < 0 or hp.batch_size > training_nsample:
-                        batch_size = training_nsample
-                    else:
-                        batch_size = hp.batch_size
-                    niter = -(- training_nsample / batch_size)
+            if bool_.VALIDATION:
+                final_result = []
+                for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
+                    mpiprint('Validation iteration: {}'.format(i+1))
+                    progress.write('\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
+                    for m, result in self._gradient_descent(dataset, training_indices, validation_indices):
+                        progress.write('{} {} {} {} {} {} {}\n'.format(m, *result))
+                    mpiprint('\tFinal RMSE: {} {} {} {} {} {}'.format(*result))
+                    final_result.append(result)
+                    self.__init__(dataset.ninput)
+                final_result = np.c_[final_result].mean(axis=0)
+                mpiprint('Validation result: {} {} {} {} {} {}'.format(*final_result))
+                progress.write('VALIDATION RESULT\n{} {} {} {} {} {}\n'.format(*final_result))
 
-                    for _ in xrange(niter):
-                        sampling = np.random.randint(0, training_nsample, batch_size)
-                        output, doutput = self.feedforward(input[sampling], dinput[sampling])
-                        output_error = output - label[sampling]
-                        doutput_error = doutput - dlabel[sampling]
-                        self.backprop(output_error, doutput_error, batch_size, nderivative)
-                        self._optimizer.update_params(self.grads)
-                        self.params = self._optimizer.params
-                    result = np.array(self.evaluate(m, dataset, training_indices, validation=True)
-                                      + self.evaluate(m, dataset, validation_indices, validation=True))
-                    progress.write("""
-{} {} {} {} {} {} {}\
-""".format(m, *result))
-                mpiprint('\tFinal RMSE: {} {} {} {} {} {}'.format(*result))
-                final_result.append(result)
-                self.__init__(dataset.ninput)
-            final_result = np.c_[final_result].mean(axis=0)
-            mpiprint('Validation result: {} {} {} {} {} {}'.format(*final_result))
-            progress.write("""
-VALIDATION RESULT
-{} {} {} {} {} {}\
-""".format(*final_result))
-
-            if not bool_.ONLY_VALIDATION:
+            if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
-                progress.write("""
-
-Final training\
-""")
-                if hp.batch_size < 0 or hp.batch_size > nsample:
-                    batch_size = nsample
-                else:
-                    batch_size = hp.batch_size
-                niter = -(- nsample / batch_size)
-
-                for m in xrange(hp.nepoch):
-                    for _ in xrange(niter):
-                        sampling = np.random.randint(0, nsample, batch_size)
-                        output, doutput = self.feedforward(input[sampling], dinput[sampling])
-                        output_error = output - label[sampling]
-                        doutput_error = doutput - dlabel[sampling]
-                        self.backprop(output_error, doutput_error, batch_size, nderivative)
-                        self._optimizer.update_params(self.grads)
-                        self.params = self._optimizer.params
-                    result = self.evaluate(m, dataset, validation=False)
-                    progress.write("""
-{} {} {} {}\
-""".format(m, *result))
+                progress.write('\nFinal training\nepochs RMSE dRMSE tRMSE')
+                for m, result in self._gradient_descent(dataset, np.arange(nsample), np.array([])):
+                    progress.write('{} {} {} {}\n'.format(m, *result))
 
     elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
         def fit(self, dataset, progress):
             mpiprint('Training start!')
             nsample = dataset.nsample
-            for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
-                mpiprint('Validation iteration: {}'.format(i+1))
-                self._optimizer.update_params(self, dataset, progress, training_indices, validation_indices)
-                self.__init__(dataset.ninput)
-            progress.write("""VALIDATION RESULT""".format())
 
-            if not bool_.ONLY_VALIDATION:
+            if bool_.VALIDATION:
+                for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
+                    mpiprint('Validation iteration: {}'.format(i+1))
+                    self._optimizer.update_params(self, dataset, progress, training_indices, validation_indices)
+                    self.__init__(dataset.ninput)
+                progress.write("""VALIDATION RESULT""".format())
+
+            if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
                 self._optimizer.update_params(self, dataset, progress)
 
-    def evaluate(self, iter, dataset, indices=None, validation=True):
-        if validation:
-            nsample = len(indices)
-            nderivative = dataset.nderivative
-            input = dataset.input[indices]
-            label = dataset.label[indices]
-            dinput = dataset.dinput[indices]
-            dlabel = dataset.dlabel[indices]
-            output, doutput = self.feedforward(input, dinput, nsample, nderivative)
+    def _gradient_descent(self, dataset, training_indices, validation_indices):
+        nsample = len(training_indices)
+        nderivative = dataset.nderivative
+        input = dataset.input[training_indices]
+        label = dataset.label[training_indices]
+        dinput = dataset.dinput[training_indices]
+        dlabel = dataset.dlabel[training_indices]
+
+        if hp.batch_size < 0 or hp.batch_size > nsample:
+            batch_size = nsample
         else:
-            nsample = dataset.nsample
-            nderivative = dataset.nderivative
-            input = dataset.input
-            label = dataset.label
-            dinput = dataset.dinput
-            dlabel = dataset.dlabel
-            output, doutput = self.feedforward(input, dinput, nsample, nderivative)
-            self._output[iter+1] = output
-            self._doutput[iter+1] = doutput
+            batch_size = hp.batch_size
+        niter = -(- nsample / batch_size)
+
+        if len(validation_indices) == 0:
+            self._output = np.empty((hp.nepoch+1,) + label.shape)
+            self._doutput = np.empty((hp.nepoch+1,) + dlabel.shape)
+            self._output[0] = label
+            self._doutput[0] = dlabel
+            for m in xrange(hp.nepoch):
+                for _ in xrange(niter):
+                    sampling = np.random.randint(0, nsample, batch_size)
+                    output, doutput = self.feedforward(input[sampling], dinput[sampling])
+                    output_error = output - label[sampling]
+                    doutput_error = doutput - dlabel[sampling]
+                    self.backprop(output_error, doutput_error, batch_size, nderivative)
+                    self._optimizer.update_params(self.grads)
+                    self.params = self._optimizer.params
+                result = self.evaluate(m, dataset, training_indices)
+                self._output[m+1] = result[0]
+                self._doutput[m+1] = result[1]
+                yield m, result[2:]
+        else:
+            for m in xrange(hp.nepoch):
+                for _ in xrange(niter):
+                    sampling = np.random.randint(0, nsample, batch_size)
+                    output, doutput = self.feedforward(input[sampling], dinput[sampling])
+                    output_error = output - label[sampling]
+                    doutput_error = doutput - dlabel[sampling]
+                    self.backprop(output_error, doutput_error, batch_size, nderivative)
+                    self._optimizer.update_params(self.grads)
+                    self.params = self._optimizer.params
+                result = np.array(self.evaluate(m, dataset, training_indices)[2:]
+                                  + self.evaluate(m, dataset, validation_indices)[2:])
+                yield m, result
+
+    def evaluate(self, iter, dataset, indices):
+        nsample = len(indices)
+        nderivative = dataset.nderivative
+        input = dataset.input[indices]
+        label = dataset.label[indices]
+        dinput = dataset.dinput[indices]
+        dlabel = dataset.dlabel[indices]
+        output, doutput = self.feedforward(input, dinput, nsample, nderivative)
 
         RMSE = rmse(output, label)
         dRMSE = rmse(doutput, dlabel)
         total_RMSE = (1 - hp.mixing_beta) * RMSE + hp.mixing_beta * dRMSE
-        return RMSE, dRMSE, total_RMSE
+        return output, doutput, RMSE, dRMSE, total_RMSE
 
     def save(self, save_dir, output_file):
-        if not bool_.ONLY_VALIDATION:
+        if bool_.SAVE_MODEL:
             with open(path.join(save_dir, 'optimizer.dill'), 'w') as f:
                 dill.dump(self._optimizer, f)
             with open(path.join(save_dir, 'layers.dill'), 'w') as f:
