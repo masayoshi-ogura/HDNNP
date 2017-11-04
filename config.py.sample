@@ -30,11 +30,14 @@ class hp:
     validation =
     split =
     preconditioning =
+    early_stopping = {'criterion': , 'threshold': }
 
 
 class bool_:
     SAVE_GIF =
-    ONLY_VALIDATION =
+    SAVE_MODEL =
+    VALIDATION =
+    EARLY_STOPPING =
 
 
 class file_:

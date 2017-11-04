@@ -179,6 +179,7 @@ class SingleNNP(object):
                 yield m, time()-start, result[2:]
 
         else:
+            tr_results = []
             for m in xrange(hp.nepoch):
                 for _ in xrange(niter):
                     sampling = training_indices[np.random.randint(0, nsample, batch_size)]
@@ -190,6 +191,10 @@ class SingleNNP(object):
                     self.params = self._optimizer.params
                 result = np.array(self.evaluate(dataset, training_indices)[2:]
                                   + self.evaluate(dataset, validation_indices)[2:])
+                tr_results.append(result[2])
+                if bool_.EARLY_STOPPING and not self._check_early_stopping(tr_results, result[5]):
+                    mpiprint('!!! EARLY STOPPING by epochs: {} !!!'.format(m+1))
+                    break
                 yield m, time()-start, result
 
     def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
@@ -221,6 +226,28 @@ class SingleNNP(object):
         dRMSE = rmse(doutput, dlabel)
         total_RMSE = (1 - hp.mixing_beta) * RMSE + hp.mixing_beta * dRMSE
         return output, doutput, RMSE, dRMSE, total_RMSE
+
+    def _check_early_stopping(self, tr_results, val_result, k=10):
+        if len(tr_results) < k or self._best_result > val_result:
+            self._best_result = val_result
+            self._best_params = self.params
+            return True
+        elif hp.early_stopping['criterion'] == 'GL':
+            generalization_loss = 100. * (val_result / self._best_result - 1.)
+            if generalization_loss < hp.early_stopping['threshold']:
+                return True
+            else:
+                self.params = self._best_params
+                return False
+        elif hp.early_stopping['criterion'] == 'PQ':
+            tr_results_k = tr_results[-k:]
+            generalization_loss = 100. * (val_result / self._best_result - 1.)
+            progress = 1000. * (sum(tr_results_k) / (k * min(tr_results_k)) - 1.)
+            if generalization_loss / progress < hp.early_stopping['threshold']:
+                return True
+            else:
+                self.params = self._best_params
+                return False
 
     def save(self, save_dir, output_file):
         if bool_.SAVE_MODEL:
@@ -369,6 +396,7 @@ class HDNNP(SingleNNP):
                 yield m, time()-start, result[2:]
 
         else:
+            tr_results = []
             self._all_comm.Bcast(training_indices, root=0)
             self._all_comm.Bcast(validation_indices, root=0)
             for m in xrange(hp.nepoch):
@@ -383,6 +411,10 @@ class HDNNP(SingleNNP):
                     self.params = self._optimizer.params
                 result = np.array(self.evaluate(dataset, training_indices)[2:]
                                   + self.evaluate(dataset, validation_indices)[2:])
+                tr_results.append(result[2])
+                if bool_.EARLY_STOPPING and not self._check_early_stopping(tr_results, result[5]):
+                    mpiprint('!!! EARLY STOPPING by epochs: {} !!!'.format(m+1))
+                    break
                 yield m, time()-start, result
 
     def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
