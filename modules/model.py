@@ -6,6 +6,7 @@ from config import mpi
 
 from os import path
 from os import mkdir
+from time import time
 import numpy as np
 from mpi4py import MPI
 import dill
@@ -102,9 +103,9 @@ class SingleNNP(object):
                 for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
                     mpiprint('Validation iteration: {}'.format(i+1))
                     mpiwrite(progress, '\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
-                    for m, result in self._gradient_descent(dataset, training_indices, validation_indices):
+                    for m, elapsed, result in self._gradient_descent(dataset, training_indices, validation_indices):
                         mpiwrite(progress, '{} {} {} {} {} {} {}\n'.format(m+1, *result))
-                    mpiprint('\tFinal RMSE: {} {} {} {} {} {}'.format(*result))
+                    mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {} {} {} {}'.format(elapsed, *result))
                     final_result.append(result)
                     self.clear()
                 final_result = np.c_[final_result].mean(axis=0)
@@ -114,8 +115,9 @@ class SingleNNP(object):
             if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
                 mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE\n')
-                for m, result in self._gradient_descent(dataset):
+                for m, elapsed, result in self._gradient_descent(dataset):
                     mpiwrite(progress, '{} {} {} {}\n'.format(m+1, *result))
+                mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {}'.format(elapsed, *result))
 
     elif hp.optimizer in ['bfgs', 'cg', 'cg-bfgs']:
         def fit(self, dataset, progress):
@@ -129,8 +131,8 @@ class SingleNNP(object):
                 for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
                     mpiprint('Validation iteration: {}'.format(i+1))
                     mpiwrite(progress, '\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
-                    result = self._quasi_newton(dataset, progress, training_indices, validation_indices)
-                    mpiprint('\tFinal RMSE: {} {} {} {} {} {}'.format(*result))
+                    elapsed, result = self._quasi_newton(dataset, progress, training_indices, validation_indices)
+                    mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {} {} {} {}'.format(elapsed, *result))
                     final_result.append(result)
                     self.clear()
                 final_result = np.c_[final_result].mean(axis=0)
@@ -140,9 +142,11 @@ class SingleNNP(object):
             if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
                 mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE\n')
-                self._quasi_newton(dataset, progress)
+                elapsed, result = self._quasi_newton(dataset, progress)
+                mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {}'.format(elapsed, *result))
 
     def _gradient_descent(self, dataset, training_indices=None, validation_indices=None):
+        start = time()
         input = dataset.input
         label = dataset.label
         dinput = dataset.dinput
@@ -172,7 +176,7 @@ class SingleNNP(object):
                 result = self.evaluate(dataset, np.arange(nsample))
                 self.output[m+1] = result[0]
                 self.doutput[m+1] = result[1]
-                yield m, result[2:]
+                yield m, time()-start, result[2:]
 
         else:
             for m in xrange(hp.nepoch):
@@ -186,18 +190,23 @@ class SingleNNP(object):
                     self.params = self._optimizer.params
                 result = np.array(self.evaluate(dataset, training_indices)[2:]
                                   + self.evaluate(dataset, validation_indices)[2:])
-                yield m, result
+                yield m, time()-start, result
 
     def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
+        start = time()
         if training_indices is None:
             training_indices = np.arange(dataset.nsample)
             self._optimizer.update_params(progress, self, dataset, training_indices)
             result = self.evaluate(dataset, training_indices)
             self.output = np.c_[[dataset.label, result[0]]]
             self.doutput = np.c_[[dataset.dlabel, result[1]]]
+            result = self.evaluate(dataset, training_indices)[2:]
+            return time()-start, result
         else:
             self._optimizer.update_params(progress, self, dataset, training_indices)
-            return np.array(self.evaluate(dataset, training_indices)[2:] + self.evaluate(dataset, validation_indices)[2:])
+            result = np.array(self.evaluate(dataset, training_indices)[2:]
+                              + self.evaluate(dataset, validation_indices)[2:])
+            return time()-start, result
 
     def evaluate(self, dataset, indices):
         input = dataset.input[indices]
@@ -326,12 +335,13 @@ class HDNNP(SingleNNP):
             nnp.backprop(output_error, doutput_error, batch_size, nderivative)
 
     def _gradient_descent(self, dataset, training_indices=None, validation_indices=None):
-        nsample = dataset.nsample if training_indices is None else len(training_indices)
-        nderivative = dataset.nderivative
+        start = time()
         input = dataset.input
         label = dataset.label
         dinput = dataset.dinput
         dlabel = dataset.dlabel
+        nsample = dataset.nsample if training_indices is None else len(training_indices)
+        nderivative = dataset.nderivative
         if hp.batch_size < 0 or hp.batch_size > nsample:
             batch_size = nsample
         else:
@@ -356,7 +366,7 @@ class HDNNP(SingleNNP):
                 result = self.evaluate(dataset, np.arange(nsample))
                 self.output[m+1] = result[0]
                 self.doutput[m+1] = result[1]
-                yield m, result[2:]
+                yield m, time()-start, result[2:]
 
         else:
             self._all_comm.Bcast(training_indices, root=0)
@@ -373,20 +383,25 @@ class HDNNP(SingleNNP):
                     self.params = self._optimizer.params
                 result = np.array(self.evaluate(dataset, training_indices)[2:]
                                   + self.evaluate(dataset, validation_indices)[2:])
-                yield m, result
+                yield m, time()-start, result
 
     def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
+        start = time()
         if training_indices is None:
             training_indices = np.arange(dataset.nsample)
             self._optimizer.update_params(progress, self, dataset, training_indices)
             result = self.evaluate(dataset, training_indices)
             self.output = np.c_[[dataset.label, result[0]]]
             self.doutput = np.c_[[dataset.dlabel, result[1]]]
+            result = self.evaluate(dataset, training_indices)[2:]
+            return time()-start, result
         else:
             self._all_comm.Bcast(training_indices, root=0)
             self._all_comm.Bcast(validation_indices, root=0)
             self._optimizer.update_params(progress, self, dataset, training_indices)
-            return np.array(self.evaluate(dataset, training_indices)[2:] + self.evaluate(dataset, validation_indices)[2:])
+            result = np.array(self.evaluate(dataset, training_indices)[2:]
+                              + self.evaluate(dataset, validation_indices)[2:])
+            return time()-start, result
 
     def save(self, save_dir, output_file):
         if bool_.SAVE_MODEL:

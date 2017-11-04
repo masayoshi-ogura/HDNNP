@@ -8,6 +8,7 @@ from config import mpi
 from os import path
 from shutil import copy2
 from datetime import datetime
+from time import time
 from mpi4py import MPI
 
 # import own modules
@@ -16,6 +17,7 @@ from modules.model import HDNNP
 from modules.util import mpimkdir
 from modules.util import mpisave
 
+start = time()
 datestr = datetime.now().strftime('%m%d-%H%M%S')
 save_dir = path.join(file_.save_dir, datestr)
 out_dir = path.join(file_.out_dir, datestr)
@@ -34,4 +36,5 @@ for config, dataset in generator:
     hdnnp.save(save_dir, output_file)
     mpi.comm.Barrier()
 mpisave(generator, save_dir)
+progress.Write('\n\nTotal time: {}'.format(time()-start))
 progress.Close()
