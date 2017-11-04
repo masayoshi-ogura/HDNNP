@@ -27,10 +27,14 @@ class hp:
     batch_size =
     optimizer =
     hidden_layers = [{}]
+    validation =
+    split =
+    preconditioning =
 
 
 class bool_:
     SAVE_GIF =
+    ONLY_VALIDATION =
 
 
 class file_:

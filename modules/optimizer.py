@@ -2,10 +2,11 @@ from config import hp
 
 import numpy as np
 from scipy.optimize import minimize
-from scipy.optimize import check_grad
+# from scipy.optimize import check_grad
 # import math
 
 from util import mpiprint
+from util import mpiwrite
 from util import rmse
 
 
@@ -70,7 +71,7 @@ class qNewtonOptimizer(object):
         self._disps = np.add.accumulate([param.size for param in params])
         self._params = self._pack(params)
 
-    def update_params(self, *args):
+    def update_params(self, progress, nnp, dataset, training_indices):
         def loss_func(params, nnp, input, label, dinput, dlabel, nsample, nderivative):
             nnp.params = self._unpack(params)
             self.output, self.doutput = nnp.feedforward(input, dinput, nsample, nderivative)
@@ -86,43 +87,46 @@ class qNewtonOptimizer(object):
             nnp.backprop(output_error, doutput_error, nsample, nderivative)
             return self._pack(nnp.grads)
 
-        def generate_callback(label, dlabel):
-            result = {'iteration': 0, 'output': [], 'doutput': []}
+        def generate_callback(progress, nnp, dataset, training_indices):
+            dict = {'iteration': 1}
 
             def callback(params):
-                mpiprint('Iteration: {}'
-                         .format(result['iteration']))
-                mpiprint('RMSE: {}'
-                         .format((1 - hp.mixing_beta) * rmse(self.output, label)
-                                 + hp.mixing_beta * rmse(self.doutput, dlabel)))
+                result = nnp.evaluate(dataset, training_indices)
+                mpiwrite(progress, '{} {} {} {}\n'.format(dict['iteration'], *result[2:]))
                 # mpiprint('Loss Func: {}'
                 #          .format(1./2 * ((1 - hp.mixing_beta) * ((label - self.output)**2).mean()
                 #                          + hp.mixing_beta * ((dlabel - self.doutput)**2).mean())))
                 # mpiprint('check_grad: {}'
                 #          .format(check_grad(loss_func, loss_grad, params, *args)))
-                result['iteration'] += 1
-                # result['output'].append(self.output)
-                # result['doutput'].append(self.doutput)
-            return result, callback
+                dict['iteration'] += 1
+            return callback
+
+        input = dataset.input[training_indices]
+        label = dataset.label[training_indices]
+        dinput = dataset.dinput[training_indices]
+        dlabel = dataset.dlabel[training_indices]
+        nsample = len(training_indices)
+        nderivative = dataset.nderivative
+        args = (nnp, input, label, dinput, dlabel, nsample, nderivative)
+        callback_func = generate_callback(progress, nnp, dataset, training_indices)
 
         loss_func(self._params, *args)
-        result, callback_func = generate_callback(args[2], args[4])
         if hp.optimizer == 'bfgs':
-            minimize(loss_func,
-                     self._params,
-                     method='BFGS',
-                     args=args,
-                     jac=loss_grad,
-                     callback=callback_func,
-                     options={'disp': True, 'maxiter': hp.nepoch})
+            response = minimize(loss_func,
+                                self._params,
+                                method='BFGS',
+                                args=args,
+                                jac=loss_grad,
+                                callback=callback_func,
+                                options={'maxiter': hp.nepoch})
         elif hp.optimizer == 'cg':
-            minimize(loss_func,
-                     self._params,
-                     method='CG',
-                     args=args,
-                     jac=loss_grad,
-                     callback=callback_func,
-                     options={'disp': True, 'maxiter': hp.nepoch})
+            response = minimize(loss_func,
+                                self._params,
+                                method='CG',
+                                args=args,
+                                jac=loss_grad,
+                                callback=callback_func,
+                                options={'maxiter': hp.nepoch})
         elif hp.optimizer == 'cg-bfgs':
             response = minimize(loss_func,
                                 self._params,
@@ -130,14 +134,15 @@ class qNewtonOptimizer(object):
                                 args=args,
                                 jac=loss_grad,
                                 callback=callback_func,
-                                options={'disp': True, 'maxiter': hp.nepoch})
-            minimize(loss_func,
-                     response.x,
-                     method='BFGS',
-                     args=args,
-                     jac=loss_grad,
-                     callback=callback_func,
-                     options={'disp': True, 'maxiter': hp.nepoch})
+                                options={'maxiter': hp.nepoch})
+            response = minimize(loss_func,
+                                response.x,
+                                method='BFGS',
+                                args=args,
+                                jac=loss_grad,
+                                callback=callback_func,
+                                options={'maxiter': hp.nepoch})
+        mpiprint('Success: {}\n{}'.format(response.success, response.message))
 
     def _pack(self, params):
         return np.concatenate([param.flatten() for param in params])

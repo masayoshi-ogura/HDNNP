@@ -19,6 +19,9 @@ class LayerBase(object):
     def gradient(self):
         return ()
 
+    def clear(self):
+        return self
+
 
 class FullyConnectedLayer(LayerBase):
     def __init__(self, input_nodes, output_nodes, final):
@@ -71,6 +74,11 @@ class FullyConnectedLayer(LayerBase):
         dinput_error1 = np.tensordot(doutput_error1, self._weight, ((2,), (1,)))
         dinput_error2 = np.tensordot(doutput_error2, self._weight, ((2,), (1,)))
         return input_error, dinput_error1, dinput_error2
+
+    def clear(self):
+        self._weight = np.random.normal(0.0, 1.0, self._weight.shape)
+        self._bias = np.random.normal(0.0, 1.0, self._bias.shape)
+        return self
 
 
 class ActivationLayer(LayerBase):

@@ -74,36 +74,13 @@ class DataSet(object):
 
 
 class FunctionData(DataSet):
-    def __init__(self, name, type):
+    def __init__(self, name):
         if name == 'complex':
-            input, label, dinput, dlabel = self._make_complex()
+            self._make_complex()
         elif name == 'LJ':
-            input, label, dinput, dlabel = self._make_LJ()
+            self._make_LJ()
         elif name == 'sin':
-            input, label, dinput, dlabel = self._make_sin()
-
-        np.random.seed(0)
-        np.random.shuffle(input)
-        np.random.seed(0)
-        np.random.shuffle(label)
-        np.random.seed(0)
-        np.random.shuffle(dinput)
-        np.random.seed(0)
-        np.random.shuffle(dlabel)
-
-        sep = self._nsample * 7 / 10
-        if type == 'training':
-            self._nsample = self._nsample * 7 / 10
-            self._input = input[:sep]
-            self._label = label[:sep]
-            self._dinput = dinput[:sep]
-            self._dlabel = dlabel[:sep]
-        elif type == 'validation':
-            self._nsample = self._nsample - self._nsample * 7 / 10
-            self._input = input[sep:]
-            self._label = label[sep:]
-            self._dinput = dinput[sep:]
-            self._dlabel = dlabel[sep:]
+            self._make_sin()
 
     def _make_complex(self):
         mesh = 10
@@ -113,45 +90,42 @@ class FunctionData(DataSet):
         lin = np.linspace(0.1, 1.0, mesh)
         x, y, z = np.meshgrid(lin, lin, lin)
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
-        input = np.c_[x, y, z]
-        label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
-        dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
-        dlabel = np.c_[2**x - 1/(2*x),
-                       np.cos(y) - 1/(2*y) - 1/z,
-                       3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
-        return input, label, dinput, dlabel
+        self._input = np.c_[x, y, z]
+        self._label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
+        self._dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
+        self._dlabel = np.c_[2**x - 1/(2*x),
+                             np.cos(y) - 1/(2*y) - 1/z,
+                             3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
 
     def _make_LJ(self):
-        self._nsample = 1000
+        self._nsample = 100
         self._ninput = 1
         self._nderivative = 1
-        input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
-        label = 0.001/input**4 - 0.009/input**3
-        dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        dlabel = (0.027/input**4 - 0.004/input**5).reshape(self._nsample, 1, 1)
-        return input, label, dinput, dlabel
+        self._input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
+        self._label = 0.001/self._input**4 - 0.009/self._input**3
+        self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
+        self._dlabel = (0.027/self._input**4 - 0.004/self._input**5).reshape(self._nsample, 1, 1)
 
     def _make_sin(self):
-        self._nsample = 1000
+        self._nsample = 100
         self._ninput = 1
         self._nderivative = 1
-        input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
-        label = np.sin(input)
-        dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        dlabel = np.cos(input).reshape(self._nsample, 1, 1)
-        return input, label, dinput, dlabel
+        self._input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
+        self._label = np.sin(self._input)
+        self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
+        self._dlabel = np.cos(self._input).reshape(self._nsample, 1, 1)
 
 
 class AtomicStructureData(DataSet):
-    def __init__(self, config, type):
-        self._data_dir = path.join(file_.data_dir, config, type)
-        with open(path.join(self._data_dir, '..', 'composition.dill')) as f:
+    def __init__(self, config):
+        self._data_dir = path.join(file_.data_dir, config)
+        with open(path.join(self._data_dir, 'composition.dill')) as f:
             self._composition = dill.load(f)
         xyz_file = path.join(self._data_dir, 'structure.xyz')
         self._nsample = len(AtomsReader(xyz_file))
         self._natom = AtomsReader(xyz_file)[0].n
         self._nforce = 3 * self._natom
-        self._name = config + type
+        self._name = config
         self._ninput = 2 * len(hp.Rcs) + \
             2 * len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             3 * len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
@@ -464,9 +438,8 @@ class AtomicStructureData(DataSet):
 
 
 class DataGenerator(object):
-    def __init__(self, mode, precond=None):
-        self._mode = mode
-        self._precond = PRECOND[precond]()
+    def __init__(self):
+        self._precond = PRECOND[hp.preconditioning]()
         self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
         if mpi.rank == 0 and not path.exists(self._config_type_file):
             self._parse_xyzfile()
@@ -475,28 +448,14 @@ class DataGenerator(object):
     def __iter__(self):
         with open(self._config_type_file, 'r') as f:
             config_type = dill.load(f)
-        if self._mode == 'training':
-            for type in file_.train_config:
-                for config in filter(lambda config: match(type, config) or type == 'all', config_type):
-                    mpiprint('---------------------------{}---------------------------'.format(config))
-                    mpiprint('make training dataset ...')
-                    training_data = AtomicStructureData(config, 'training')
-                    mpiprint('decompose training dataset ...')
-                    self._precond.decompose(training_data)
-                    mpiprint('make validation dataset ...')
-                    validation_data = AtomicStructureData(config, 'validation')
-                    mpiprint('decompose validation dataset ...')
-                    self._precond.decompose(validation_data)
-                    yield config, training_data, validation_data
-        elif self._mode == 'test':
-            for type in file_.train_config:
-                for config in filter(lambda config: match(type, config) or type == 'all', config_type):
-                    mpiprint('---------------------------{}---------------------------'.format(config))
-                    mpiprint('make test dataset ...')
-                    test_data = AtomicStructureData(config, 'test')
-                    mpiprint('decompose test dataset ...')
-                    self._precond.decompose(test_data)
-                    yield config, test_data
+        for type in file_.train_config:
+            for config in filter(lambda config: match(type, config) or type == 'all', config_type):
+                mpiprint('---------------------------{}---------------------------'.format(config))
+                mpiprint('make dataset ...')
+                dataset = AtomicStructureData(config)
+                mpiprint('decompose dataset ...')
+                self._precond.decompose(dataset)
+                yield config, dataset
 
     def save(self, save_dir):
         with open(path.join(save_dir, 'preconditioning.dill'), 'w') as f:
@@ -531,30 +490,17 @@ class DataGenerator(object):
                 composition['symbol'].append(atom.symbol)
 
             data_dir = path.join(file_.data_dir, config)
+            makedirs(data_dir)
             shuffle(alldataset[config])
-            makedirs(path.join(data_dir, 'training'))
-            makedirs(path.join(data_dir, 'validation'))
-            makedirs(path.join(data_dir, 'test'))
-            training_writer = AtomsWriter(path.join(data_dir, 'training', 'structure.xyz'))
-            validation_writer = AtomsWriter(path.join(data_dir, 'validation', 'structure.xyz'))
-            test_writer = AtomsWriter(path.join(data_dir, 'test', 'structure.xyz'))
-            sep1 = len(alldataset[config]) * 7 / 10
-            sep2 = len(alldataset[config]) * 9 / 10
+            writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
             for i, data in enumerate(alldataset[config]):
                 if data.cohesive_energy > 0.0:
                     continue
                 # 2~4体の構造はpbcをFalseに
                 if match('Quadruple', config) or match('Triple', config) or match('Dimer', config):
                     data.set_pbc([False, False, False])
-                if i < sep1:
-                    training_writer.write(data)
-                elif i < sep2:
-                    validation_writer.write(data)
-                else:
-                    test_writer.write(data)
-            training_writer.close()
-            validation_writer.close()
-            test_writer.close()
+                writer.write(data)
+            writer.close()
             with open(path.join(data_dir, 'composition.dill'), 'w') as f:
                 dill.dump(composition, f)
 

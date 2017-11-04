@@ -20,21 +20,3 @@ if not path.exists(fig_dir):
     mkdir(fig_dir)
 visualize_network(datestr)
 visualize_correlation_scatter(datestr)
-
-"""
-if argv[1] in ['LJ', 'sin']:
-    fig = plt.figure()
-    plt.scatter(training_data.input, output_data['training_energy'][0], c='blue')
-    plt.scatter(validation_data.input, output_data['validation_energy'][0], c='blue')
-    plt.scatter(training_data.input, output_data['training_energy'][-1], c='red')
-    plt.scatter(validation_data.input, output_data['validation_energy'][-1], c='yellow')
-    fig.savefig(path.join(file_.fig_dir, datestr, 'original_func.png'))
-    plt.close(fig)
-    fig = plt.figure()
-    plt.scatter(training_data.input, output_data['training_force'][0], c='blue')
-    plt.scatter(validation_data.input, output_data['validation_force'][0], c='blue')
-    plt.scatter(training_data.input, output_data['training_force'][-1], c='red')
-    plt.scatter(validation_data.input, output_data['validation_force'][-1], c='yellow')
-    fig.savefig(path.join(file_.fig_dir, datestr, 'derivative.png'))
-    plt.close()
-"""
