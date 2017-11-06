@@ -102,19 +102,19 @@ class SingleNNP(object):
                 final_result = []
                 for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
                     mpiprint('Validation iteration: {}'.format(i+1))
-                    mpiwrite(progress, '\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
+                    mpiwrite(progress, '\n\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
                     for m, elapsed, result in self._gradient_descent(dataset, training_indices, validation_indices):
                         mpiwrite(progress, '{} {} {} {} {} {} {}\n'.format(m+1, *result))
-                    mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {} {} {} {}'.format(elapsed, *result))
-                    final_result.append(result)
+                    mpiprint('\tElapsed time: {}\n\tFinal(Best) RMSE: {} {} {} {} {} {}'.format(elapsed, *self._best_result))
+                    final_result.append(self._best_result)
                     self.clear()
                 final_result = np.c_[final_result].mean(axis=0)
                 mpiprint('Validation result: {} {} {} {} {} {}'.format(*final_result))
-                mpiwrite(progress, 'VALIDATION RESULT\n{} {} {} {} {} {}\n'.format(*final_result))
+                mpiwrite(progress, '\n\nVALIDATION RESULT\n{} {} {} {} {} {}\n'.format(*final_result))
 
             if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
-                mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE\n')
+                mpiwrite(progress, '\n\nFinal training\nepochs RMSE dRMSE tRMSE\n')
                 for m, elapsed, result in self._gradient_descent(dataset):
                     mpiwrite(progress, '{} {} {} {}\n'.format(m+1, *result))
                 mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {}'.format(elapsed, *result))
@@ -130,18 +130,18 @@ class SingleNNP(object):
                 final_result = []
                 for i, (training_indices, validation_indices) in enumerate(self._validation(nsample)):
                     mpiprint('Validation iteration: {}'.format(i+1))
-                    mpiwrite(progress, '\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
+                    mpiwrite(progress, '\n\nValidation iteration: {}\nepochs tr_RMSE tr_dRMSE tr_tRMSE val_RMSE val_dRMSE val_tRMSE\n'.format(i+1))
                     elapsed, result = self._quasi_newton(dataset, progress, training_indices, validation_indices)
                     mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {} {} {} {}'.format(elapsed, *result))
                     final_result.append(result)
                     self.clear()
                 final_result = np.c_[final_result].mean(axis=0)
                 mpiprint('Validation result: {} {} {} {} {} {}'.format(*final_result))
-                mpiwrite(progress, 'VALIDATION RESULT\n{} {} {} {} {} {}\n'.format(*final_result))
+                mpiwrite(progress, '\n\nVALIDATION RESULT\n{} {} {} {} {} {}\n'.format(*final_result))
 
             if bool_.SAVE_MODEL:
                 mpiprint('Final training start with full dataset')
-                mpiwrite(progress, '\nFinal training\nepochs RMSE dRMSE tRMSE\n')
+                mpiwrite(progress, '\n\nFinal training\nepochs RMSE dRMSE tRMSE\n')
                 elapsed, result = self._quasi_newton(dataset, progress)
                 mpiprint('\tElapsed time: {}\n\tFinal RMSE: {} {} {}'.format(elapsed, *result))
 
@@ -179,6 +179,8 @@ class SingleNNP(object):
                 yield m, time()-start, result[2:]
 
         else:
+            tr_results = []
+            val_results = []
             for m in xrange(hp.nepoch):
                 for _ in xrange(niter):
                     sampling = training_indices[np.random.randint(0, nsample, batch_size)]
@@ -190,6 +192,11 @@ class SingleNNP(object):
                     self.params = self._optimizer.params
                 result = np.array(self.evaluate(dataset, training_indices)[2:]
                                   + self.evaluate(dataset, validation_indices)[2:])
+                tr_results.append(result[2])
+                val_results.append(result[5])
+                if bool_.EARLY_STOPPING and not self._check_early_stopping(result, tr_results, val_results):
+                    mpiprint('!!! EARLY STOPPING by epochs: {} !!!'.format(m+1))
+                    break
                 yield m, time()-start, result
 
     def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
@@ -221,6 +228,34 @@ class SingleNNP(object):
         dRMSE = rmse(doutput, dlabel)
         total_RMSE = (1 - hp.mixing_beta) * RMSE + hp.mixing_beta * dRMSE
         return output, doutput, RMSE, dRMSE, total_RMSE
+
+    def _check_early_stopping(self, result, tr_results, val_results, k=100, cache={'count': 0}):
+        if len(tr_results) < k+1:
+            cache['count'] = 0
+            cache['best_result'] = min(val_results)
+        elif cache['best_result'] > val_results[-1]:
+            cache['best_result'] = val_results[-1]
+            cache['best_params'] = self.params
+            self._best_result = result
+        elif hp.early_stopping['criterion'] == 'GL':
+            generalization_loss = 100. * (val_results[-1] / cache['best_result'] - 1.)
+            if generalization_loss > hp.early_stopping['threshold']:
+                self.params = cache['best_params']
+                return False
+        elif hp.early_stopping['criterion'] == 'PQ':
+            tr_results_k = tr_results[-k:]
+            generalization_loss = 100. * (val_results[-1] / cache['best_result'] - 1.)
+            progress = 1000. * (sum(tr_results_k) / (k * min(tr_results_k)) - 1.)
+            if generalization_loss / progress > hp.early_stopping['threshold']:
+                self.params = cache['best_params']
+                return False
+        elif hp.early_stopping['criterion'] == 'UP':
+            if len(tr_results) % k == 0 and val_results[-(k+1)] < val_results[-1]:
+                cache['count'] += 1
+                if cache['count'] == hp.early_stopping['threshold']:
+                    self.params = cache['best_params']
+                    return False
+        return True
 
     def save(self, save_dir, output_file):
         if bool_.SAVE_MODEL:
@@ -369,6 +404,8 @@ class HDNNP(SingleNNP):
                 yield m, time()-start, result[2:]
 
         else:
+            tr_results = []
+            val_results = []
             self._all_comm.Bcast(training_indices, root=0)
             self._all_comm.Bcast(validation_indices, root=0)
             for m in xrange(hp.nepoch):
@@ -383,6 +420,11 @@ class HDNNP(SingleNNP):
                     self.params = self._optimizer.params
                 result = np.array(self.evaluate(dataset, training_indices)[2:]
                                   + self.evaluate(dataset, validation_indices)[2:])
+                tr_results.append(result[2])
+                val_results.append(result[5])
+                if bool_.EARLY_STOPPING and not self._check_early_stopping(result, tr_results, val_results):
+                    mpiprint('!!! EARLY STOPPING by epochs: {} !!!'.format(m+1))
+                    break
                 yield m, time()-start, result
 
     def _quasi_newton(self, dataset, progress, training_indices=None, validation_indices=None):
