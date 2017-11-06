@@ -14,6 +14,7 @@ import networkx as nx
 from itertools import product
 
 from model import SingleNNP
+from data import FunctionData
 
 plt.ioff()
 
@@ -44,7 +45,7 @@ def visualize_network(datestr):
 
 def visualize_SingleNNP(nnp, save_dir, prefix=None):
     nlayer = len(nnp.shape)
-    ymax = float(max(nnp.shape)) 
+    ymax = float(max(nnp.shape))
     G = nx.Graph()
     pos = {}
     weight = []
@@ -166,9 +167,17 @@ def visualize_correlation_scatter(datestr):
                 unit = 'ev/$\AA$'
             else:
                 unit = ''
+                dataset = FunctionData(config)
                 fig = plt.figure()
-                plt.scatter(range(len(ndarray[0])), ndarray[0])
-                plt.scatter(range(len(ndarray[0])), ndarray[-1])
+                if key == 'output':
+                    plt.plot(dataset.input, dataset.true_func, c='orange', label='function')
+                    plt.scatter(dataset.input, ndarray[0], c='blue', label='true')
+                    plt.scatter(dataset.input, ndarray[-1], c='red', label='pred')
+                elif key == 'doutput':
+                    plt.plot(dataset.input, dataset.true_deriv.reshape(dataset.input.shape), c='orange', label='derivative')
+                    plt.scatter(dataset.input, ndarray[0], c='blue', label='true')
+                    plt.scatter(dataset.input, ndarray[-1], c='red', label='pred')
+                plt.legend()
                 fig.savefig(path.join(fig_dir, '{}_{}_outline.png'.format(config, key)))
                 plt.close(fig)
             min = np.min(ndarray[0])

@@ -72,6 +72,14 @@ class DataSet(object):
     def dlabel(self):
         return self._dlabel
 
+    @property
+    def true_func(self):
+        return self._true_func
+
+    @property
+    def true_deriv(self):
+        return self._true_deriv
+
 
 class FunctionData(DataSet):
     def __init__(self, name):
@@ -91,29 +99,35 @@ class FunctionData(DataSet):
         x, y, z = np.meshgrid(lin, lin, lin)
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
         self._input = np.c_[x, y, z]
-        self._label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
+        self._true_func = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
+        self._label = self._true_func + 0.1 * np.random.randn(self._nsample, 1)
         self._dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
-        self._dlabel = np.c_[2**x - 1/(2*x),
-                             np.cos(y) - 1/(2*y) - 1/z,
-                             3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
+        self._true_deriv = np.c_[2**x - 1/(2*x),
+                                 np.cos(y) - 1/(2*y) - 1/z,
+                                 3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
+        self._dlabel = self._true_deriv + 0.1 * np.random.randn(self._nsample, 3, 1)
 
     def _make_LJ(self):
-        self._nsample = 100
+        self._nsample = 50
         self._ninput = 1
         self._nderivative = 1
         self._input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
-        self._label = 0.001/self._input**4 - 0.009/self._input**3
+        self._true_func = 0.001/self._input**4 - 0.009/self._input**3
+        self._label = self._true_func + 0.1 * np.random.randn(self._nsample, 1)
         self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        self._dlabel = (0.027/self._input**4 - 0.004/self._input**5).reshape(self._nsample, 1, 1)
+        self._true_deriv = (0.027/self._input**4 - 0.004/self._input**5).reshape(self._nsample, 1, 1)
+        self._dlabel = self._true_deriv + 0.1 * np.random.randn(self._nsample, 1, 1)
 
     def _make_sin(self):
-        self._nsample = 100
+        self._nsample = 50
         self._ninput = 1
         self._nderivative = 1
         self._input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
-        self._label = np.sin(self._input)
+        self._true_func = np.sin(self._input)
+        self._label = self._true_func + 0.1 * np.random.randn(self._nsample, 1)
         self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        self._dlabel = np.cos(self._input).reshape(self._nsample, 1, 1)
+        self._true_deriv = np.cos(self._input).reshape(self._nsample, 1, 1)
+        self._dlabel = self._true_deriv + 0.1 * np.random.randn(self._nsample, 1, 1)
 
 
 class AtomicStructureData(DataSet):
