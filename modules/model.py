@@ -35,7 +35,12 @@ class HDNNP(chainer.ChainList):
     def get_by_element(self, element):
         return [nnp for nnp in self if nnp.element == element]
 
-    def sync_master(self, masters):
-        for element, master in masters.items():
-            for nnp in self.get_by_element(element):
+    def reduce_grad_to(self, masters):
+        for master in masters.children():
+            for nnp in self.get_by_element(master.element):
+                master.addgrads(nnp)
+
+    def sync_param_with(self, masters):
+        for master in masters.children():
+            for nnp in self.get_by_element(master.element):
                 nnp.copyparams(master)

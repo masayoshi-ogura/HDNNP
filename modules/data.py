@@ -65,7 +65,7 @@ def get_simple_function(name, nsample=1000):
         raise ValueError("function '{}' is not implemented.")
 
 
-class AtomicStructureData(TupleDataset):
+class AtomicStructureDataset(TupleDataset):
     def __init__(self, config):
         self._data_dir = path.join(file_.data_dir, config)
         with open(path.join(self._data_dir, 'composition.dill')) as f:
@@ -389,7 +389,7 @@ class DataGenerator(object):
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 mpiprint('---------------------------{}---------------------------'.format(config))
                 mpiprint('make dataset ...')
-                dataset = AtomicStructureData(config)
+                dataset = AtomicStructureDataset(config)
                 mpiprint('decompose dataset ...')
                 self._precond.decompose(dataset)
                 yield dataset

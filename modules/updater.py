@@ -38,8 +38,8 @@ class HDUpdater(chainer.training.StandardUpdater):
         super(HDUpdater, self).__init__(*args, **kwargs)
 
     def update_core(self):
-        optimizers = [opt for opt in self.get_all_optimizers().values()]
-        masters = [opt.target for opt in optimizers]
+        optimizer = self.get_optimizer('main')
+        masters = optimizer.target
         batch = self.get_iterator('main').next()
         G, dG, E_true, F_true = self.converter(batch, self.device)
         G = [Variable(g) for g in G.transpose(1, 0, 2)]
@@ -56,9 +56,6 @@ class HDUpdater(chainer.training.StandardUpdater):
         E_pred = sum(E)
         loss(E_pred, E_true, F_pred, F_true).backward()
 
-        for optimizer, master in zip(optimizers, masters):
-            for nnp in self.hdnnp.get_by_element(master.element):
-                master.addgrads(nnp)
-            optimizer.update()
-            for nnp in self.hdnnp.get_by_element(master.element):
-                nnp.copyparams(master)
+        self.hdnnp.reduce_grad_to(masters)
+        optimizer.update()
+        self.hdnnp.sync_param_with(masters)
