@@ -9,10 +9,11 @@ export PYTHONPATH=/home/ogura/python/Python-2.7.9/lib/python-2.7/site-packages:$
 export PYTHONHOME=/home/ogura/python/Python-2.7.9
 
 if [ "${mode}" = 'training' -o -z "${mode}" ]; then
-  mpirun -np 24 python training.py
-  python visualize.py
+  # mpirun -np 24 python training.py
+  python training.py
 elif [ "${mode}" = 'test' ]; then
-  mpirun -np 24 python test.py
+  # mpirun -np 24 python test.py
+  echo 'Not implemented.'
 elif [ "${mode}" = 'preproc' ]; then
   mpirun -np 24 python modules/data.py
 else
