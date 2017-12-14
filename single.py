@@ -48,10 +48,12 @@ trainer = chainer.training.Trainer(updater, (hp.nepoch, 'epoch'), out=out_dir)
 trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=optimizer))  # learning rate decay
 trainer.extend(Evaluator(iterator=val_iter, target=model, device=mpi.gpu))  # evaluate validation dataset
 trainer.extend(ext.LogReport())
-trainer.extend(ext.PlotReport(['main/tot_loss', 'validation/main/tot_loss'], 'epoch', file_name='learning.png', marker='o', postprocess=set_logscale))
-trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/loss', 'main/d_loss', 'main/tot_loss',
-                                'validation/main/loss', 'validation/main/d_loss', 'validation/main/tot_loss']))
+trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
+                              file_name='learning.png', marker=None, postprocess=set_logscale))
+trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
+                                'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
 trainer.extend(ext.ProgressBar(update_interval=10))
-trainer.extend(scatterplot(model, val, name), trigger=chainer.training.triggers.MinValueTrigger('validation/main/tot_loss', (10, 'epoch')))
+trainer.extend(scatterplot(model, val, name),
+               trigger=chainer.training.triggers.MinValueTrigger('validation/main/tot_RMSE', (10, 'epoch')))
 
 trainer.run()

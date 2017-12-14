@@ -12,7 +12,7 @@ def loss_func(y_pred, y_true, dy_pred, dy_true, obs):
     y_loss = (1. - hp.mixing_beta) * F.mean_squared_error(y_pred, y_true)
     dy_loss = hp.mixing_beta * F.mean_squared_error(dy_pred, dy_true)
     loss = y_loss + dy_loss
-    chainer.reporter.report({'loss': y_loss, 'd_loss': dy_loss, 'tot_loss': loss}, obs)
+    chainer.reporter.report({'RMSE': F.sqrt(y_loss), 'd_RMSE': F.sqrt(dy_loss), 'tot_RMSE': F.sqrt(loss)}, obs)
     return loss
 
 
@@ -28,7 +28,6 @@ class SingleNNP(chainer.Chain):
         self.add_persistent('element', element)
 
     def __call__(self, x, dx, y_true, dy_true, train=False):
-        self.cleargrads()
         x = Variable(x)
         dx = Variable(dx)
         y_pred = self.predict_y(x)

@@ -10,7 +10,7 @@ import chainer
 from chainer import reporter as reporter_module
 from chainer.training.extensions import evaluator
 
-from data import AtomicStructureDataset
+from model import SingleNNP, HDNNP
 
 
 class Evaluator(evaluator.Evaluator):
@@ -92,10 +92,10 @@ def scatterplot(model, dataset, config):
         artist(F_pred.data, F_true, '{}_Force'.format(config), 'eV/$\AA$')
         plt.close('all')
 
-    if isinstance(dataset, AtomicStructureDataset):
-        return make_image2
-    else:
+    if isinstance(model, SingleNNP):
         return make_image1
+    elif isinstance(model, HDNNP):
+        return make_image2
 
 
 def set_logscale(f, a, summary):

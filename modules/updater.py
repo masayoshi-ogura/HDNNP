@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from config import hp
-
 import chainer
-import chainer.functions as F
-from chainer import Variable
 
 
 class Updater(chainer.training.StandardUpdater):
@@ -16,6 +12,8 @@ class Updater(chainer.training.StandardUpdater):
         model = optimizer.target
         batch = self.converter(self.get_iterator('main').next(), self.device)
 
+        model.cleargrads()
+
         _, _, loss = model(*batch, train=True)
         loss.backward()
 
@@ -23,18 +21,22 @@ class Updater(chainer.training.StandardUpdater):
 
 
 class HDUpdater(chainer.training.StandardUpdater):
-    def __init__(self, hdnnp, *args, **kwargs):
-        self.hdnnp = hdnnp
+    def __init__(self, *args, **kwargs):
         super(HDUpdater, self).__init__(*args, **kwargs)
 
     def update_core(self):
-        optimizer = self.get_optimizer('main')
-        masters = optimizer.target
+        master_opt = self.get_optimizer('master')
+        main_opt = self.get_optimizer('main')
+        masters = master_opt.target
+        hdnnp = main_opt.target
         batch = self.converter(self.get_iterator('main').next(), self.device)
 
-        _, _, loss = self.hdnnp(*batch, train=True)
+        masters.cleargrads()
+        hdnnp.cleargrads()
+
+        _, _, loss = hdnnp(*batch, train=True)
         loss.backward()
 
-        self.hdnnp.reduce_grad_to(masters)
-        optimizer.update()
-        self.hdnnp.sync_param_with(masters)
+        hdnnp.reduce_grad_to(masters)
+        master_opt.update()
+        hdnnp.sync_param_with(masters)
