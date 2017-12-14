@@ -11,6 +11,9 @@
 *.dill
 *.profile
 *.dat
+*log
+*.model
+*.optimizer
 
 *.o[0-9]*
 *.e[0-9]*

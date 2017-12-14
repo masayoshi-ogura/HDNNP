@@ -15,6 +15,7 @@ from itertools import product
 import dill
 import numpy as np
 from mpi4py import MPI
+from chainer.datasets import TupleDataset
 try:
     from quippy import AtomsReader
     from quippy import AtomsList
@@ -28,109 +29,45 @@ from preconditioning import PRECOND
 from util import mpiprint
 
 
-class DataSet(object):
-    def __init__(self):
-        pass
-
-    @property
-    def nsample(self):
-        return self._nsample
-
-    @property
-    def ninput(self):
-        return self._ninput
-
-    @ninput.setter
-    def ninput(self, ninput):
-        self._ninput = ninput
-
-    @property
-    def nderivative(self):
-        return self._nderivative
-
-    @property
-    def input(self):
-        return self._input
-
-    @input.setter
-    def input(self, input):
-        self._input = input
-
-    @property
-    def label(self):
-        return self._label
-
-    @property
-    def dinput(self):
-        return self._dinput
-
-    @dinput.setter
-    def dinput(self, dinput):
-        self._dinput = dinput
-
-    @property
-    def dlabel(self):
-        return self._dlabel
-
-    @property
-    def true_func(self):
-        return self._true_func
-
-    @property
-    def true_deriv(self):
-        return self._true_deriv
-
-
-class FunctionData(DataSet):
-    def __init__(self, name):
-        if name == 'complex':
-            self._make_complex()
-        elif name == 'LJ':
-            self._make_LJ()
-        elif name == 'sin':
-            self._make_sin()
-
-    def _make_complex(self):
-        mesh = 10
-        self._nsample = mesh**3
-        self._ninput = 3
-        self._nderivative = 3
-        lin = np.linspace(0.1, 1.0, mesh)
+def get_simple_function(name, nsample=1000):
+    def make_complex(nsample):
+        mesh = int(round(nsample**(1./3)))
+        lin = np.linspace(0.1, 1.0, mesh, dtype=np.float32)
         x, y, z = np.meshgrid(lin, lin, lin)
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
-        self._input = np.c_[x, y, z]
-        self._true_func = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(self._nsample, 1)
-        self._label = self._true_func + 0.1 * np.random.randn(self._nsample, 1)
-        self._dinput = np.identity(3)[None, :, :].repeat(self._nsample, axis=0)
-        self._true_deriv = np.c_[2**x - 1/(2*x),
-                                 np.cos(y) - 1/(2*y) - 1/z,
-                                 3.*np.exp(z) + y/z**2].reshape(self._nsample, 3, 1)
-        self._dlabel = self._true_deriv + 0.1 * np.random.randn(self._nsample, 3, 1)
+        input = np.c_[x, y, z]
+        label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(-1, 1)
+        dinput = np.ones((mesh**3, 3), dtype=np.float32)
+        dlabel = np.c_[2**x - 1/(2*x), np.cos(y) - 1/(2*y) - 1/z, 3.*np.exp(z) + y/z**2]
+        return TupleDataset(input, dinput, label, dlabel)
 
-    def _make_LJ(self):
-        self._nsample = 50
-        self._ninput = 1
-        self._nderivative = 1
-        self._input = np.linspace(0.1, 1.0, self._nsample).reshape(self._nsample, 1)
-        self._true_func = 0.001/self._input**4 - 0.009/self._input**3
-        self._label = self._true_func + 0.1 * np.random.randn(self._nsample, 1)
-        self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        self._true_deriv = (0.027/self._input**4 - 0.004/self._input**5).reshape(self._nsample, 1, 1)
-        self._dlabel = self._true_deriv + 0.1 * np.random.randn(self._nsample, 1, 1)
+    def make_LJ(nsample):
+        input = np.linspace(0.1, 1.0, nsample, dtype=np.float32).reshape(-1, 1)
+        label = 0.001/input**4 - 0.009/input**3
+        dinput = np.ones((nsample, 1), dtype=np.float32)
+        dlabel = (0.027/input**4 - 0.004/input**5)
+        return TupleDataset(input, dinput, label, dlabel)
 
-    def _make_sin(self):
-        self._nsample = 50
-        self._ninput = 1
-        self._nderivative = 1
-        self._input = np.linspace(-2*3.14, 2*3.14, self._nsample).reshape(self._nsample, 1)
-        self._true_func = np.sin(self._input)
-        self._label = self._true_func + 0.1 * np.random.randn(self._nsample, 1)
-        self._dinput = np.ones(self._nsample).reshape(self._nsample, 1, 1)
-        self._true_deriv = np.cos(self._input).reshape(self._nsample, 1, 1)
-        self._dlabel = self._true_deriv + 0.1 * np.random.randn(self._nsample, 1, 1)
+    def make_sin(nsample):
+        input = np.linspace(-2*3.14, 2*3.14, nsample, dtype=np.float32).reshape(-1, 1)
+        label = np.sin(input)
+        dinput = np.ones((nsample, 1), dtype=np.float32)
+        dlabel = np.cos(input)
+        return TupleDataset(input, dinput, label, dlabel)
+
+    if name == 'complex':
+        dataset = make_complex(nsample)
+    elif name == 'LJ':
+        dataset = make_LJ(nsample)
+    elif name == 'sin':
+        dataset = make_sin(nsample)
+    else:
+        raise ValueError("function '{}' is not implemented.")
+    dataset.config = name
+    return dataset
 
 
-class AtomicStructureData(DataSet):
+class AtomicStructureDataset(TupleDataset):
     def __init__(self, config):
         self._data_dir = path.join(file_.data_dir, config)
         with open(path.join(self._data_dir, 'composition.dill')) as f:
@@ -139,83 +76,68 @@ class AtomicStructureData(DataSet):
         self._nsample = len(AtomsReader(xyz_file))
         self._natom = AtomsReader(xyz_file)[0].n
         self._nforce = 3 * self._natom
-        self._name = config
+        self._config = config
         self._ninput = 2 * len(hp.Rcs) + \
             2 * len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
             3 * len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
         quo = self._nsample / mpi.size
         rem = self._nsample % mpi.size
         self._count = np.array([quo+1 if i < rem else quo
-                                for i in xrange(mpi.size)], dtype=np.int32)
+                                for i in range(mpi.size)], dtype=np.int32)
         self._disps = np.array([np.sum(self._count[:i])
-                                for i in xrange(mpi.size)], dtype=np.int32)
+                                for i in range(mpi.size)], dtype=np.int32)
         self._n = self._count[mpi.rank]  # the number of allocated samples in this node
         if mpi.rank < self._nsample:
             self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size)
         else:
             self._atoms_objs = []
 
-        self._make_label()
-        self._make_input()
+        Es, Fs = self._make_label()
+        Gs, dGs = self._make_input()
+        self._datasets = (Gs, dGs, Es, Fs)
+        self._length = self._nsample
 
     @property
     def composition(self):
         return self._composition
 
     @property
-    def natom(self):
-        return self._natom
-
-    @property
-    def nderivative(self):
-        return self._nforce
+    def config(self):
+        return self._config
 
     @property
     def input(self):
-        return self._Gs
-
-    @input.setter
-    def input(self, input):
-        self._Gs = input
-
-    @property
-    def label(self):
-        return self._Es
+        return self._datasets[0]
 
     @property
     def dinput(self):
-        return self._dGs
+        return self._datasets[1]
 
-    @dinput.setter
-    def dinput(self, dinput):
-        self._dGs = dinput
-
-    @property
-    def dlabel(self):
-        return self._Fs
+    def reset_inputs(self, input, dinput):
+        self._datasets = (input, dinput, self._datasets[2], self._datasets[3])
 
     def _make_label(self):
         EF_file = path.join(self._data_dir, 'Energy_Force.npz')
         if path.exists(EF_file):
             ndarray = np.load(EF_file)
-            self._Es = ndarray['E']
-            self._Fs = ndarray['F']
+            return ndarray['E'], ndarray['F']
         else:
             mpiprint('{} doesn\'t exist. calculating ...'.format(EF_file))
-            self._Es = np.empty((self._nsample, 1))
-            self._Fs = np.empty((self._nsample, self._nforce, 1))
-            Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
-            Fs_send = np.array([data.force for data in self._atoms_objs]).reshape(-1, self._nforce, 1)
-            mpi.comm.Allgatherv((Es_send, (self._n), MPI.DOUBLE),
-                                (self._Es, (self._count, self._disps), MPI.DOUBLE))
+            Es = np.empty((self._nsample, 1), dtype=np.float32)
+            Fs = np.empty((self._nsample, self._nforce), dtype=np.float32)
+            Es_send = np.array([data.cohesive_energy for data in self._atoms_objs], dtype=np.float32).reshape(-1, 1)
+            Fs_send = np.array([data.force for data in self._atoms_objs], dtype=np.float32).reshape(-1, self._nforce)
+            mpi.comm.Allgatherv((Es_send, (self._n), MPI.FLOAT),
+                                (Es, (self._count, self._disps), MPI.FLOAT))
             num = self._nforce
-            mpi.comm.Allgatherv((Fs_send, (self._n*num), MPI.DOUBLE),
-                                (self._Fs, (self._count*num, self._disps*num), MPI.DOUBLE))
-            np.savez(EF_file, E=self._Es, F=self._Fs)
+            mpi.comm.Allgatherv((Fs_send, (self._n*num), MPI.FLOAT),
+                                (Fs, (self._count*num, self._disps*num), MPI.FLOAT))
+            np.savez(EF_file, E=Es, F=Fs)
+            return Es, Fs
 
     def _make_input(self):
-        Gs = np.empty((self._nsample, self._ninput, self._natom))
-        dGs = np.empty((self._nsample, self._ninput, self._natom, self._nforce))
+        Gs = np.empty((self._nsample, self._ninput, self._natom), dtype=np.float32)
+        dGs = np.empty((self._nsample, self._ninput, self._natom, self._nforce), dtype=np.float32)
         n = 0
 
         # type 1
@@ -227,15 +149,15 @@ class AtomicStructureData(DataSet):
                 dGs[:, n:n+2] = ndarray['dG']
             else:
                 mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
-                G = np.empty((self._nsample, 2, self._natom))
-                dG = np.empty((self._nsample, 2, self._natom, self._nforce))
+                G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
+                dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G1(Rc)
                 num = 2 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
+                                    (G, (self._count*num, self._disps*num), MPI.FLOAT))
                 num = 2 * self._natom * self._nforce
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
+                                    (dG, (self._count*num, self._disps*num), MPI.FLOAT))
                 np.savez(filename, G=G, dG=dG)
                 Gs[:, n:n+2] = G
                 dGs[:, n:n+2] = dG
@@ -250,15 +172,15 @@ class AtomicStructureData(DataSet):
                 dGs[:, n:n+2] = ndarray['dG']
             else:
                 mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
-                G = np.empty((self._nsample, 2, self._natom))
-                dG = np.empty((self._nsample, 2, self._natom, self._nforce))
+                G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
+                dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
                 num = 2 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
+                                    (G, (self._count*num, self._disps*num), MPI.FLOAT))
                 num = 2 * self._natom * self._nforce
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
+                                    (dG, (self._count*num, self._disps*num), MPI.FLOAT))
                 np.savez(filename, G=G, dG=dG)
                 Gs[:, n:n+2] = G
                 dGs[:, n:n+2] = dG
@@ -273,34 +195,33 @@ class AtomicStructureData(DataSet):
                 dGs[:, n:n+3] = ndarray['dG']
             else:
                 mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
-                G = np.empty((self._nsample, 3, self._natom))
-                dG = np.empty((self._nsample, 3, self._natom, self._nforce))
+                G = np.empty((self._nsample, 3, self._natom), dtype=np.float32)
+                dG = np.empty((self._nsample, 3, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
                 num = 3 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
+                                    (G, (self._count*num, self._disps*num), MPI.FLOAT))
                 num = 3 * self._natom * self._nforce
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
+                                    (dG, (self._count*num, self._disps*num), MPI.FLOAT))
                 np.savez(filename, G=G, dG=dG)
                 Gs[:, n:n+3] = G
                 dGs[:, n:n+3] = dG
             n += 3
 
-        self._Gs = Gs.transpose(0, 2, 1)
-        self._dGs = dGs.transpose(0, 2, 3, 1)
+        return Gs.transpose(0, 2, 1), dGs.transpose(0, 2, 3, 1)
 
     def _calc_G1(self, Rc):
-        G = np.zeros((self._n, 2, self._natom))
-        dG = np.zeros((self._n, 2, self._natom, self._nforce))
+        G = np.zeros((self._n, 2, self._natom), dtype=np.float32)
+        dG = np.zeros((self._n, 2, self._natom, self._nforce), dtype=np.float32)
         for index, (R, fc, tanh, dR), _, _ in self._calc_geometry(['homo', 'hetero'], Rc):
             G[index] = np.sum(fc)
             dG[index] = - 3./Rc * np.dot((1. - tanh**2) * tanh**2, dR)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
-        G = np.zeros((self._n, 2, self._natom))
-        dG = np.zeros((self._n, 2, self._natom, self._nforce))
+        G = np.zeros((self._n, 2, self._natom), dtype=np.float32)
+        dG = np.zeros((self._n, 2, self._natom, self._nforce), dtype=np.float32)
         for index, (R, fc, tanh, dR), _, _ in self._calc_geometry(['homo', 'hetero'], Rc):
             gi = np.exp(- eta * (R - Rs)**2) * fc
             G[index] = np.sum(gi)
@@ -308,8 +229,8 @@ class AtomicStructureData(DataSet):
         return G, dG
 
     def _calc_G4(self, Rc, eta, lam, zeta):
-        G = np.zeros((self._n, 3, self._natom))
-        dG = np.zeros((self._n, 3, self._natom, self._nforce))
+        G = np.zeros((self._n, 3, self._natom), dtype=np.float32)
+        dG = np.zeros((self._n, 3, self._natom, self._nforce), dtype=np.float32)
         for index, (R1, fc1, tanh1, dR1), (R2, fc2, tanh2, dR2), (cos, dcos) in self._calc_geometry(['homo', 'hetero'], Rc):
             ang = 1. + lam * cos
             ang[np.identity(len(R1), dtype=bool)] = 0.
@@ -338,9 +259,9 @@ class AtomicStructureData(DataSet):
         done = []
 
         def helper(self, connect_list, Rc):
-            if self._name not in done:
+            if self._config not in done:
                 cache.clear()
-                done.append(self._name)
+                done.append(self._config)
             for con in connect_list:
                 if (con, Rc) not in cache:
                     for i, k, homo_rad, hetero_rad, homo_ang, hetero_ang, mix_ang in f(self, Rc):
@@ -355,12 +276,16 @@ class AtomicStructureData(DataSet):
 
     @memorize_generator
     def _calc_geometry(self, Rc):
-        zeros_radial = (np.zeros(1), np.zeros(1), np.ones(1), np.zeros((1, self._nforce)))
-        zeros_angular = (np.zeros((1, 1)), np.zeros((1, 1, self._nforce)))
+        zeros_radial = (np.zeros(1, dtype=np.float32),
+                        np.zeros(1, dtype=np.float32),
+                        np.ones(1, dtype=np.float32),
+                        np.zeros((1, self._nforce), dtype=np.float32))
+        zeros_angular = (np.zeros((1, 1), dtype=np.float32),
+                         np.zeros((1, 1, self._nforce), dtype=np.float32))
         for i, atoms in enumerate(self._atoms_objs):
             atoms.set_cutoff(Rc)
             atoms.calc_connect()
-            for k in xrange(self._natom):
+            for k in range(self._natom):
                 neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
                 if len(neighbours) == 0:
                     yield i, k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
@@ -370,21 +295,21 @@ class AtomicStructureData(DataSet):
                 r, R, cos = self._neighbour(k, n_neighb, atoms)
                 dR = self._deriv_R(k, n_neighb, neighbours, r, R)
                 dcos = self._deriv_cosine(k, n_neighb, neighbours, r, R, cos)
-                R = np.array(R)
+                R = np.array(R, dtype=np.float32)
                 fc = np.tanh(1-R/Rc)**3
                 tanh = np.tanh(1-R/Rc)
-                cos = np.array(cos)
+                cos = np.array(cos, dtype=np.float32)
 
-                symbol = self._composition['symbol'][k]  # symbol of the focused atom
-                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition['index'][symbol]]
+                element = self._composition['element'][k]  # element of the focused atom
+                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition['index'][element]]
                 n_homo = len(homo_indices)
                 if n_homo == 0:
                     yield i, k, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), \
-                        (np.zeros((1, n_neighb)), np.zeros((1, n_neighb, self._nforce)))
+                        (np.zeros((1, n_neighb), dtype=np.float32), np.zeros((1, n_neighb, self._nforce), dtype=np.float32))
                     continue
                 elif n_homo == n_neighb:
                     yield i, k, (R, fc, tanh, dR), zeros_radial, (cos, dcos), zeros_angular, \
-                        (np.zeros((n_neighb, 1)), np.zeros((n_neighb, 1, self._nforce)))
+                        (np.zeros((n_neighb, 1), dtype=np.float32), np.zeros((n_neighb, 1, self._nforce), dtype=np.float32))
                     continue
 
                 homo_R = np.take(R, homo_indices)
@@ -416,20 +341,20 @@ class AtomicStructureData(DataSet):
         R = []
         ra = r.append
         Ra = R.append
-        for l in xrange(n_neighb):
+        for l in range(n_neighb):
             dist = farray(0.0)
             diff = fzeros(3)
             atoms.neighbour(k+1, l+1, distance=dist, diff=diff)
             ra(diff.tolist())
             Ra(dist.tolist())
         cos = [[0. if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
-                for m in xrange(n_neighb)]
-               for l in xrange(n_neighb)]
+                for m in range(n_neighb)]
+               for l in range(n_neighb)]
         return r, R, cos
 
     def _deriv_R(self, k, n_neighb, neighbours, r, R):
-        dR = np.zeros((n_neighb, self._nforce))
-        for l, n in product(xrange(n_neighb), xrange(self._nforce)):
+        dR = np.zeros((n_neighb, self._nforce), dtype=np.float32)
+        for l, n in product(range(n_neighb), range(self._nforce)):
             if n % self._natom == k:
                 dR[l, n] = - r[l][n/self._natom] / R[l]
             elif n % self._natom == neighbours[l]:
@@ -437,8 +362,8 @@ class AtomicStructureData(DataSet):
         return dR
 
     def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
-        dcos = np.zeros((n_neighb, n_neighb, self._nforce))
-        for l, m, n in product(xrange(n_neighb), xrange(n_neighb), xrange(self._nforce)):
+        dcos = np.zeros((n_neighb, n_neighb, self._nforce), dtype=np.float32)
+        for l, m, n in product(range(n_neighb), range(n_neighb), range(self._nforce)):
             if n % self._natom == k:
                 dcos[l, m, n] = (r[l][n/self._natom] / R[l]**2 + r[m][n/self._natom] / R[m]**2) * cos[l][m] \
                     - (r[l][n/self._natom] + r[m][n/self._natom]) / (R[l] * R[m])
@@ -466,10 +391,10 @@ class DataGenerator(object):
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 mpiprint('---------------------------{}---------------------------'.format(config))
                 mpiprint('make dataset ...')
-                dataset = AtomicStructureData(config)
+                dataset = AtomicStructureDataset(config)
                 mpiprint('decompose dataset ...')
                 self._precond.decompose(dataset)
-                yield config, dataset
+                yield dataset
 
     def save(self, save_dir):
         with open(path.join(save_dir, 'preconditioning.dill'), 'w') as f:
@@ -480,7 +405,7 @@ class DataGenerator(object):
             self._precond = dill.load(f)
 
     def _parse_xyzfile(self):
-        print 'config_type.dill is not found.\nLoad all data from xyz file ...'
+        mpiprint('config_type.dill is not found.\nLoad all data from xyz file ...')
         config_type = set()
         alldataset = defaultdict(list)
         rawdata = AtomsReader(path.join(file_.data_dir, file_.xyz_file))
@@ -495,13 +420,11 @@ class DataGenerator(object):
         with open(self._config_type_file, 'w') as f:
             dill.dump(config_type, f)
 
-        print 'Separate all dataset to training & validation & test dataset ...'
         for config in config_type:
-            composition = {'number': defaultdict(lambda: 0), 'index': defaultdict(set), 'symbol': []}
+            composition = {'index': defaultdict(set), 'element': []}
             for i, atom in enumerate(alldataset[config][0]):
-                composition['number'][atom.symbol] += 1
                 composition['index'][atom.symbol].add(i)
-                composition['symbol'].append(atom.symbol)
+                composition['element'].append(atom.symbol)
 
             data_dir = path.join(file_.data_dir, config)
             makedirs(data_dir)
@@ -520,6 +443,5 @@ class DataGenerator(object):
 
 
 if __name__ == '__main__':
-    generator = DataGenerator('training')
-    for config, _ in generator:
+    for _ in DataGenerator():
         pass
