@@ -8,7 +8,6 @@ from config import mpi
 # import python modules
 from os import path
 from os import makedirs
-from shutil import copy2
 from datetime import datetime
 import chainer
 import chainer.training.extensions as ext
@@ -22,7 +21,6 @@ from modules.visualize import scatterplot, set_logscale
 datestr = datetime.now().strftime('%m%d-%H%M%S')
 out_dir = path.join(file_.out_dir, datestr)
 makedirs(out_dir)
-copy2('config.py', path.join(out_dir, 'config.py'))
 
 for i, dataset in enumerate(DataGenerator()):
     # model and optimizer

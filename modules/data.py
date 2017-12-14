@@ -31,7 +31,7 @@ from util import mpiprint
 
 def get_simple_function(name, nsample=1000):
     def make_complex(nsample):
-        mesh = int(round(nsample**(1/3)))
+        mesh = int(round(nsample**(1./3)))
         lin = np.linspace(0.1, 1.0, mesh, dtype=np.float32)
         x, y, z = np.meshgrid(lin, lin, lin)
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
@@ -56,13 +56,15 @@ def get_simple_function(name, nsample=1000):
         return TupleDataset(input, dinput, label, dlabel)
 
     if name == 'complex':
-        return make_complex(nsample)
+        dataset = make_complex(nsample)
     elif name == 'LJ':
-        return make_LJ(nsample)
+        dataset = make_LJ(nsample)
     elif name == 'sin':
-        return make_sin(nsample)
+        dataset = make_sin(nsample)
     else:
         raise ValueError("function '{}' is not implemented.")
+    dataset.config = name
+    return dataset
 
 
 class AtomicStructureDataset(TupleDataset):
