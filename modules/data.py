@@ -37,22 +37,22 @@ def get_simple_function(name, nsample=1000):
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
         input = np.c_[x, y, z]
         label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(-1, 1)
-        dinput = np.ones((mesh**3, 3), dtype=np.float32)
-        dlabel = np.c_[2**x - 1/(2*x), np.cos(y) - 1/(2*y) - 1/z, 3.*np.exp(z) + y/z**2]
+        dinput = np.identity(3, dtype=np.float32)[None, :, :].repeat(mesh**3, axis=0)
+        dlabel = np.c_[2**x - 1/(2*x), np.cos(y) - 1/(2*y) - 1/z, 3.*np.exp(z) + y/z**2].reshape(-1, 3, 1)
         return TupleDataset(input, dinput, label, dlabel)
 
     def make_LJ(nsample):
         input = np.linspace(0.1, 1.0, nsample, dtype=np.float32).reshape(-1, 1)
         label = 0.001/input**4 - 0.009/input**3
-        dinput = np.ones((nsample, 1), dtype=np.float32)
-        dlabel = (0.027/input**4 - 0.004/input**5)
+        dinput = np.ones((nsample, 1, 1), dtype=np.float32)
+        dlabel = (0.027/input**4 - 0.004/input**5).reshape(-1, 1, 1)
         return TupleDataset(input, dinput, label, dlabel)
 
     def make_sin(nsample):
         input = np.linspace(-2*3.14, 2*3.14, nsample, dtype=np.float32).reshape(-1, 1)
         label = np.sin(input)
-        dinput = np.ones((nsample, 1), dtype=np.float32)
-        dlabel = np.cos(input)
+        dinput = np.ones((nsample, 1, 1), dtype=np.float32)
+        dlabel = np.cos(input).reshape(-1, 1, 1)
         return TupleDataset(input, dinput, label, dlabel)
 
     if name == 'complex':
@@ -124,9 +124,9 @@ class AtomicStructureDataset(TupleDataset):
         else:
             mpiprint('{} doesn\'t exist. calculating ...'.format(EF_file))
             Es = np.empty((self._nsample, 1), dtype=np.float32)
-            Fs = np.empty((self._nsample, self._nforce), dtype=np.float32)
+            Fs = np.empty((self._nsample, self._nforce, 1), dtype=np.float32)
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs], dtype=np.float32).reshape(-1, 1)
-            Fs_send = np.array([data.force for data in self._atoms_objs], dtype=np.float32).reshape(-1, self._nforce)
+            Fs_send = np.array([data.force for data in self._atoms_objs], dtype=np.float32).reshape(-1, self._nforce, 1)
             mpi.comm.Allgatherv((Es_send, (self._n), MPI.FLOAT),
                                 (Es, (self._count, self._disps), MPI.FLOAT))
             num = self._nforce

@@ -42,7 +42,7 @@ class SingleNNP(chainer.Chain):
         return y
 
     def predict_dy(self, dx, y, x, train):
-        return dx * chainer.grad([y], [x], retain_grad=train, enable_double_backprop=train)[0]
+        return F.batch_matmul(dx, chainer.grad([y], [x], retain_grad=train, enable_double_backprop=train)[0])
 
 
 class HDNNP(chainer.ChainList):
@@ -51,7 +51,8 @@ class HDNNP(chainer.ChainList):
 
     def __call__(self, xs, dxs, y_true, dy_true, train=False):
         xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-        dxs = [[Variable(dx2) for dx2 in dx1] for dx1 in dxs.transpose(2, 1, 0, 3)]
+        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3)]
+        # dxs = [[Variable(dx2) for dx2 in dx1] for dx1 in dxs.transpose(2, 1, 0, 3)]
         y_pred = self.predict_y(xs)
         dy_pred = self.predict_dy(dxs, y_pred, xs, train)
         y_pred = sum(y_pred)
@@ -62,7 +63,8 @@ class HDNNP(chainer.ChainList):
 
     def predict_dy(self, dxs, y, xs, train):
         dy = chainer.grad(y, xs, retain_grad=train, enable_double_backprop=train)
-        return - F.concat([F.sum(sum([dxi * dyi for dxi, dyi in zip(dx, dy)]), axis=1, keepdims=True) for dx in dxs], axis=1)
+        return - sum([F.batch_matmul(dxi, dyi) for dxi, dyi in zip(dxs, dy)])
+        # return - F.concat([F.sum(sum([dxi * dyi for dxi, dyi in zip(dx, dy)]), axis=1, keepdims=True) for dx in dxs], axis=1)
 
     def get_by_element(self, element):
         return [nnp for nnp in self if nnp.element == element]
