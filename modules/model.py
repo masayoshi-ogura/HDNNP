@@ -2,6 +2,7 @@
 
 from config import hp
 
+import numpy as np
 import chainer
 import chainer.links as L
 import chainer.functions as F
@@ -12,7 +13,7 @@ def loss_func(y_pred, y_true, dy_pred, dy_true, obs):
     y_loss = (1. - hp.mixing_beta) * F.mean_squared_error(y_pred, y_true)
     dy_loss = hp.mixing_beta * F.mean_squared_error(dy_pred, dy_true)
     loss = y_loss + dy_loss
-    chainer.reporter.report({'RMSE': F.sqrt(y_loss), 'd_RMSE': F.sqrt(dy_loss), 'tot_RMSE': F.sqrt(loss)}, obs)
+    chainer.report({'RMSE': np.sqrt(y_loss.data), 'd_RMSE': np.sqrt(dy_loss.data), 'tot_RMSE': np.sqrt(loss.data)}, obs)
     return loss
 
 
@@ -22,9 +23,10 @@ class SingleNNP(chainer.Chain):
         nodes = [None] + [h['node'] for h in hp.hidden_layers]
         self.nlink = len(hp.hidden_layers)
         with self.init_scope():
+            w = chainer.initializers.HeNormal()
             for i in range(self.nlink):
                 setattr(self, 'f{}'.format(i), eval('F.{}'.format(hp.hidden_layers[i]['activation'])))
-                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i+1]))
+                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i+1], initialW=w))
         self.add_persistent('element', element)
 
     def __call__(self, x, dx, y_true, dy_true, train=False):
