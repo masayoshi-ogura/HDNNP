@@ -12,8 +12,7 @@
 *.profile
 *.dat
 *log
-*.model
-*.optimizer
+*.yaml
 
 *.o[0-9]*
 *.e[0-9]*
