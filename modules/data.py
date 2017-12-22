@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 
 # define variables
-from config import hp
 from config import file_
 from config import mpi
 
 # import python modules
 from os import path
-from os import makedirs
 from re import match
+import yaml
 from random import shuffle
 from collections import defaultdict
 from itertools import product
@@ -16,17 +15,17 @@ import dill
 import numpy as np
 from mpi4py import MPI
 from chainer.datasets import TupleDataset
-try:
-    from quippy import AtomsReader
-    from quippy import AtomsList
-    from quippy import AtomsWriter
-    from quippy import farray
-    from quippy import fzeros
-except ImportError:
-    print 'Warning: can\'t import quippy.'
+from chainer.datasets import get_cross_validation_datasets_random
+from quippy import AtomsReader
+from quippy import AtomsList
+from quippy import AtomsWriter
+from quippy import farray
+from quippy import fzeros
 
 from preconditioning import PRECOND
 from util import mpiprint
+from util import mpimkdir
+from util import DictAsAttributes
 
 
 def get_simple_function(name, nsample=1000):
@@ -37,22 +36,22 @@ def get_simple_function(name, nsample=1000):
         x, y, z = x.reshape(-1), y.reshape(-1), z.reshape(-1)
         input = np.c_[x, y, z]
         label = (x**2 + np.sin(y) + 3.*np.exp(z) - np.log(x*y)/2 - y/z).reshape(-1, 1)
-        dinput = np.ones((mesh**3, 3), dtype=np.float32)
-        dlabel = np.c_[2**x - 1/(2*x), np.cos(y) - 1/(2*y) - 1/z, 3.*np.exp(z) + y/z**2]
+        dinput = np.identity(3, dtype=np.float32)[None, :, :].repeat(mesh**3, axis=0)
+        dlabel = np.c_[2**x - 1/(2*x), np.cos(y) - 1/(2*y) - 1/z, 3.*np.exp(z) + y/z**2].reshape(-1, 3, 1)
         return TupleDataset(input, dinput, label, dlabel)
 
     def make_LJ(nsample):
         input = np.linspace(0.1, 1.0, nsample, dtype=np.float32).reshape(-1, 1)
         label = 0.001/input**4 - 0.009/input**3
-        dinput = np.ones((nsample, 1), dtype=np.float32)
-        dlabel = (0.027/input**4 - 0.004/input**5)
+        dinput = np.ones((nsample, 1, 1), dtype=np.float32)
+        dlabel = (0.027/input**4 - 0.004/input**5).reshape(-1, 1, 1)
         return TupleDataset(input, dinput, label, dlabel)
 
     def make_sin(nsample):
         input = np.linspace(-2*3.14, 2*3.14, nsample, dtype=np.float32).reshape(-1, 1)
         label = np.sin(input)
-        dinput = np.ones((nsample, 1), dtype=np.float32)
-        dlabel = np.cos(input)
+        dinput = np.ones((nsample, 1, 1), dtype=np.float32)
+        dlabel = np.cos(input).reshape(-1, 1, 1)
         return TupleDataset(input, dinput, label, dlabel)
 
     if name == 'complex':
@@ -68,24 +67,25 @@ def get_simple_function(name, nsample=1000):
 
 
 class AtomicStructureDataset(TupleDataset):
-    def __init__(self, config):
+    def __init__(self, hp, config):
+        self._hp = hp
         self._data_dir = path.join(file_.data_dir, config)
         with open(path.join(self._data_dir, 'composition.dill')) as f:
             self._composition = dill.load(f)
         xyz_file = path.join(self._data_dir, 'structure.xyz')
         self._nsample = len(AtomsReader(xyz_file))
-        self._natom = AtomsReader(xyz_file)[0].n
+        self._natom = len(self._composition.element)
         self._nforce = 3 * self._natom
         self._config = config
-        self._ninput = 2 * len(hp.Rcs) + \
-            2 * len(hp.Rcs)*len(hp.etas)*len(hp.Rss) + \
-            3 * len(hp.Rcs)*len(hp.etas)*len(hp.lams)*len(hp.zetas)
+        self._ninput = 2 * len(hp.Rc) + \
+            2 * len(hp.Rc)*len(hp.eta)*len(hp.Rs) + \
+            3 * len(hp.Rc)*len(hp.eta)*len(hp.lambda_)*len(hp.zeta)
         quo = self._nsample / mpi.size
         rem = self._nsample % mpi.size
         self._count = np.array([quo+1 if i < rem else quo
-                                for i in range(mpi.size)], dtype=np.int32)
+                                for i in xrange(mpi.size)], dtype=np.int32)
         self._disps = np.array([np.sum(self._count[:i])
-                                for i in range(mpi.size)], dtype=np.int32)
+                                for i in xrange(mpi.size)], dtype=np.int32)
         self._n = self._count[mpi.rank]  # the number of allocated samples in this node
         if mpi.rank < self._nsample:
             self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size)
@@ -124,9 +124,9 @@ class AtomicStructureDataset(TupleDataset):
         else:
             mpiprint('{} doesn\'t exist. calculating ...'.format(EF_file))
             Es = np.empty((self._nsample, 1), dtype=np.float32)
-            Fs = np.empty((self._nsample, self._nforce), dtype=np.float32)
+            Fs = np.empty((self._nsample, self._nforce, 1), dtype=np.float32)
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs], dtype=np.float32).reshape(-1, 1)
-            Fs_send = np.array([data.force for data in self._atoms_objs], dtype=np.float32).reshape(-1, self._nforce)
+            Fs_send = np.array([data.force for data in self._atoms_objs], dtype=np.float32).reshape(-1, self._nforce, 1)
             mpi.comm.Allgatherv((Es_send, (self._n), MPI.FLOAT),
                                 (Es, (self._count, self._disps), MPI.FLOAT))
             num = self._nforce
@@ -141,7 +141,7 @@ class AtomicStructureDataset(TupleDataset):
         n = 0
 
         # type 1
-        for Rc in hp.Rcs:
+        for Rc in self._hp.Rc:
             filename = path.join(self._data_dir, 'G1-{}.npz'.format(Rc))
             if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
                 ndarray = np.load(filename)
@@ -164,7 +164,7 @@ class AtomicStructureDataset(TupleDataset):
             n += 2
 
         # type 2
-        for Rc, eta, Rs in product(hp.Rcs, hp.etas, hp.Rss):
+        for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
             filename = path.join(self._data_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
             if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
                 ndarray = np.load(filename)
@@ -187,7 +187,7 @@ class AtomicStructureDataset(TupleDataset):
             n += 2
 
         # type 4
-        for Rc, eta, lam, zeta in product(hp.Rcs, hp.etas, hp.lams, hp.zetas):
+        for Rc, eta, lam, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
             filename = path.join(self._data_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
             if path.exists(filename) and Gs[:, n:n+3].shape == np.load(filename)['G'].shape:
                 ndarray = np.load(filename)
@@ -285,7 +285,7 @@ class AtomicStructureDataset(TupleDataset):
         for i, atoms in enumerate(self._atoms_objs):
             atoms.set_cutoff(Rc)
             atoms.calc_connect()
-            for k in range(self._natom):
+            for k in xrange(self._natom):
                 neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
                 if len(neighbours) == 0:
                     yield i, k, zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
@@ -300,8 +300,8 @@ class AtomicStructureDataset(TupleDataset):
                 tanh = np.tanh(1-R/Rc)
                 cos = np.array(cos, dtype=np.float32)
 
-                element = self._composition['element'][k]  # element of the focused atom
-                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition['index'][element]]
+                element = self._composition.element[k]  # element of the focused atom
+                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition.index[element]]
                 n_homo = len(homo_indices)
                 if n_homo == 0:
                     yield i, k, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), \
@@ -341,20 +341,20 @@ class AtomicStructureDataset(TupleDataset):
         R = []
         ra = r.append
         Ra = R.append
-        for l in range(n_neighb):
+        for l in xrange(n_neighb):
             dist = farray(0.0)
             diff = fzeros(3)
             atoms.neighbour(k+1, l+1, distance=dist, diff=diff)
             ra(diff.tolist())
             Ra(dist.tolist())
         cos = [[0. if l == m else atoms.cosine_neighbour(k+1, l+1, m+1)
-                for m in range(n_neighb)]
-               for l in range(n_neighb)]
+                for m in xrange(n_neighb)]
+               for l in xrange(n_neighb)]
         return r, R, cos
 
     def _deriv_R(self, k, n_neighb, neighbours, r, R):
         dR = np.zeros((n_neighb, self._nforce), dtype=np.float32)
-        for l, n in product(range(n_neighb), range(self._nforce)):
+        for l, n in product(xrange(n_neighb), xrange(self._nforce)):
             if n % self._natom == k:
                 dR[l, n] = - r[l][n/self._natom] / R[l]
             elif n % self._natom == neighbours[l]:
@@ -363,7 +363,7 @@ class AtomicStructureDataset(TupleDataset):
 
     def _deriv_cosine(self, k, n_neighb, neighbours, r, R, cos):
         dcos = np.zeros((n_neighb, n_neighb, self._nforce), dtype=np.float32)
-        for l, m, n in product(range(n_neighb), range(n_neighb), range(self._nforce)):
+        for l, m, n in product(xrange(n_neighb), xrange(n_neighb), xrange(self._nforce)):
             if n % self._natom == k:
                 dcos[l, m, n] = (r[l][n/self._natom] / R[l]**2 + r[m][n/self._natom] / R[m]**2) * cos[l][m] \
                     - (r[l][n/self._natom] + r[m][n/self._natom]) / (R[l] * R[m])
@@ -377,24 +377,37 @@ class AtomicStructureDataset(TupleDataset):
 
 
 class DataGenerator(object):
-    def __init__(self):
+    def __init__(self, hp):
+        self._hp = hp
         self._precond = PRECOND[hp.preconditioning]()
         self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
-        if mpi.rank == 0 and not path.exists(self._config_type_file):
+        if not path.exists(self._config_type_file):
             self._parse_xyzfile()
-        mpi.comm.Barrier()
 
     def __iter__(self):
         with open(self._config_type_file, 'r') as f:
             config_type = dill.load(f)
+        alldataset = []
+        elements = set()
         for type in file_.train_config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
-                mpiprint('---------------------------{}---------------------------'.format(config))
-                mpiprint('make dataset ...')
-                dataset = AtomicStructureDataset(config)
-                mpiprint('decompose dataset ...')
+                dataset = AtomicStructureDataset(self._hp, config)
                 self._precond.decompose(dataset)
-                yield dataset
+                alldataset.append(dataset)
+                elements.update(dataset.composition.element)
+        self._length = sum([len(d) for d in alldataset])
+
+        if self._hp.cross_validation:
+            splited = [[(train, val, d.config, d.composition)
+                        for train, val in get_cross_validation_datasets_random(d, n_fold=self._hp.cross_validation)]
+                       for d in alldataset]
+            for dataset in zip(*splited):
+                yield dataset, elements
+        else:
+            yield [[(d, None, d.config, d.composition) for d in alldataset]]
+
+    def __len__(self):
+        return self._length
 
     def save(self, save_dir):
         with open(path.join(save_dir, 'preconditioning.dill'), 'w') as f:
@@ -405,43 +418,44 @@ class DataGenerator(object):
             self._precond = dill.load(f)
 
     def _parse_xyzfile(self):
-        mpiprint('config_type.dill is not found.\nLoad all data from xyz file ...')
-        config_type = set()
-        alldataset = defaultdict(list)
-        rawdata = AtomsReader(path.join(file_.data_dir, file_.xyz_file))
-        for data in rawdata:
-            # config_typeが構造と組成を表していないものをスキップ
-            config = data.config_type
-            if match('Single', config) or match('Sheet', config) or match('Interface', config) or \
-                    match('Cluster', config) or match('Amorphous', config):
-                continue
-            config_type.add(config)
-            alldataset[config].append(data)
-        with open(self._config_type_file, 'w') as f:
-            dill.dump(config_type, f)
+        if mpi.rank == 0:
+            mpiprint('config_type.dill is not found.\nLoad all data from xyz file ...')
+            config_type = set()
+            alldataset = defaultdict(list)
+            for data in AtomsReader(path.join(file_.data_dir, file_.xyz_file)):
+                config = data.config_type
+                config_type.add(config)
+                alldataset[config].append(data)
+            with open(self._config_type_file, 'w') as f:
+                dill.dump(config_type, f)
 
-        for config in config_type:
-            composition = {'index': defaultdict(set), 'element': []}
-            for i, atom in enumerate(alldataset[config][0]):
-                composition['index'][atom.symbol].add(i)
-                composition['element'].append(atom.symbol)
+            for config in config_type:
+                composition = {'index': defaultdict(set), 'element': []}
+                for i, atom in enumerate(alldataset[config][0]):
+                    composition['index'][atom.symbol].add(i)
+                    composition['element'].append(atom.symbol)
+                composition = DictAsAttributes(composition)
 
-            data_dir = path.join(file_.data_dir, config)
-            makedirs(data_dir)
-            shuffle(alldataset[config])
-            writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
-            for i, data in enumerate(alldataset[config]):
-                if data.cohesive_energy > 0.0:
-                    continue
-                # 2~4体の構造はpbcをFalseに
-                if match('Quadruple', config) or match('Triple', config) or match('Dimer', config):
-                    data.set_pbc([False, False, False])
-                writer.write(data)
-            writer.close()
-            with open(path.join(data_dir, 'composition.dill'), 'w') as f:
-                dill.dump(composition, f)
+                data_dir = path.join(file_.data_dir, config)
+                mpimkdir(data_dir)
+                shuffle(alldataset[config])
+                writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
+                for data in alldataset[config]:
+                    if data.cohesive_energy < 0.0:
+                        writer.write(data)
+                writer.close()
+                with open(path.join(data_dir, 'composition.dill'), 'w') as f:
+                    dill.dump(composition, f)
+
+        mpi.comm.Barrier()
 
 
 if __name__ == '__main__':
-    for _ in DataGenerator():
+    with open('hyperparameter.yaml') as f:
+        hp_dict = yaml.load(f)
+        dataset_hp = DictAsAttributes(hp_dict['dataset'])
+        dataset_hp.preconditioning = None
+        dataset_hp.cross_validation = 1
+
+    for _ in DataGenerator(dataset_hp):
         pass

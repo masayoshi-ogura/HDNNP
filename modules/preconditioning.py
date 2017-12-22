@@ -23,7 +23,7 @@ class PCA(PreconditionBase):
             self._mean = {}
             self._components = {}
             self._ncomponent = 0
-            for element, indices in dataset.composition['index'].items():
+            for element, indices in dataset.composition.index.items():
                 X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
                 pca = decomposition.PCA()
                 pca.fit(X)
@@ -37,9 +37,9 @@ class PCA(PreconditionBase):
                 self._components[element] = component[:self._ncomponent].T
 
         mean = np.array([self._mean[element]
-                         for element in dataset.composition['element']])
+                         for element in dataset.composition.element])
         components = np.array([self._components[element]
-                               for element in dataset.composition['element']])
+                               for element in dataset.composition.element])
         new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)
         new_dinput = np.einsum('ijkl,jlm->ijkm', dataset.dinput - mean[:, None, :], components)
         dataset.reset_inputs(new_input, new_dinput)

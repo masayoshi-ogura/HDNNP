@@ -10,30 +10,6 @@
 from mpi4py import MPI
 
 
-class hp:
-    # about symmetric functions
-    Rcs = []
-    etas = []
-    Rss = []
-    lams = []
-    zetas = []
-    # about training
-    init_lr =
-    final_lr =
-    lr_decay =
-    mixing_beta =  # must be 0. ~ 1.
-    l1_norm =
-    l2_norm =
-    nepoch =
-    batch_size =
-    hidden_layers = [
-                     {},
-                     {'node': 1, 'activation': 'identity'},  # fix
-                     ]
-    kfold_cv =  # if not use validation, set to None
-    preconditioning =
-
-
 class file_:
     xyz_file =
     train_config = ['all']  # config_type use for training. if 'all', all config_type will be used

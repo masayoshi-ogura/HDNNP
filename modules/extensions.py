@@ -5,6 +5,8 @@ from config import visual
 from os import path
 from copy import copy
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import chainer
 from chainer import reporter as reporter_module

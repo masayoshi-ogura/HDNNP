@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from config import file_
+from config import mpi
+
+from os import path
+from datetime import datetime
+import argparse
+import yaml
+from mpi4py import MPI
+
+import hdnnp
+import single
+from modules.util import mpiprint, mpimkdir, mpiwrite
+from modules.util import DictAsAttributes, HyperParameter
+
+
+def parse_arg():
+    parser = argparse.ArgumentParser('High Dimensional Neural Network Potential')
+    parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
+                        help='YAML file which contains all of the hyperparameters.')
+    # parser.add_argument('', type=, default=, help='')
+    # parser.add_argument('', type=, default=, help='')
+    # parser.add_argument('', type=, default=, help='')
+    # parser.add_argument('', type=, default=, help='')
+    # parser.add_argument('', type=, default=, help='')
+    # parser.add_argument('', type=, default=, help='')
+    # parser.add_argument('', type=, default=, help='')
+    parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
+                        help='function type for SingleNNP. used for debug.')
+    parser.add_argument('--preconditioning', '-p', type=str, default='pca',
+                        help='preconditioning of the input data. defalut is PCA, and threshold is 0.9999')
+    parser.add_argument('--epoch', '-e', type=int, default=1000,
+                        help='# of training epochs.')
+    parser.add_argument('--batch-size', '-b', type=int, default=100,
+                        help='# of data for each minibatches.')
+    parser.add_argument('--cross-validation', '-c', type=int, default=None,
+                        help='# of split size of dataset("k" of the k-fold CV). perform k-fold CV if this flag is set.')
+    parser.add_argument('--metrics', '-m', type=str, default='validation/main/tot_RMSE', help='metrics of hyperparameter search with CV.')
+    return parser.parse_args()
+
+
+args = parse_arg()
+config = DictAsAttributes({'preconditioning': args.preconditioning,
+                           'epoch': args.epoch,
+                           'batch_size': args.batch_size,
+                           'cross_validation': args.cross_validation})
+with open(args.hyperparameter_file) as f:
+    hp_dict = yaml.load(f)
+    dataset_hp = DictAsAttributes(hp_dict['dataset'])
+    model_hp = HyperParameter(hp_dict['model'])
+
+datestr = datetime.now().strftime('%m%d-%H%M%S')
+out_dir = path.join(file_.out_dir, datestr)
+out_dir = mpi.comm.bcast(out_dir, root=0)
+mpimkdir(out_dir)
+
+results = []
+for i, set in enumerate(model_hp):
+    if i % mpi.size == mpi.rank:
+        print('# of hyperparameter set: {} (Rank{})'.format(i, mpi.rank))
+        hp = config + dataset_hp + set
+        hp.id = i
+        if args.single:
+            hp.single = args.single
+            result = single.run(hp, path.join(out_dir, str(hp.id)))
+        else:
+            result = hdnnp.run(hp, path.join(out_dir, str(hp.id)))
+        result.update(dict(set))
+        results.append(result)
+results = mpi.comm.reduce(results, root=0, op=MPI.SUM)
+mpiprint('\n'.join(map(str, results)))
+if mpi.rank == 0:
+    best = min(results, key=lambda r: r[args.metrics]).copy()
+    result_dict = {'dataset_hp': hp_dict['dataset'],
+                   'config': dict(config),
+                   'best result': best,
+                   'results': results}
+    mpiwrite(path.join(out_dir, 'result.yaml'), yaml.dump(result_dict, default_flow_style=False))
+    mpiprint(best)
