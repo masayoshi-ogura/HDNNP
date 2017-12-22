@@ -6,6 +6,7 @@ from config import mpi
 # import python modules
 from os import path
 import chainer
+from chainer import Variable
 import chainer.training.extensions as ext
 
 # import own modules
@@ -18,11 +19,10 @@ from modules.extensions import scatterplot
 
 
 def run(hp, out_dir):
-    print '# of HyperParameter set: {}'.format(hp.id)
     results = []
     # dataset and iterator
-    for i, (dataset, elements) in enumerate(DataGenerator(hp)):
-        print '\tCV iteration: {}'.format(i)
+    generator = DataGenerator(hp)
+    for i, (dataset, elements) in enumerate(generator):
         # model and optimizer
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
         master_opt = chainer.optimizers.Adam(hp.init_lr)
@@ -46,7 +46,7 @@ def run(hp, out_dir):
             # extensions
             trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))  # learning rate decay
             trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))  # evaluate validation dataset
-            trainer.extend(ext.LogReport())
+            trainer.extend(ext.LogReport(log_name='cv_{}.log'.format(i)))
             # trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
             #                               file_name='learning.png', marker=None, postprocess=set_logscale))
             # trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
@@ -63,6 +63,8 @@ def run(hp, out_dir):
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
 
-    result = {k: sum([r[k] for r in results]) / hp.cross_validation for k in results[0].keys()}
+    result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
+              for k in results[0].keys()}
     result['id'] = hp.id
+    result['sample'] = len(generator)
     return result

@@ -2,7 +2,7 @@
 #PBS -N hogehoge
 #PBS -j oe
 #PBS -q default
-#PBS -l nodes=1:ppn=12:B
+#PBS -l nodes=4:ppn=12:B
 
 NPROCS=`wc -l <$PBS_NODEFILE`
 cd $PBS_O_WORKDIR

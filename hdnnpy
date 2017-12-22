@@ -42,6 +42,10 @@ def parse_arg():
 
 
 args = parse_arg()
+config = DictAsAttributes({'preconditioning': args.preconditioning,
+                           'epoch': args.epoch,
+                           'batch_size': args.batch_size,
+                           'cross_validation': args.cross_validation})
 with open(args.hyperparameter_file) as f:
     hp_dict = yaml.load(f)
     dataset_hp = DictAsAttributes(hp_dict['dataset'])
@@ -55,19 +59,23 @@ mpimkdir(out_dir)
 results = []
 for i, set in enumerate(model_hp):
     if i % mpi.size == mpi.rank:
-        hp = dataset_hp + set
+        print('# of hyperparameter set: {} (Rank{})'.format(i, mpi.rank))
+        hp = config + dataset_hp + set
         hp.id = i
-        hp.preconditioning = args.preconditioning
-        hp.epoch = args.epoch
-        hp.batch_size = args.batch_size
-        hp.cross_validation = args.cross_validation
         if args.single:
             hp.single = args.single
-            results.append(single.run(hp, path.join(out_dir, str(hp.id))))
+            result = single.run(hp, path.join(out_dir, str(hp.id)))
         else:
-            results.append(hdnnp.run(hp, path.join(out_dir, str(hp.id))))
+            result = hdnnp.run(hp, path.join(out_dir, str(hp.id)))
+        result.update(dict(set))
+        results.append(result)
 results = mpi.comm.reduce(results, root=0, op=MPI.SUM)
 mpiprint('\n'.join(map(str, results)))
 if mpi.rank == 0:
-    best = reduce(lambda x, y: x if x[args.metrics] < y[args.metrics] else y, results)
-    mpiwrite(path.join(out_dir, 'result.yaml'), yaml.dump({'best': best, 'all': results}))
+    best = min(results, key=lambda r: r[args.metrics]).copy()
+    result_dict = {'dataset_hp': hp_dict['dataset'],
+                   'config': dict(config),
+                   'best result': best,
+                   'results': results}
+    mpiwrite(path.join(out_dir, 'result.yaml'), yaml.dump(result_dict, default_flow_style=False))
+    mpiprint(best)

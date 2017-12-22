@@ -4,6 +4,7 @@ from config import mpi
 
 from os import makedirs
 from itertools import product
+from collections import defaultdict
 
 
 def mpiprint(str):
@@ -34,12 +35,19 @@ class DictAsAttributes(dict):
     def __dir__(self):
         return dir(super(DictAsAttributes, self))
 
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def __getattr__(self, name):
         if name in dir(self):
             return self.name
+        elif name == '__setstate__':
+            return self.__setstate__
 
         value = self[name]
-        if isinstance(value, list):
+        if isinstance(value, defaultdict):
+            pass
+        elif isinstance(value, list):
             value = [DictAsAttributes(v) if isinstance(v, dict) else v for v in value]
         elif isinstance(value, dict):
             value = DictAsAttributes(value)

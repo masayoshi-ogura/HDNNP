@@ -6,8 +6,8 @@ from config import mpi
 
 # import python modules
 from os import path
-from os import makedirs
 from re import match
+import yaml
 from random import shuffle
 from collections import defaultdict
 from itertools import product
@@ -16,17 +16,16 @@ import numpy as np
 from mpi4py import MPI
 from chainer.datasets import TupleDataset
 from chainer.datasets import get_cross_validation_datasets_random
-try:
-    from quippy import AtomsReader
-    from quippy import AtomsList
-    from quippy import AtomsWriter
-    from quippy import farray
-    from quippy import fzeros
-except ImportError:
-    print 'Warning: can\'t import quippy.'
+from quippy import AtomsReader
+from quippy import AtomsList
+from quippy import AtomsWriter
+from quippy import farray
+from quippy import fzeros
 
 from preconditioning import PRECOND
 from util import mpiprint
+from util import mpimkdir
+from util import DictAsAttributes
 
 
 def get_simple_function(name, nsample=1000):
@@ -75,7 +74,7 @@ class AtomicStructureDataset(TupleDataset):
             self._composition = dill.load(f)
         xyz_file = path.join(self._data_dir, 'structure.xyz')
         self._nsample = len(AtomsReader(xyz_file))
-        self._natom = AtomsReader(xyz_file)[0].n
+        self._natom = len(self._composition.element)
         self._nforce = 3 * self._natom
         self._config = config
         self._ninput = 2 * len(hp.Rc) + \
@@ -301,8 +300,8 @@ class AtomicStructureDataset(TupleDataset):
                 tanh = np.tanh(1-R/Rc)
                 cos = np.array(cos, dtype=np.float32)
 
-                element = self._composition['element'][k]  # element of the focused atom
-                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition['index'][element]]
+                element = self._composition.element[k]  # element of the focused atom
+                homo_indices = [index for index, n in enumerate(neighbours) if n in self._composition.index[element]]
                 n_homo = len(homo_indices)
                 if n_homo == 0:
                     yield i, k, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), \
@@ -382,7 +381,7 @@ class DataGenerator(object):
         self._hp = hp
         self._precond = PRECOND[hp.preconditioning]()
         self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
-        if mpi.rank == 0 and not path.exists(self._config_type_file):
+        if not path.exists(self._config_type_file):
             self._parse_xyzfile()
 
     def __iter__(self):
@@ -395,7 +394,8 @@ class DataGenerator(object):
                 dataset = AtomicStructureDataset(self._hp, config)
                 self._precond.decompose(dataset)
                 alldataset.append(dataset)
-                elements.update(dataset.composition['element'])
+                elements.update(dataset.composition.element)
+        self._length = sum([len(d) for d in alldataset])
 
         if self._hp.cross_validation:
             splited = [[(train, val, d.config, d.composition)
@@ -406,6 +406,9 @@ class DataGenerator(object):
         else:
             yield [[(d, None, d.config, d.composition) for d in alldataset]]
 
+    def __len__(self):
+        return self._length
+
     def save(self, save_dir):
         with open(path.join(save_dir, 'preconditioning.dill'), 'w') as f:
             dill.dump(self._precond, f)
@@ -415,43 +418,44 @@ class DataGenerator(object):
             self._precond = dill.load(f)
 
     def _parse_xyzfile(self):
-        mpiprint('config_type.dill is not found.\nLoad all data from xyz file ...')
-        config_type = set()
-        alldataset = defaultdict(list)
-        rawdata = AtomsReader(path.join(file_.data_dir, file_.xyz_file))
-        for data in rawdata:
-            # config_typeが構造と組成を表していないものをスキップ
-            config = data.config_type
-            if match('Single', config) or match('Sheet', config) or match('Interface', config) or \
-                    match('Cluster', config) or match('Amorphous', config):
-                continue
-            config_type.add(config)
-            alldataset[config].append(data)
-        with open(self._config_type_file, 'w') as f:
-            dill.dump(config_type, f)
+        if mpi.rank == 0:
+            mpiprint('config_type.dill is not found.\nLoad all data from xyz file ...')
+            config_type = set()
+            alldataset = defaultdict(list)
+            for data in AtomsReader(path.join(file_.data_dir, file_.xyz_file)):
+                config = data.config_type
+                config_type.add(config)
+                alldataset[config].append(data)
+            with open(self._config_type_file, 'w') as f:
+                dill.dump(config_type, f)
 
-        for config in config_type:
-            composition = {'index': defaultdict(set), 'element': []}
-            for i, atom in enumerate(alldataset[config][0]):
-                composition['index'][atom.symbol].add(i)
-                composition['element'].append(atom.symbol)
+            for config in config_type:
+                composition = {'index': defaultdict(set), 'element': []}
+                for i, atom in enumerate(alldataset[config][0]):
+                    composition['index'][atom.symbol].add(i)
+                    composition['element'].append(atom.symbol)
+                composition = DictAsAttributes(composition)
 
-            data_dir = path.join(file_.data_dir, config)
-            makedirs(data_dir)
-            shuffle(alldataset[config])
-            writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
-            for i, data in enumerate(alldataset[config]):
-                if data.cohesive_energy > 0.0:
-                    continue
-                # 2~4体の構造はpbcをFalseに
-                if match('Quadruple', config) or match('Triple', config) or match('Dimer', config):
-                    data.set_pbc([False, False, False])
-                writer.write(data)
-            writer.close()
-            with open(path.join(data_dir, 'composition.dill'), 'w') as f:
-                dill.dump(composition, f)
+                data_dir = path.join(file_.data_dir, config)
+                mpimkdir(data_dir)
+                shuffle(alldataset[config])
+                writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
+                for data in alldataset[config]:
+                    if data.cohesive_energy < 0.0:
+                        writer.write(data)
+                writer.close()
+                with open(path.join(data_dir, 'composition.dill'), 'w') as f:
+                    dill.dump(composition, f)
+
+        mpi.comm.Barrier()
 
 
 if __name__ == '__main__':
-    for _ in DataGenerator():
+    with open('hyperparameter.yaml') as f:
+        hp_dict = yaml.load(f)
+        dataset_hp = DictAsAttributes(hp_dict['dataset'])
+        dataset_hp.preconditioning = None
+        dataset_hp.cross_validation = 1
+
+    for _ in DataGenerator(dataset_hp):
         pass
