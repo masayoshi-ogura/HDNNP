@@ -71,3 +71,8 @@ class HyperParameter(DictAsAttributes):
 
     def __len__(self):
         return reduce(lambda x, y: x*y, [len(v) for v in self.values()])
+
+    def __getitem__(self, n):
+        for i, set in enumerate(self):
+            if i == n:
+                return set
