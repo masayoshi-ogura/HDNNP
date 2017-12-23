@@ -15,12 +15,17 @@ import dill
 import numpy as np
 from mpi4py import MPI
 from chainer.datasets import TupleDataset
+from chainer.datasets import split_dataset_random
 from chainer.datasets import get_cross_validation_datasets_random
+from quippy import Atoms
 from quippy import AtomsReader
 from quippy import AtomsList
 from quippy import AtomsWriter
 from quippy import farray
 from quippy import fzeros
+from phonopy import Phonopy
+from phonopy.structure.atoms import PhonopyAtoms
+from phonopy.units import VaspToCm
 
 from preconditioning import PRECOND
 from util import mpiprint
@@ -67,35 +72,18 @@ def get_simple_function(name, nsample=1000):
 
 
 class AtomicStructureDataset(TupleDataset):
-    def __init__(self, hp, config):
+    def __init__(self, hp):
         self._hp = hp
-        self._data_dir = path.join(file_.data_dir, config)
-        with open(path.join(self._data_dir, 'composition.dill')) as f:
-            self._composition = dill.load(f)
-        xyz_file = path.join(self._data_dir, 'structure.xyz')
-        self._nsample = len(AtomsReader(xyz_file))
-        self._natom = len(self._composition.element)
-        self._nforce = 3 * self._natom
-        self._config = config
         self._ninput = 2 * len(hp.Rc) + \
             2 * len(hp.Rc)*len(hp.eta)*len(hp.Rs) + \
             3 * len(hp.Rc)*len(hp.eta)*len(hp.lambda_)*len(hp.zeta)
-        quo = self._nsample / mpi.size
-        rem = self._nsample % mpi.size
-        self._count = np.array([quo+1 if i < rem else quo
-                                for i in xrange(mpi.size)], dtype=np.int32)
-        self._disps = np.array([np.sum(self._count[:i])
-                                for i in xrange(mpi.size)], dtype=np.int32)
-        self._n = self._count[mpi.rank]  # the number of allocated samples in this node
-        if mpi.rank < self._nsample:
-            self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size)
-        else:
-            self._atoms_objs = []
 
-        Es, Fs = self._make_label()
-        Gs, dGs = self._make_input()
-        self._datasets = (Gs, dGs, Es, Fs)
-        self._length = self._nsample
+    def __len__(self):
+        return self._nsample
+
+    @property
+    def phonopy(self):
+        return self._phonopy
 
     @property
     def composition(self):
@@ -113,10 +101,71 @@ class AtomicStructureDataset(TupleDataset):
     def dinput(self):
         return self._datasets[1]
 
-    def reset_inputs(self, input, dinput):
-        self._datasets = (input, dinput, self._datasets[2], self._datasets[3])
+    def load_xyz(self, xyz_file):
+        self._data_dir = path.dirname(xyz_file)
+        self._config = path.basename(self._data_dir)
+        with open(path.join(self._data_dir, 'composition.dill')) as f:
+            self._composition = dill.load(f)
+        self._nsample = len(AtomsReader(xyz_file))
+        self._natom = len(self._composition.element)
+        self._nforce = 3*self._natom
+        self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size) if mpi.rank < self._nsample else []
 
-    def _make_label(self):
+        self._configure_mpi()
+        Es, Fs = self._make_label(save=True)
+        Gs, dGs = self._make_input(save=True)
+        self._datasets = (Gs, dGs, Es, Fs)
+
+    def load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.01):
+        unitcell = AtomsList(poscar, format='POSCAR')[0]
+        unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
+                                positions=unitcell.positions,
+                                numbers=unitcell.numbers,
+                                masses=unitcell.get_masses(),
+                                scaled_positions=unitcell.get_scaled_positions(),
+                                cell=unitcell.cell)
+        phonon = Phonopy(unitcell,
+                         dimension,
+                         # primitive_matrix=primitive_matrix,
+                         factor=VaspToCm)
+        phonon.generate_displacements(distance=distance)
+        supercells = phonon.get_supercells_with_displacements()
+        self._phonopy = phonon
+
+        self._data_dir = path.dirname(poscar)
+        self._config = path.basename(self._data_dir)
+        composition = {'index': {k: set([i for i, s in enumerate(supercells[0].symbols) if s == k]) for k in set(supercells[0].symbols)},
+                       'element': supercells[0].symbols}
+        self._composition = DictAsAttributes(composition)
+        self._nsample = len(supercells)
+        self._natom = supercells[0].get_number_of_atoms()
+        self._nforce = 3*self._natom
+        self._atoms_objs = []
+        for pa in supercells:
+            atoms = Atoms(cell=pa.cell,
+                          positions=pa.get_positions(),
+                          numbers=pa.numbers,
+                          masses=pa.masses)
+            atoms.set_chemical_symbols(pa.get_chemical_symbols())
+            self._atoms_objs.append(atoms)
+
+        self._configure_mpi()
+        Gs, dGs = self._make_input(save=False)
+        self._datasets = (Gs, dGs)
+
+    def reset_inputs(self, input, dinput):
+        self._datasets = (input, dinput) + self._datasets[2:]
+
+    def _configure_mpi(self):
+        quo = self._nsample / mpi.size
+        rem = self._nsample % mpi.size
+        self._count = np.array([quo+1 if i < rem else quo
+                                for i in xrange(mpi.size)], dtype=np.int32)
+        self._disps = np.array([np.sum(self._count[:i])
+                                for i in xrange(mpi.size)], dtype=np.int32)
+        self._n = self._count[mpi.rank]  # the number of allocated samples in this node
+
+    def _make_label(self, save):
         EF_file = path.join(self._data_dir, 'Energy_Force.npz')
         if path.exists(EF_file):
             ndarray = np.load(EF_file)
@@ -132,10 +181,11 @@ class AtomicStructureDataset(TupleDataset):
             num = self._nforce
             mpi.comm.Allgatherv((Fs_send, (self._n*num), MPI.FLOAT),
                                 (Fs, (self._count*num, self._disps*num), MPI.FLOAT))
-            np.savez(EF_file, E=Es, F=Fs)
+            if save:
+                np.savez(EF_file, E=Es, F=Fs)
             return Es, Fs
 
-    def _make_input(self):
+    def _make_input(self, save):
         Gs = np.empty((self._nsample, self._ninput, self._natom), dtype=np.float32)
         dGs = np.empty((self._nsample, self._ninput, self._natom, self._nforce), dtype=np.float32)
         n = 0
@@ -158,9 +208,10 @@ class AtomicStructureDataset(TupleDataset):
                 num = 2 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
-                np.savez(filename, G=G, dG=dG)
                 Gs[:, n:n+2] = G
                 dGs[:, n:n+2] = dG
+                if save:
+                    np.savez(filename, G=G, dG=dG)
             n += 2
 
         # type 2
@@ -181,9 +232,10 @@ class AtomicStructureDataset(TupleDataset):
                 num = 2 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
-                np.savez(filename, G=G, dG=dG)
                 Gs[:, n:n+2] = G
                 dGs[:, n:n+2] = dG
+                if save:
+                    np.savez(filename, G=G, dG=dG)
             n += 2
 
         # type 4
@@ -204,9 +256,10 @@ class AtomicStructureDataset(TupleDataset):
                 num = 3 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
-                np.savez(filename, G=G, dG=dG)
                 Gs[:, n:n+3] = G
                 dGs[:, n:n+3] = dG
+                if save:
+                    np.savez(filename, G=G, dG=dG)
             n += 3
 
         return Gs.transpose(0, 2, 1), dGs.transpose(0, 2, 3, 1)
@@ -391,7 +444,9 @@ class DataGenerator(object):
         elements = set()
         for type in file_.train_config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
-                dataset = AtomicStructureDataset(self._hp, config)
+                xyz_file = path.join(file_.data_dir, config, 'structure.xyz')
+                dataset = AtomicStructureDataset(self._hp)
+                dataset.load_xyz(xyz_file)
                 self._precond.decompose(dataset)
                 alldataset.append(dataset)
                 elements.update(dataset.composition.element)
@@ -404,7 +459,8 @@ class DataGenerator(object):
             for dataset in zip(*splited):
                 yield dataset, elements
         else:
-            yield [[(d, None, d.config, d.composition) for d in alldataset]]
+            splited = [split_dataset_random(d, len(d)*9/10) + (d.config, d.composition) for d in alldataset]
+            yield splited, elements
 
     def __len__(self):
         return self._length

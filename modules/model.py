@@ -54,12 +54,18 @@ class HDNNP(chainer.ChainList):
         self._mixing_beta = hp.mixing_beta
 
     def __call__(self, xs, dxs, y_true, dy_true, train=False):
-        xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3)]
+        xs, dxs = self._preprocess(xs, dxs)
         y_pred = self.predict_y(xs)
         dy_pred = self.predict_dy(dxs, y_pred, xs, train)
         y_pred = sum(y_pred)
         return y_pred, dy_pred, loss_func(self._mixing_beta, y_pred, y_true, dy_pred, dy_true, self)
+
+    def predict(self, xs, dxs):
+        xs, dxs = self._preprocess(xs, dxs)
+        y_pred = self.predict_y(xs)
+        dy_pred = self.predict_dy(dxs, y_pred, xs, False)
+        y_pred = sum(y_pred)
+        return y_pred, dy_pred
 
     def predict_y(self, xs):
         return [nnp.predict_y(x) for nnp, x in zip(self, xs)]
@@ -80,3 +86,8 @@ class HDNNP(chainer.ChainList):
         for master in masters.children():
             for nnp in self.get_by_element(master.element):
                 nnp.copyparams(master)
+
+    def _preprocess(self, xs, dxs):
+        xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
+        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3)]
+        return xs, dxs
