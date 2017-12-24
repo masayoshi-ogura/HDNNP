@@ -69,7 +69,7 @@ def run(hp, out_dir):
         generator.save(out_dir)
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
-        result = results[0]
+        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0]}
     else:
         result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
                   for k in results[0].keys()}
