@@ -6,6 +6,7 @@ from config import mpi
 
 from os import path
 from os import listdir
+import traceback
 from datetime import datetime
 import argparse
 import yaml
@@ -100,6 +101,8 @@ else:
                     result.update(dict(set))
                     best = min(best, result, key=lambda r: r[args.metrics]).copy() if 'best' in locals() else result  # NOQA
                     write(result_file, yaml.dump([result], default_flow_style=False))
+            except:
+                traceback.print_exc()
             finally:
                 write(result_file, yaml.dump({'best result': best}, default_flow_style=False))
                 print best
