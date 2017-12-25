@@ -59,8 +59,7 @@ def run(hp, out_dir):
                                                 'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
                 trainer.extend(scatterplot(hdnnp, val, config),
                                trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
-                trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'),
-                               trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
+                trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'), trigger=(100, 'epoch'))
 
             trainer.run()
         results.append(trainer.observation)

@@ -6,6 +6,7 @@ from config import mpi
 
 from os import path
 from os import listdir
+import sys
 import traceback
 from datetime import datetime
 import argparse
@@ -14,7 +15,7 @@ from itertools import islice
 
 import hdnnp
 import single
-from modules.util import mpiprint, mpimkdir, write
+from modules.util import mpimkdir, write
 from modules.util import DictAsAttributes, HyperParameter
 
 
@@ -106,6 +107,7 @@ else:
             finally:
                 write(result_file, yaml.dump({'best result': best}, default_flow_style=False))
                 print best
+                sys.exit()
         else:
             l = len(model_hp)
             for i, set in islice(zip(range(l), model_hp), mpi.rank, l, mpi.size):
