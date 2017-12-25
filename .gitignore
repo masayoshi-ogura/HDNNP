@@ -13,6 +13,7 @@
 *.dat
 *log
 *.yaml
+*POSCAR
 
 *.o[0-9]*
 *.e[0-9]*

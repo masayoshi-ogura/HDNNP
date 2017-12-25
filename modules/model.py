@@ -20,13 +20,13 @@ def loss_func(mixing_beta, y_pred, y_true, dy_pred, dy_true, obs):
 class SingleNNP(chainer.Chain):
     def __init__(self, hp, element):
         super(SingleNNP, self).__init__()
-        nodes = [None] + [h.node for h in hp.hidden_layers]
+        nodes = [None] + [h.node for h in hp.layer]
         self._mixing_beta = hp.mixing_beta
-        self._nlink = len(hp.hidden_layers)
+        self._nlink = len(hp.layer)
         with self.init_scope():
             # w = chainer.initializers.HeNormal()
             for i in range(self._nlink):
-                setattr(self, 'f{}'.format(i), eval('F.{}'.format(hp.hidden_layers[i].activation)))
+                setattr(self, 'f{}'.format(i), eval('F.{}'.format(hp.layer[i].activation)))
                 setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i+1], initialW=None))
         self.add_persistent('element', element)
 

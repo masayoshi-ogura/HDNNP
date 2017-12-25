@@ -37,22 +37,26 @@ def run(hp, out_dir):
         trainer = chainer.training.Trainer(updater, (hp.epoch, 'epoch'), out=out_dir)
 
         # extensions
-        trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=optimizer))  # learning rate decay
-        trainer.extend(Evaluator(iterator=val_iter, target=model, device=mpi.gpu))  # evaluate validation dataset
-        trainer.extend(ext.LogReport(log_name='cv_{}.log'.format(i)))
-        # trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
-        #                               file_name='learning.png', marker=None, postprocess=set_logscale))
-        # trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
-        #                                 'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
-        # trainer.extend(ext.ProgressBar(update_interval=10))
-        # trainer.extend(scatterplot(model, val, hp.single),
-        #                trigger=chainer.training.triggers.MinValueTrigger('validation/main/tot_RMSE', (10, 'epoch')))
-        # trainer.extend(ext.ParameterStatistics(model))
+        log_name = 'cv_{}.log'.format(i) if hp.cross_validation else 'log'
+        trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=optimizer))
+        trainer.extend(Evaluator(iterator=val_iter, target=model, device=mpi.gpu))
+        trainer.extend(ext.LogReport(log_name=log_name))
+        if not hp.cross_validation:
+            trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
+                                          file_name='learning.png', marker=None, postprocess=set_logscale))
+            trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
+                                            'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
+            trainer.extend(scatterplot(model, val, hp.single),
+                           trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (10, 'epoch')))
+
         trainer.run()
         results.append(trainer.observation)
 
-    result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
-              for k in results[0].keys()}
+    if not hp.cross_validation:
+        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
+    else:
+        result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
+                  for k in results[0].keys()}
     result['id'] = hp.id
     result['sample'] = len(dataset)
     return result

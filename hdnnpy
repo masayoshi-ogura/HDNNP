@@ -9,11 +9,11 @@ from os import listdir
 from datetime import datetime
 import argparse
 import yaml
-from mpi4py import MPI
+from itertools import islice
 
 import hdnnp
 import single
-from modules.util import mpiprint, mpimkdir, mpiwrite
+from modules.util import mpiprint, mpimkdir, write
 from modules.util import DictAsAttributes, HyperParameter
 
 
@@ -27,11 +27,11 @@ parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperpa
 # parser.add_argument('', type=, default=, help='')
 # parser.add_argument('', type=, default=, help='')
 parser.add_argument('--test', '-t', action='store_true', default=False,
-                    help='perform phonon calculation with trained model if this flag is set.\
-                          model is specified with option --model(-m), and structure is read from disp.yaml')
-parser.add_argument('--model', '-m', type=str, default=None,
-                    help='trained model directory for phonon calculation. this is used with option --test(-t)\
-                          default, this is set to newest directory in "file_.out_dir" in "config.py"')
+                    help='perform phonon calculation with trained master models if this flag is set.\
+                          master models is specified with option --masters(-m), and structure is read from disp.yaml')
+parser.add_argument('--masters', '-m', type=str, default=None,
+                    help='trained master models for phonon calculation. this is used with option --test(-t)\
+                          default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
 parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
                     help='function type for SingleNNP. used for debug.')
 parser.add_argument('--preconditioning', '-p', type=str, default='pca',
@@ -42,6 +42,9 @@ parser.add_argument('--batch-size', '-b', type=int, default=100,
                     help='# of data for each minibatches.')
 parser.add_argument('--cross-validation', '-cv', type=int, default=None,
                     help='# of split size of dataset("k" of the k-fold CV). perform k-fold CV if this flag is set.')
+parser.add_argument('--random-search', type=int, default=None,
+                    help='perform hyperparameter random search if this flag is set.\
+                          set iteration number to this option. min&max value for each hyperparameter is read from "hyperparameter_file".')
 parser.add_argument('--metrics', '-M', type=str, default='validation/main/tot_RMSE',
                     help='metrics of hyperparameter search with CV.')
 
@@ -49,63 +52,68 @@ args = parser.parse_args()
 config = DictAsAttributes({'preconditioning': args.preconditioning,
                            'epoch': args.epoch,
                            'batch_size': args.batch_size,
-                           'cross_validation': args.cross_validation})
+                           'cross_validation': args.cross_validation,
+                           'metrics': args.metrics})
 with open(args.hyperparameter_file) as f:
     hp_dict = yaml.load(f)
     dataset_hp = DictAsAttributes(hp_dict['dataset'])
-    model_hp = HyperParameter(hp_dict['model'])
+    model_hp = HyperParameter(hp_dict['model'], random=args.random_search)
+if args.single:
+    config.single = args.single
+    training = single
+else:
+    training = hdnnp
 
 if args.test:
     if args.single:
         raise NotImplementedError("option --single(-s) is used for only functional testing.")
 
     hp = config + dataset_hp + model_hp[0]
-    model_dir = args.model if args.model else listdir(file_.out_dir)[-1]
-    model_dir = path.join(file_.out_dir, model_dir)
+    masters = args.masters if args.masters \
+        else path.join(file_.out_dir, listdir(file_.out_dir)[-1], 'masters.npz')
     poscar = 'POSCAR'
-    phonon = hdnnp.test(hp, model_dir, poscar)
+    phonon = hdnnp.test(hp, masters, poscar)
     plt = phonon.plot_band_structure()
     plt.savefig('ph_band_HDNNP.png')
 else:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     out_dir = path.join(file_.out_dir, datestr)
     out_dir = mpi.comm.bcast(out_dir, root=0)
+    result_file = path.join(out_dir, 'result.yaml')
     mpimkdir(out_dir)
 
     if args.cross_validation:
-        results = []
-        for i, set in enumerate(model_hp):
-            if i % mpi.size == mpi.rank:
-                print('# of hyperparameter set: {} (Rank{})'.format(i, mpi.rank))
+        if mpi.rank == 0:
+            write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
+            write(result_file, yaml.dump({'dataset_hp': dict(dataset_hp)}))
+            write(result_file, 'results:\n')
+            try:
+                for i, set in enumerate(model_hp):
+                    worker = i % mpi.size
+                    print '# of hyperparameter set: {} (Rank{})'.format(i, worker)
+                    hp = config + dataset_hp + set
+                    hp.id = i
+                    if worker == 0:
+                        result = training.run(hp, path.join(out_dir, str(i)))
+                    else:
+                        result = mpi.comm.recv(source=worker)
+                    result.update(dict(set))
+                    best = min(best, result, key=lambda r: r[args.metrics]).copy() if 'best' in locals() else result  # NOQA
+                    write(result_file, yaml.dump([result], default_flow_style=False))
+            finally:
+                write(result_file, yaml.dump({'best result': best}, default_flow_style=False))
+                print best
+        else:
+            for i, set in enumerate(islice(model_hp, mpi.rank, len(model_hp), mpi.size)):
                 hp = config + dataset_hp + set
                 hp.id = i
-                if args.single:
-                    hp.single = args.single
-                    result = single.run(hp, path.join(out_dir, str(hp.id)))
-                else:
-                    result = hdnnp.run(hp, path.join(out_dir, str(hp.id)))
-                result.update(dict(set))
-                results.append(result)
-        results = mpi.comm.reduce(results, root=0, op=MPI.SUM)
-        mpiprint('\n'.join(map(str, results)))
-        if mpi.rank == 0:
-            best = min(results, key=lambda r: r[args.metrics]).copy()
-            result_dict = {'dataset_hp': dict(dataset_hp),
-                           'config': dict(config),
-                           'best result': best,
-                           'results': results}
-            mpiwrite(path.join(out_dir, 'result.yaml'), yaml.dump(result_dict, default_flow_style=False))
-            mpiprint(best)
-    else:
+                result = training.run(hp, path.join(out_dir, str(i)))
+                mpi.comm.send(result, dest=0)
+    elif mpi.rank == 0:
+        write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
+        write(result_file, yaml.dump({'dataset_hp': dict(dataset_hp)}))
         hp = config + dataset_hp + model_hp[0]
-        if args.single:
-            hp.single = args.single
-            result = single.run(hp, out_dir)
-        else:
-            result = hdnnp.run(hp, out_dir)
+        result = training.run(hp, out_dir)
         result.update(dict(model_hp[0]))
-        mpiprint(result)
-        result_dict = {'dataset_hp': dict(dataset_hp),
-                       'config': dict(config),
-                       'result': result}
-        mpiwrite(path.join(out_dir, 'result.yaml'), yaml.dump(result_dict, default_flow_style=False))
+        write(result_file, yaml.dump({'result': result}, default_flow_style=False))
+        print result

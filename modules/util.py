@@ -5,6 +5,7 @@ from config import mpi
 from os import makedirs
 from itertools import product
 from collections import defaultdict
+import random
 
 
 def mpiprint(str):
@@ -22,10 +23,9 @@ def mpimkdir(path):
         makedirs(path)
 
 
-def mpiwrite(f, str):
-    if mpi.rank == 0:
-        with open(f, 'a') as f:
-            f.write(str)
+def write(f, str):
+    with open(f, 'a') as f:
+        f.write(str)
 
 
 class DictAsAttributes(dict):
@@ -39,10 +39,12 @@ class DictAsAttributes(dict):
         self.__dict__.update(state)
 
     def __getattr__(self, name):
-        if name in dir(self):
+        # if name in dir(self):
+        #     return self.name
+        # elif name == '__setstate__':
+        #     return self.__setstate__
+        if name in dir(DictAsAttributes):
             return self.name
-        elif name == '__setstate__':
-            return self.__setstate__
 
         value = self[name]
         if isinstance(value, defaultdict):
@@ -62,17 +64,23 @@ class DictAsAttributes(dict):
         return DictAsAttributes(new)
 
 
-class HyperParameter(DictAsAttributes):
+class HyperParameter(object):
+    def __init__(self, dic, random):
+        self.hyperparameters = dic
+        self.random = random
+        self.indices = list(product(*[range(len(v)) for v in dic.values()]))
+
     def __iter__(self):
-        keys = self.keys()
-        value_list = self.values()
-        for values in product(*value_list):
-            yield DictAsAttributes({k: v for k, v in zip(keys, values)})
+        if self.random:
+            for i in range(self.random):
+                yield DictAsAttributes({k: random.uniform(min(v), max(v)) if k != 'layer'
+                                        else random.choice(v) for k, v in self.hyperparameters.items()})
+        else:
+            for i in range(len(self)):
+                yield self.__getitem__(i)
 
     def __len__(self):
-        return reduce(lambda x, y: x*y, [len(v) for v in self.values()])
+        return len(self.indices)
 
-    def __getitem__(self, n):
-        for i, set in enumerate(self):
-            if i == n:
-                return set
+    def __getitem__(self, i):
+        return DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.items(), self.indices[i])})
