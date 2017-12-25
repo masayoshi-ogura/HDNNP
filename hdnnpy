@@ -107,7 +107,8 @@ else:
                 write(result_file, yaml.dump({'best result': best}, default_flow_style=False))
                 print best
         else:
-            for i, set in enumerate(islice(model_hp, mpi.rank, len(model_hp), mpi.size)):
+            l = len(model_hp)
+            for i, set in islice(zip(range(l), model_hp), mpi.rank, l, mpi.size):
                 hp = config + dataset_hp + set
                 hp.id = i
                 result = training.run(hp, path.join(out_dir, str(i)))
