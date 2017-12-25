@@ -28,7 +28,7 @@ class PCA(PreconditionBase):
                 pca = decomposition.PCA()
                 pca.fit(X)
                 self._mean[element] = X.mean(axis=0)
-                self._components[element] = pca.components_
+                self._components[element] = pca.components_.astype(np.float32)
                 self._ncomponent = max(self._ncomponent,
                                        sum(np.add.accumulate(pca.explained_variance_ratio_) < self._threshold))
             # adjust ncomponent to max of it
