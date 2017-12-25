@@ -49,17 +49,18 @@ def run(hp, out_dir):
 
             # extensions
             log_name = 'cv_{}.log'.format(i) if hp.cross_validation else 'log'
-            trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))  # learning rate decay
-            trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))  # evaluate validation dataset
+            trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
+            trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))
             trainer.extend(ext.LogReport(log_name=log_name))
             if not hp.cross_validation:
                 trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                               file_name='learning.png', marker=None, postprocess=set_logscale))
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                 'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
-                # trainer.extend(ext.ProgressBar(update_interval=10))
                 trainer.extend(scatterplot(hdnnp, val, config),
-                               trigger=chainer.training.triggers.MinValueTrigger('validation/main/tot_RMSE', (100, 'epoch')))
+                               trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
+                trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'),
+                               trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
 
             trainer.run()
         results.append(trainer.observation)
@@ -69,7 +70,7 @@ def run(hp, out_dir):
         generator.save(out_dir)
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
-        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0]}
+        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
     else:
         result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
                   for k in results[0].keys()}
@@ -78,10 +79,10 @@ def run(hp, out_dir):
     return result
 
 
-def test(hp, model_dir, poscar):
+def test(hp, masters_file, poscar):
     dataset = AtomicStructureDataset(hp)
     dataset.load_poscar(poscar)
-    with open(path.join(model_dir, 'preconditioning.dill'), 'r') as f:
+    with open(path.join(path.dirname(masters_file), 'preconditioning.dill'), 'r') as f:
         precond = dill.load(f)
     precond.decompose(dataset)
 
@@ -89,7 +90,7 @@ def test(hp, model_dir, poscar):
     iter = chainer.iterators.SerialIterator(dataset, nsample, repeat=False, shuffle=False)
     batch = concat_examples(iter.next(), device=mpi.gpu)
     masters = chainer.ChainList(*[SingleNNP(hp, element) for element in set(dataset.composition.element)])
-    chainer.serializers.load_npz(path.join(model_dir, 'masters.npz'), masters)
+    chainer.serializers.load_npz(masters_file, masters)
     hdnnp = HDNNP(hp, dataset.composition)
     hdnnp.sync_param_with(masters)
     energy, force = hdnnp.predict(*batch)

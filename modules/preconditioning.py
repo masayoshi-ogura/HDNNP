@@ -32,7 +32,6 @@ class PCA(PreconditionBase):
                 self._ncomponent = max(self._ncomponent,
                                        sum(np.add.accumulate(pca.explained_variance_ratio_) < self._threshold))
             # adjust ncomponent to max of it
-            mpiprint('decompose from {} to {}'.format(dataset.input.shape[-1], self._ncomponent))
             for element, component in self._components.items():
                 self._components[element] = component[:self._ncomponent].T
 
