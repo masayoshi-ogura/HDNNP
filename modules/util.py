@@ -76,11 +76,11 @@ class HyperParameter(object):
                 yield DictAsAttributes({k: random.uniform(min(v), max(v)) if k != 'layer'
                                         else random.choice(v) for k, v in self.hyperparameters.items()})
         else:
-            for i in range(len(self)):
-                yield self.__getitem__(i)
+            for index in self.indices:
+                yield DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.item(), index)})
 
     def __len__(self):
-        return len(self.indices)
+        return self.random if self.random else len(self.indices)
 
-    def __getitem__(self, i):
-        return DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.items(), self.indices[i])})
+    def __getitem__(self, n):
+        return DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.items(), self.indices[n])})
