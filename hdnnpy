@@ -20,9 +20,10 @@ from modules.util import DictAsAttributes, HyperParameter
 
 
 parser = argparse.ArgumentParser('High Dimensional Neural Network Potential')
+parser.add_argument('mode', type=str, default='training', choices=['cv', 'training', 'optimize', 'phonon'],
+                    help='select mode')
 parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
                     help='YAML file which contains all of the hyperparameters.')
-# parser.add_argument('', type=, default=, help='')
 # parser.add_argument('', type=, default=, help='')
 # parser.add_argument('', type=, default=, help='')
 # parser.add_argument('', type=, default=, help='')
@@ -31,7 +32,7 @@ parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperpa
 parser.add_argument('--test', '-t', action='store_true', default=False,
                     help='perform phonon calculation with trained master models if this flag is set.\
                           master models is specified with option --masters(-m), and structure is read from disp.yaml')
-parser.add_argument('--masters', '-m', type=str, default=None,
+parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
                     help='trained master models for phonon calculation. this is used with option --test(-t)\
                           default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
 parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
@@ -51,7 +52,8 @@ parser.add_argument('--metrics', '-M', type=str, default='validation/main/tot_RM
                     help='metrics of hyperparameter search with CV.')
 
 args = parser.parse_args()
-config = DictAsAttributes({'preconditioning': args.preconditioning,
+config = DictAsAttributes({'mode': args.mode,
+                           'preconditioning': args.preconditioning,
                            'epoch': args.epoch,
                            'batch_size': args.batch_size,
                            'cross_validation': args.cross_validation,
@@ -72,11 +74,9 @@ if args.test:
 
     hp = config + dataset_hp + model_hp[0]
     masters = args.masters if args.masters \
-        else path.join(file_.out_dir, listdir(file_.out_dir)[-1], 'masters.npz')
-    poscar = 'POSCAR'
-    phonon = hdnnp.test(hp, masters, poscar)
-    plt = phonon.plot_band_structure()
-    plt.savefig('ph_band_HDNNP.png')
+        else [path.join(file_.out_dir, listdir(file_.out_dir)[-1], 'masters.npz')]
+    poscar = 'test/POSCAR'
+    hdnnp.test(hp, masters, poscar)
 else:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     out_dir = path.join(file_.out_dir, datestr)
