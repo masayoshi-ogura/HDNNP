@@ -107,8 +107,8 @@ def test(hp, masters_paths, poscar):
             plt.legend()
             plt.savefig(path.join(dirname, 'optimization_{}.png'.format(root)))
             plt.close()
-            print 'energy-optimized lattice parameter: {}'.format(x[argmin(energy)])
-            print 'force-optimized lattice parameter: {}'.format(x[argmin(force)])
+            print 'energy-optimized lattice parameter: {}'.format(x[np.argmin(energy)])
+            print 'force-optimized lattice parameter: {}'.format(x[np.argmin(force)])
             # このあと、最適なscaleでフォノン計算したい
         elif hp.mode == 'phonon':
             sets_of_forces = force.data.reshape(nsample, 3, -1).transpose(0, 2, 1)
@@ -137,6 +137,8 @@ def test(hp, masters_paths, poscar):
             ax.scatter([0, 0, 0, 0, 0, 0, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49],
                        [144.0, 531.8, 558.8, 567.6, 734.0, 741.0, 144.0, 531.8, 558.8, 567.6, 734.0, 741.0],
                        marker='o', s=50, facecolors='none', edgecolors='blue')
+            ax.grid(axis='x')
+            # メモリの正確な位置把握
             # plt.scatter([0.782, 0.623, 1.076, 0.159, 0.285, 0.907],
             #             [317, 410, 410, 410, 420, 640], facecolors='none', edgecolors='red')
             plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
