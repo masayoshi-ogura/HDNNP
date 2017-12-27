@@ -78,31 +78,66 @@ def run(hp, out_dir):
     return result
 
 
-def test(hp, masters_file, poscar):
+def test(hp, masters_paths, poscar):
     dataset = AtomicStructureDataset(hp)
-    dataset.load_poscar(poscar)
-    with open(path.join(path.dirname(masters_file), 'preconditioning.dill'), 'r') as f:
+    dataset.load_poscar(poscar, mode=hp.mode)
+    with open(path.join(path.dirname(masters_paths[0]), 'preconditioning.dill'), 'r') as f:
         precond = dill.load(f)
-    precond.decompose(dataset)
-
+    precond.decompose(dataset)  # deep copyしたい
     nsample = len(dataset)
-    iter = chainer.iterators.SerialIterator(dataset, nsample, repeat=False, shuffle=False)
-    batch = concat_examples(iter.next(), device=mpi.gpu)
-    masters = chainer.ChainList(*[SingleNNP(hp, element) for element in set(dataset.composition.element)])
-    chainer.serializers.load_npz(masters_file, masters)
-    hdnnp = HDNNP(hp, dataset.composition)
-    hdnnp.sync_param_with(masters)
-    energy, force = hdnnp.predict(*batch)
-    sets_of_forces = force.data.reshape(nsample, 3, -1).transpose(0, 2, 1)
-    phonon = dataset.phonopy
-    phonon.set_forces(sets_of_forces)
-    phonon.produce_force_constants()
 
-    mesh = [8, 8, 8]
-    point_symmetry = [[0.0, 0.0, 0.0], [0.25, 0.25, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.5]]
-    points = 101
-    bands = [np.concatenate([np.linspace(si, ei, points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
-             for s, e in zip(point_symmetry[:-1], point_symmetry[1:])]
-    phonon.set_mesh(mesh)
-    phonon.set_band_structure(bands)
-    return phonon
+    for masters_path in masters_paths:
+        dirname, basename = path.split(masters_path)
+        root, _ = path.splitext(basename)
+        iter = chainer.iterators.SerialIterator(dataset, nsample, repeat=False, shuffle=False)
+        batch = concat_examples(iter.next(), device=mpi.gpu)
+        masters = chainer.ChainList(*[SingleNNP(hp, element) for element in set(dataset.composition.element)])
+        chainer.serializers.load_npz(masters_path, masters)
+        hdnnp = HDNNP(hp, dataset.composition)
+        hdnnp.sync_param_with(masters)
+        energy, force = hdnnp.predict(*batch)
+
+        if hp.mode == 'optimize':
+            import matplotlib.pyplot as plt
+            energy = energy.data.reshape(-1)
+            force = np.sqrt((force.data.reshape(nsample, -1)**2).mean(axis=1))
+            x = np.linspace(0.9, 1.1, nsample)
+            plt.plot(x, energy, label='energy')
+            plt.plot(x, force, label='force')
+            plt.legend()
+            plt.savefig(path.join(dirname, 'optimization_{}.png'.format(root)))
+            plt.close()
+            print 'energy-optimized lattice parameter: {}'.format(x[argmin(energy)])
+            print 'force-optimized lattice parameter: {}'.format(x[argmin(force)])
+            # このあと、最適なscaleでフォノン計算したい
+        elif hp.mode == 'phonon':
+            sets_of_forces = force.data.reshape(nsample, 3, -1).transpose(0, 2, 1)
+            phonon = dataset.phonopy
+            phonon.set_forces(sets_of_forces)
+            phonon.produce_force_constants()
+
+            mesh = [8, 8, 8]
+            point_symmetry = [[0.0, 0.0, 0.0],  # Gamma
+                              [1.0/3, 1.0/3, 0.0],  # K
+                              [0.5, 0.0, 0.0],  # M
+                              [0.0, 0.0, 0.0],  # Gamma
+                              [0.0, 0.0, 0.5],  # A
+                              [1.0/3, 1.0/3, 0.5],  # H
+                              [0.5, 0.0, 0.5],  # L
+                              [0.0, 0.0, 0.5],  # A
+                              ]
+            labels = ['$\Gamma$', 'K', 'M', '$\Gamma$', 'A', 'H', 'L', 'A']
+            points = 101
+            bands = [np.concatenate([np.linspace(si, ei, points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
+                     for s, e in zip(point_symmetry[:-1], point_symmetry[1:])]
+            phonon.set_mesh(mesh)
+            phonon.set_band_structure(bands, is_band_connection=True)
+            plt = phonon.plot_band_structure(labels)
+            ax = plt.gca()
+            ax.scatter([0, 0, 0, 0, 0, 0, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49],
+                       [144.0, 531.8, 558.8, 567.6, 734.0, 741.0, 144.0, 531.8, 558.8, 567.6, 734.0, 741.0],
+                       marker='o', s=50, facecolors='none', edgecolors='blue')
+            # plt.scatter([0.782, 0.623, 1.076, 0.159, 0.285, 0.907],
+            #             [317, 410, 410, 410, 420, 640], facecolors='none', edgecolors='red')
+            plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
+            plt.close()

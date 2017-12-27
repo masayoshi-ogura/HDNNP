@@ -116,41 +116,51 @@ class AtomicStructureDataset(TupleDataset):
         Gs, dGs = self._make_input(save=True)
         self._datasets = (Gs, dGs, Es, Fs)
 
-    def load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.01):
-        unitcell = AtomsList(poscar, format='POSCAR')[0]
-        unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
-                                positions=unitcell.positions,
-                                numbers=unitcell.numbers,
-                                masses=unitcell.get_masses(),
-                                scaled_positions=unitcell.get_scaled_positions(),
-                                cell=unitcell.cell)
-        phonon = Phonopy(unitcell,
-                         dimension,
-                         # primitive_matrix=primitive_matrix,
-                         factor=VaspToCm)
-        phonon.generate_displacements(distance=distance)
-        supercells = phonon.get_supercells_with_displacements()
-        self._phonopy = phonon
-
+    def load_poscar(self, poscar, mode, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, scale=1.0):
         self._data_dir = path.dirname(poscar)
         self._config = path.basename(self._data_dir)
-        composition = {'index': {k: set([i for i, s in enumerate(supercells[0].symbols) if s == k]) for k in set(supercells[0].symbols)},
-                       'element': supercells[0].symbols}
+        unitcell = AtomsList(poscar, format='POSCAR')[0]
+        if mode == 'optimize':
+            supercells = []
+            for k in np.linspace(0.9, 1.1, 201):
+                supercell = unitcell.copy()
+                supercell.set_lattice(unitcell.lattice * k, scale_positions=True)
+                supercells.append(supercell)
+            self._atoms_objs = supercells
+        else:
+            unitcell.set_lattice(unitcell.lattice*scale, scale_positions=True)  # scaling
+            unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
+                                    positions=unitcell.positions,
+                                    numbers=unitcell.numbers,
+                                    masses=unitcell.get_masses(),
+                                    scaled_positions=unitcell.get_scaled_positions(),
+                                    cell=unitcell.cell)
+            phonon = Phonopy(unitcell,
+                             dimension,
+                             # primitive_matrix=primitive_matrix,
+                             factor=VaspToCm)
+            phonon.generate_displacements(distance=distance)
+            supercells = phonon.get_supercells_with_displacements()
+            self._phonopy = phonon
+            self._atoms_objs = []
+            for pa in supercells:
+                atoms = Atoms(cell=pa.cell,
+                              positions=pa.get_positions(),
+                              numbers=pa.numbers,
+                              masses=pa.masses)
+                atoms.set_chemical_symbols(pa.get_chemical_symbols())
+                self._atoms_objs.append(atoms)
+
+        symbols = self._atoms_objs[0].get_chemical_symbols()
+        composition = {'index': {k: set([i for i, s in enumerate(symbols) if s == k]) for k in set(symbols)},
+                       'element': symbols}
         self._composition = DictAsAttributes(composition)
         self._nsample = len(supercells)
         self._natom = supercells[0].get_number_of_atoms()
         self._nforce = 3*self._natom
-        self._atoms_objs = []
-        for pa in supercells:
-            atoms = Atoms(cell=pa.cell,
-                          positions=pa.get_positions(),
-                          numbers=pa.numbers,
-                          masses=pa.masses)
-            atoms.set_chemical_symbols(pa.get_chemical_symbols())
-            self._atoms_objs.append(atoms)
 
         self._configure_mpi()
-        Gs, dGs = self._make_input(save=False)
+        Gs, dGs = self._make_input(save=True)
         self._datasets = (Gs, dGs)
 
     def reset_inputs(self, input, dinput):
