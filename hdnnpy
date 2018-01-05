@@ -5,7 +5,7 @@ from config import file_
 from config import mpi
 
 from os import path
-from os import listdir
+from glob import glob
 import sys
 import traceback
 from datetime import datetime
@@ -73,10 +73,11 @@ if args.test:
         raise NotImplementedError("option --single(-s) is used for only functional testing.")
 
     hp = config + dataset_hp + model_hp[0]
-    masters = args.masters if args.masters \
-        else [path.join(file_.out_dir, listdir(file_.out_dir)[-1], 'masters.npz')]
+    masters_paths = args.masters if args.masters \
+        else glob(path.join(file_.out_dir, '*', 'masters.npz'))[-1:]
     poscar = 'test/POSCAR'
-    hdnnp.test(hp, masters, poscar)
+    for masters_path in masters_paths:
+        hdnnp.test(hp, masters_path, poscar)
 else:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     out_dir = path.join(file_.out_dir, datestr)

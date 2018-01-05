@@ -3,8 +3,6 @@
 import numpy as np
 from sklearn import decomposition
 
-from util import mpiprint
-
 
 class PreconditionBase(object):
     def __init__(self):

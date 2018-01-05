@@ -13,11 +13,6 @@ def mpiprint(str):
         print str
 
 
-def mpisave(obj, *args):
-    if mpi.rank == 0:
-        obj.save(*args)
-
-
 def mpimkdir(path):
     if mpi.rank == 0:
         makedirs(path)
@@ -77,7 +72,7 @@ class HyperParameter(object):
                                         else random.choice(v) for k, v in self.hyperparameters.items()})
         else:
             for index in self.indices:
-                yield DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.item(), index)})
+                yield DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.items(), index)})
 
     def __len__(self):
         return self.random if self.random else len(self.indices)

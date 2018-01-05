@@ -28,8 +28,7 @@ from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
 
 from preconditioning import PRECOND
-from util import mpiprint
-from util import mpimkdir
+from util import mpiprint, mpimkdir
 from util import DictAsAttributes
 
 
@@ -74,9 +73,6 @@ def get_simple_function(name, nsample=1000):
 class AtomicStructureDataset(TupleDataset):
     def __init__(self, hp):
         self._hp = hp
-        self._ninput = 2 * len(hp.Rc) + \
-            2 * len(hp.Rc)*len(hp.eta)*len(hp.Rs) + \
-            3 * len(hp.Rc)*len(hp.eta)*len(hp.lambda_)*len(hp.zeta)
 
     def __len__(self):
         return self._nsample
@@ -116,18 +112,18 @@ class AtomicStructureDataset(TupleDataset):
         Gs, dGs = self._make_input(save=True)
         self._datasets = (Gs, dGs, Es, Fs)
 
-    def load_poscar(self, poscar, mode, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, scale=1.0):
+    def load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, save=True, scale=1.0):
         self._data_dir = path.dirname(poscar)
         self._config = path.basename(self._data_dir)
-        unitcell = AtomsList(poscar, format='POSCAR')[0]
-        if mode == 'optimize':
+        unitcell, = AtomsList(poscar, format='POSCAR')
+        if self._hp.mode == 'optimize':
             supercells = []
             for k in np.linspace(0.9, 1.1, 201):
                 supercell = unitcell.copy()
                 supercell.set_lattice(unitcell.lattice * k, scale_positions=True)
                 supercells.append(supercell)
             self._atoms_objs = supercells
-        else:
+        elif self._hp.mode == 'phonon':
             unitcell.set_lattice(unitcell.lattice*scale, scale_positions=True)  # scaling
             unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
                                     positions=unitcell.positions,
@@ -160,7 +156,7 @@ class AtomicStructureDataset(TupleDataset):
         self._nforce = 3*self._natom
 
         self._configure_mpi()
-        Gs, dGs = self._make_input(save=True)
+        Gs, dGs = self._make_input(save=save)
         self._datasets = (Gs, dGs)
 
     def reset_inputs(self, input, dinput):
@@ -196,19 +192,22 @@ class AtomicStructureDataset(TupleDataset):
             return Es, Fs
 
     def _make_input(self, save):
-        Gs = np.empty((self._nsample, self._ninput, self._natom), dtype=np.float32)
-        dGs = np.empty((self._nsample, self._ninput, self._natom, self._nforce), dtype=np.float32)
-        n = 0
+        Gs = []
+        dGs = []
+        SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
+        computed = dict(np.load(SF_file)) if save and path.exists(SF_file) else {}
+        keys = computed.keys()
 
         # type 1
         for Rc in self._hp.Rc:
-            filename = path.join(self._data_dir, 'G1-{}.npz'.format(Rc))
-            if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
-                ndarray = np.load(filename)
-                Gs[:, n:n+2] = ndarray['G']
-                dGs[:, n:n+2] = ndarray['dG']
+            key = path.join(*map(str, ['type1', Rc]))
+            G_key = path.join('G', key)
+            dG_key = path.join('dG', key)
+            if G_key in keys and computed[G_key].shape[0] == self._nsample:
+                Gs.append(computed[G_key])
+                dGs.append(computed[dG_key])
             else:
-                mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
+                mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G1(Rc)
@@ -218,21 +217,21 @@ class AtomicStructureDataset(TupleDataset):
                 num = 2 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
-                Gs[:, n:n+2] = G
-                dGs[:, n:n+2] = dG
-                if save:
-                    np.savez(filename, G=G, dG=dG)
-            n += 2
+                Gs.append(G)
+                dGs.append(dG)
+                computed[G_key] = G
+                computed[dG_key] = dG
 
         # type 2
         for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
-            filename = path.join(self._data_dir, 'G2-{}-{}-{}.npz'.format(Rc, eta, Rs))
-            if path.exists(filename) and Gs[:, n:n+2].shape == np.load(filename)['G'].shape:
-                ndarray = np.load(filename)
-                Gs[:, n:n+2] = ndarray['G']
-                dGs[:, n:n+2] = ndarray['dG']
+            key = path.join(*map(str, ['type2', Rc, eta, Rs]))
+            G_key = path.join('G', key)
+            dG_key = path.join('dG', key)
+            if G_key in keys and computed[G_key].shape[0] == self._nsample:
+                Gs.append(computed[G_key])
+                dGs.append(computed[dG_key])
             else:
-                mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
+                mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
@@ -242,37 +241,40 @@ class AtomicStructureDataset(TupleDataset):
                 num = 2 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
-                Gs[:, n:n+2] = G
-                dGs[:, n:n+2] = dG
-                if save:
-                    np.savez(filename, G=G, dG=dG)
-            n += 2
+                Gs.append(G)
+                dGs.append(dG)
+                computed[G_key] = G
+                computed[dG_key] = dG
 
         # type 4
-        for Rc, eta, lam, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
-            filename = path.join(self._data_dir, 'G4-{}-{}-{}-{}.npz'.format(Rc, eta, lam, zeta))
-            if path.exists(filename) and Gs[:, n:n+3].shape == np.load(filename)['G'].shape:
-                ndarray = np.load(filename)
-                Gs[:, n:n+3] = ndarray['G']
-                dGs[:, n:n+3] = ndarray['dG']
+        for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
+            key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
+            G_key = path.join('G', key)
+            dG_key = path.join('dG', key)
+            if G_key in keys and computed[G_key].shape[0] == self._nsample:
+                Gs.append(computed[G_key])
+                dGs.append(computed[dG_key])
             else:
-                mpiprint('{} doesn\'t exist. calculating ...'.format(filename))
+                mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 3, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 3, self._natom, self._nforce), dtype=np.float32)
-                G_send, dG_send = self._calc_G4(Rc, eta, lam, zeta)
+                G_send, dG_send = self._calc_G4(Rc, eta, lambda_, zeta)
                 num = 3 * self._natom
                 mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
                                     (G, (self._count*num, self._disps*num), MPI.FLOAT))
                 num = 3 * self._natom * self._nforce
                 mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
-                Gs[:, n:n+3] = G
-                dGs[:, n:n+3] = dG
-                if save:
-                    np.savez(filename, G=G, dG=dG)
-            n += 3
+                Gs.append(G)
+                dGs.append(dG)
+                computed[G_key] = G
+                computed[dG_key] = dG
 
-        return Gs.transpose(0, 2, 1), dGs.transpose(0, 2, 3, 1)
+        if save and mpi.rank == 0:
+            np.savez(SF_file, **computed)
+        Gs = np.concatenate(Gs, axis=1).transpose(0, 2, 1)
+        dGs = np.concatenate(dGs, axis=1).transpose(0, 2, 3, 1)
+        return Gs, dGs
 
     def _calc_G1(self, Rc):
         G = np.zeros((self._n, 2, self._natom), dtype=np.float32)
@@ -291,28 +293,28 @@ class AtomicStructureDataset(TupleDataset):
             dG[index] = np.dot(gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)), dR)
         return G, dG
 
-    def _calc_G4(self, Rc, eta, lam, zeta):
+    def _calc_G4(self, Rc, eta, lambda_, zeta):
         G = np.zeros((self._n, 3, self._natom), dtype=np.float32)
         dG = np.zeros((self._n, 3, self._natom, self._nforce), dtype=np.float32)
         for index, (R1, fc1, tanh1, dR1), (R2, fc2, tanh2, dR2), (cos, dcos) in self._calc_geometry(['homo', 'hetero'], Rc):
-            ang = 1. + lam * cos
+            ang = 1. + lambda_ * cos
             ang[np.identity(len(R1), dtype=bool)] = 0.
             common = 2.**(-zeta) * ang**(zeta-1) \
                 * (np.exp(-eta * R1**2) * fc1)[:, None] \
                 * (np.exp(-eta * R2**2) * fc2)[None, :]
             dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
             dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
-            dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
+            dgi_angular = zeta * lambda_ * np.tensordot(common, dcos, ((0, 1), (0, 1)))
             G[index] = np.tensordot(common, ang)
             dG[index] = dgi_radial1 + dgi_radial2 + dgi_angular
         for index, (R1, fc1, tanh1, dR1), (R2, fc2, tanh2, dR2), (cos, dcos) in self._calc_geometry(['mix'], Rc):
-            ang = 1. + lam * cos
+            ang = 1. + lambda_ * cos
             common = 2.**(1-zeta) * ang**(zeta-1) \
                 * (np.exp(-eta * R1**2) * fc1)[:, None] \
                 * (np.exp(-eta * R2**2) * fc2)[None, :]
             dgi_radial1 = np.dot(np.sum(common*ang, axis=1) * (-2.*eta*R1 + 3./Rc*(tanh1 - 1./tanh1)), dR1)
             dgi_radial2 = np.dot(np.sum(common*ang, axis=0) * (-2.*eta*R2 + 3./Rc*(tanh2 - 1./tanh2)), dR2)
-            dgi_angular = zeta * lam * np.tensordot(common, dcos, ((0, 1), (0, 1)))
+            dgi_angular = zeta * lambda_ * np.tensordot(common, dcos, ((0, 1), (0, 1)))
             G[index] = np.tensordot(common, ang)
             dG[index] = dgi_radial1 + dgi_radial2 + dgi_angular
         return G, dG
@@ -322,9 +324,9 @@ class AtomicStructureDataset(TupleDataset):
         done = []
 
         def helper(self, connect_list, Rc):
-            if self._config not in done:
+            if id(self) not in done:
                 cache.clear()
-                done.append(self._config)
+                done.append(id(self))
             for con in connect_list:
                 if (con, Rc) not in cache:
                     for i, k, homo_rad, hetero_rad, homo_ang, hetero_ang, mix_ang in f(self, Rc):
@@ -485,7 +487,7 @@ class DataGenerator(object):
 
     def _parse_xyzfile(self):
         if mpi.rank == 0:
-            mpiprint('config_type.dill is not found.\nLoad all data from xyz file ...')
+            print 'config_type.dill is not found.\nLoad all data from xyz file ...'
             config_type = set()
             alldataset = defaultdict(list)
             for data in AtomsReader(path.join(file_.data_dir, file_.xyz_file)):
