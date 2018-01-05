@@ -112,18 +112,18 @@ class AtomicStructureDataset(TupleDataset):
         Gs, dGs = self._make_input(save=True)
         self._datasets = (Gs, dGs, Es, Fs)
 
-    def load_poscar(self, poscar, mode, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, scale=1.0):
+    def load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, save=True, scale=1.0):
         self._data_dir = path.dirname(poscar)
         self._config = path.basename(self._data_dir)
-        unitcell = AtomsList(poscar, format='POSCAR')[0]
-        if mode == 'optimize':
+        unitcell, = AtomsList(poscar, format='POSCAR')
+        if self._hp.mode == 'optimize':
             supercells = []
             for k in np.linspace(0.9, 1.1, 201):
                 supercell = unitcell.copy()
                 supercell.set_lattice(unitcell.lattice * k, scale_positions=True)
                 supercells.append(supercell)
             self._atoms_objs = supercells
-        else:
+        elif self._hp.mode == 'phonon':
             unitcell.set_lattice(unitcell.lattice*scale, scale_positions=True)  # scaling
             unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
                                     positions=unitcell.positions,
@@ -156,7 +156,7 @@ class AtomicStructureDataset(TupleDataset):
         self._nforce = 3*self._natom
 
         self._configure_mpi()
-        Gs, dGs = self._make_input(save=True)
+        Gs, dGs = self._make_input(save=save)
         self._datasets = (Gs, dGs)
 
     def reset_inputs(self, input, dinput):
@@ -195,7 +195,7 @@ class AtomicStructureDataset(TupleDataset):
         Gs = []
         dGs = []
         SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
-        computed = dict(np.load(SF_file)) if path.exists(SF_file) else {}
+        computed = dict(np.load(SF_file)) if save and path.exists(SF_file) else {}
         keys = computed.keys()
 
         # type 1
@@ -207,7 +207,7 @@ class AtomicStructureDataset(TupleDataset):
                 Gs.append(computed[G_key])
                 dGs.append(computed[dG_key])
             else:
-                mpiprint('key {} doesn\'t exist. calculating ...'.format(key))
+                mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G1(Rc)
@@ -231,7 +231,7 @@ class AtomicStructureDataset(TupleDataset):
                 Gs.append(computed[G_key])
                 dGs.append(computed[dG_key])
             else:
-                mpiprint('key {} doesn\'t exist. calculating ...'.format(key))
+                mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
@@ -255,7 +255,7 @@ class AtomicStructureDataset(TupleDataset):
                 Gs.append(computed[G_key])
                 dGs.append(computed[dG_key])
             else:
-                mpiprint('key {} doesn\'t exist. calculating ...'.format(key))
+                mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 3, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 3, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G4(Rc, eta, lambda_, zeta)
@@ -324,9 +324,9 @@ class AtomicStructureDataset(TupleDataset):
         done = []
 
         def helper(self, connect_list, Rc):
-            if self._config not in done:
+            if id(self) not in done:
                 cache.clear()
-                done.append(self._config)
+                done.append(id(self))
             for con in connect_list:
                 if (con, Rc) not in cache:
                     for i, k, homo_rad, hetero_rad, homo_ang, hetero_ang, mix_ang in f(self, Rc):
