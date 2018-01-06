@@ -17,6 +17,7 @@ from modules.data import AtomicStructureDataset
 from modules.data import DataGenerator
 from modules.model import SingleNNP, HDNNP
 from modules.updater import HDUpdater
+from modules.util import pprint
 from modules.extensions import Evaluator
 from modules.extensions import set_logscale
 from modules.extensions import scatterplot
@@ -100,18 +101,17 @@ def optimize(hp, masters_path, *args, **kwargs):
     plt.legend()
     plt.savefig(path.join(dirname, 'optimization_{}.png'.format(root)))
     plt.close()
-    print 'energy-optimized lattice parameter: {}'.format(x[np.argmin(energy)])
-    print 'force-optimized lattice parameter: {}'.format(x[np.argmin(force)])
+    pprint('energy-optimized lattice parameter: {}'.format(x[np.argmin(energy)]))
+    pprint('force-optimized lattice parameter: {}'.format(x[np.argmin(force)]))
     scale = x[np.argmin(energy)]
     return scale
 
 
 def phonon(hp, masters_path, *args, **kwargs):
-    print 'drawing phonon dispersion ...'
+    pprint('drawing phonon band structure ...')
     dirname, basename = path.split(masters_path)
     root, _ = path.splitext(basename)
     dataset, force = predict(hp, masters_path, *args, **kwargs)
-    print force
     nsample = len(dataset)
     sets_of_forces = force.data.reshape(nsample, 3, -1).transpose(0, 2, 1)
     phonon = dataset.phonopy

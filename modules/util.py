@@ -1,19 +1,23 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
 from config import mpi
 
 from os import makedirs
+from sys import stdout
 from itertools import product
 from collections import defaultdict
 import random
 
 
-def mpiprint(str):
-    if mpi.rank == 0:
-        print str
+def pprint(str, root_only=True, flush=False, **options):
+    if mpi.rank == 0 or not root_only:
+        print(str, **options)
+        if flush:
+            stdout.flush()
 
 
-def mpimkdir(path):
+def mkdir(path):
     if mpi.rank == 0:
         makedirs(path)
 

@@ -28,7 +28,7 @@ from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
 
 from preconditioning import PRECOND
-from util import mpiprint, mpimkdir
+from util import pprint, mkdir
 from util import DictAsAttributes
 
 
@@ -177,7 +177,7 @@ class AtomicStructureDataset(TupleDataset):
             ndarray = np.load(EF_file)
             return ndarray['E'], ndarray['F']
         else:
-            mpiprint('{} doesn\'t exist. calculating ...'.format(EF_file))
+            pprint('{} doesn\'t exist. calculating ...'.format(EF_file), end='\r')
             Es = np.empty((self._nsample, 1), dtype=np.float32)
             Fs = np.empty((self._nsample, self._nforce, 1), dtype=np.float32)
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs], dtype=np.float32).reshape(-1, 1)
@@ -208,7 +208,7 @@ class AtomicStructureDataset(TupleDataset):
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
             else:
-                mpiprint('calculating key {} ...'.format(key))
+                pprint('calculating symmetry function {} ...'.format(key), end='\r')
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G1(Rc)
@@ -232,7 +232,7 @@ class AtomicStructureDataset(TupleDataset):
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
             else:
-                mpiprint('calculating key {} ...'.format(key))
+                pprint('calculating symmetry function {} ...'.format(key), end='\r')
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 2, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
@@ -256,7 +256,7 @@ class AtomicStructureDataset(TupleDataset):
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
             else:
-                mpiprint('calculating key {} ...'.format(key))
+                pprint('calculating symmetry function {} ...'.format(key), end='\r')
                 G = np.empty((self._nsample, 3, self._natom), dtype=np.float32)
                 dG = np.empty((self._nsample, 3, self._natom, self._nforce), dtype=np.float32)
                 G_send, dG_send = self._calc_G4(Rc, eta, lambda_, zeta)
@@ -488,7 +488,7 @@ class DataGenerator(object):
 
     def _parse_xyzfile(self):
         if mpi.rank == 0:
-            print 'config_type.dill is not found.\nLoad all data from xyz file ...'
+            pprint('config_type.dill is not found.\nLoad all data from xyz file ...', end='', flush=True)
             config_type = set()
             alldataset = defaultdict(list)
             for data in AtomsReader(path.join(file_.data_dir, file_.xyz_file)):
@@ -506,7 +506,7 @@ class DataGenerator(object):
                 composition = DictAsAttributes(composition)
 
                 data_dir = path.join(file_.data_dir, config)
-                mpimkdir(data_dir)
+                mkdir(data_dir)
                 shuffle(alldataset[config])
                 writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
                 for data in alldataset[config]:
@@ -515,6 +515,7 @@ class DataGenerator(object):
                 writer.close()
                 with open(path.join(data_dir, 'composition.dill'), 'w') as f:
                     dill.dump(composition, f)
+            pprint('done')
 
         mpi.comm.Barrier()
 
