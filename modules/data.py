@@ -195,17 +195,18 @@ class AtomicStructureDataset(TupleDataset):
         Gs = []
         dGs = []
         SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
-        computed = dict(np.load(SF_file)) if save and path.exists(SF_file) else {}
-        keys = computed.keys()
+        existing = np.load(SF_file) if save and path.exists(SF_file) else {}
+        new = {}
+        keys = existing.keys()
 
         # type 1
         for Rc in self._hp.Rc:
             key = path.join(*map(str, ['type1', Rc]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
-            if G_key in keys and computed[G_key].shape[0] == self._nsample:
-                Gs.append(computed[G_key])
-                dGs.append(computed[dG_key])
+            if G_key in keys and existing[G_key].shape[0] == self._nsample:
+                Gs.append(existing[G_key])
+                dGs.append(existing[dG_key])
             else:
                 mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
@@ -219,17 +220,17 @@ class AtomicStructureDataset(TupleDataset):
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
                 Gs.append(G)
                 dGs.append(dG)
-                computed[G_key] = G
-                computed[dG_key] = dG
+                new[G_key] = G
+                new[dG_key] = dG
 
         # type 2
         for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
             key = path.join(*map(str, ['type2', Rc, eta, Rs]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
-            if G_key in keys and computed[G_key].shape[0] == self._nsample:
-                Gs.append(computed[G_key])
-                dGs.append(computed[dG_key])
+            if G_key in keys and existing[G_key].shape[0] == self._nsample:
+                Gs.append(existing[G_key])
+                dGs.append(existing[dG_key])
             else:
                 mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 2, self._natom), dtype=np.float32)
@@ -243,17 +244,17 @@ class AtomicStructureDataset(TupleDataset):
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
                 Gs.append(G)
                 dGs.append(dG)
-                computed[G_key] = G
-                computed[dG_key] = dG
+                new[G_key] = G
+                new[dG_key] = dG
 
         # type 4
         for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
             key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
-            if G_key in keys and computed[G_key].shape[0] == self._nsample:
-                Gs.append(computed[G_key])
-                dGs.append(computed[dG_key])
+            if G_key in keys and existing[G_key].shape[0] == self._nsample:
+                Gs.append(existing[G_key])
+                dGs.append(existing[dG_key])
             else:
                 mpiprint('calculating key {} ...'.format(key))
                 G = np.empty((self._nsample, 3, self._natom), dtype=np.float32)
@@ -267,11 +268,11 @@ class AtomicStructureDataset(TupleDataset):
                                     (dG, (self._count*num, self._disps*num), MPI.FLOAT))
                 Gs.append(G)
                 dGs.append(dG)
-                computed[G_key] = G
-                computed[dG_key] = dG
+                new[G_key] = G
+                new[dG_key] = dG
 
         if save and mpi.rank == 0:
-            np.savez(SF_file, **computed)
+            np.savez(SF_file, **dict(existing.items() + new.items()))
         Gs = np.concatenate(Gs, axis=1).transpose(0, 2, 1)
         dGs = np.concatenate(dGs, axis=1).transpose(0, 2, 3, 1)
         return Gs, dGs
@@ -454,7 +455,7 @@ class DataGenerator(object):
             config_type = dill.load(f)
         alldataset = []
         elements = set()
-        for type in file_.train_config:
+        for type in file_.config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 xyz_file = path.join(file_.data_dir, config, 'structure.xyz')
                 dataset = AtomicStructureDataset(self._hp)
