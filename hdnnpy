@@ -14,7 +14,7 @@ from itertools import islice
 
 import hdnnp
 import single
-from modules.util import mpimkdir, write
+from modules.util import pprint, mkdir, write
 from modules.util import DictAsAttributes, HyperParameter
 
 
@@ -82,7 +82,7 @@ else:
     out_dir = path.join(file_.out_dir, datestr)
     out_dir = mpi.comm.bcast(out_dir, root=0)
     result_file = path.join(out_dir, 'result.yaml')
-    mpimkdir(out_dir)
+    mkdir(out_dir)
 
     if args.cross_validation:
         if mpi.rank == 0:
@@ -93,7 +93,7 @@ else:
                 for i, set in enumerate(model_hp):
                     worker = i % mpi.size
                     if worker == 0:
-                        print '# of hyperparameter set: {} (Rank{})'.format(i, mpi.rank)
+                        pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                         hp = config + dataset_hp + set
                         hp.id = i
                         result = training.run(hp, path.join(out_dir, str(i)))
@@ -114,7 +114,7 @@ else:
         else:
             l = len(model_hp)
             for i, set in islice(zip(range(l), model_hp), mpi.rank, l, mpi.size):
-                print '# of hyperparameter set: {} (Rank{})'.format(i, mpi.rank)
+                pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                 hp = config + dataset_hp + set
                 hp.id = i
                 result = training.run(hp, path.join(out_dir, str(i)))
@@ -126,4 +126,3 @@ else:
         result = training.run(hp, out_dir)
         result.update(dict(model_hp[0]))
         write(result_file, yaml.dump({'result': result}, default_flow_style=False))
-        print result
