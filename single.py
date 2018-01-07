@@ -17,7 +17,7 @@ from modules.extensions import set_logscale
 from modules.extensions import scatterplot
 
 
-def run(hp, out_dir):
+def run(hp, out_dir, log):
     results = []
     # dataset and iterator
     dataset = get_simple_function(hp.single)
@@ -41,7 +41,7 @@ def run(hp, out_dir):
         trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=optimizer))
         trainer.extend(Evaluator(iterator=val_iter, target=model, device=mpi.gpu))
         trainer.extend(ext.LogReport(log_name=log_name))
-        if not hp.cross_validation:
+        if log:
             trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                           file_name='learning.png', marker=None, postprocess=set_logscale))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
@@ -58,5 +58,5 @@ def run(hp, out_dir):
         result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
                   for k in results[0].keys()}
     result['id'] = hp.id
-    result['sample'] = len(dataset)
+    result['sample'], result['input'] = dataset._datasets[0].shape
     return result

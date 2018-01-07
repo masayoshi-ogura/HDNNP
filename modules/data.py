@@ -525,7 +525,7 @@ if __name__ == '__main__':
         hp_dict = yaml.load(f)
         dataset_hp = DictAsAttributes(hp_dict['dataset'])
         dataset_hp.preconditioning = None
-        dataset_hp.cross_validation = 1
+        dataset_hp.cross_validation = None
 
     for _ in DataGenerator(dataset_hp):
         pass
