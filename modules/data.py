@@ -443,9 +443,9 @@ class AtomicStructureDataset(TupleDataset):
 
 
 class DataGenerator(object):
-    def __init__(self, hp):
+    def __init__(self, hp, precond):
         self._hp = hp
-        self._precond = PRECOND[hp.preconditioning]()
+        self._precond = precond
         self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
         if not path.exists(self._config_type_file):
             self._parse_xyzfile()
@@ -477,14 +477,6 @@ class DataGenerator(object):
 
     def __len__(self):
         return self._length
-
-    def save(self, save_dir):
-        with open(path.join(save_dir, 'preconditioning.dill'), 'w') as f:
-            dill.dump(self._precond, f)
-
-    def load(self, save_dir):
-        with open(path.join(save_dir, 'preconditioning.dill'), 'r') as f:
-            self._precond = dill.load(f)
 
     def _parse_xyzfile(self):
         if mpi.rank == 0:
@@ -525,7 +517,7 @@ if __name__ == '__main__':
         hp_dict = yaml.load(f)
         dataset_hp = DictAsAttributes(hp_dict['dataset'])
         dataset_hp.preconditioning = None
-        dataset_hp.cross_validation = 1
+        dataset_hp.cross_validation = None
 
     for _ in DataGenerator(dataset_hp):
         pass

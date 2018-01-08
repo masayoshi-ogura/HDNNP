@@ -5,7 +5,6 @@ from config import mpi
 
 # import python modules
 from os import path
-import dill
 import numpy as np
 import matplotlib.pyplot as plt
 import chainer
@@ -15,6 +14,7 @@ import chainer.training.extensions as ext
 # import own modules
 from modules.data import AtomicStructureDataset
 from modules.data import DataGenerator
+from modules.preconditioning import PRECOND
 from modules.model import SingleNNP, HDNNP
 from modules.updater import HDUpdater
 from modules.util import pprint
@@ -23,10 +23,11 @@ from modules.extensions import set_logscale
 from modules.extensions import scatterplot
 
 
-def run(hp, out_dir):
+def run(hp, out_dir, log):
     results = []
     # dataset and iterator
-    generator = DataGenerator(hp)
+    precond = PRECOND[hp.preconditioning](ncomponent=20)
+    generator = DataGenerator(hp, precond)
     for i, (dataset, elements) in enumerate(generator):
         # model and optimizer
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
@@ -53,7 +54,7 @@ def run(hp, out_dir):
             trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
             trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))
             trainer.extend(ext.LogReport(log_name=log_name))
-            if not hp.cross_validation:
+            if log:
                 trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                               file_name='learning.png', marker=None, postprocess=set_logscale))
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
@@ -67,7 +68,7 @@ def run(hp, out_dir):
 
     # serialize
     if not hp.cross_validation:
-        generator.save(out_dir)
+        precond.save(path.join(out_dir, 'preconditioning.npz'))
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
         result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
@@ -75,6 +76,7 @@ def run(hp, out_dir):
         result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
                   for k in results[0].keys()}
         result['id'] = hp.id
+    result['input'] = train._dataset.input.shape[2]
     result['sample'] = len(generator)
     return result
 
@@ -148,9 +150,9 @@ def phonon(hp, masters_path, *args, **kwargs):
 def predict(hp, masters_path, *args, **kwargs):
     dataset = AtomicStructureDataset(hp)
     dataset.load_poscar(*args, **kwargs)
-    with open(path.join(path.dirname(masters_path), 'preconditioning.dill'), 'r') as f:
-        precond = dill.load(f)
-    precond.decompose(dataset)  # deep copyしたい
+    precond = PRECOND[hp.preconditioning](ncomponent=20)
+    precond.load(path.join(path.dirname(masters_path), 'preconditioning.npz'))
+    precond.decompose(dataset)
     masters = chainer.ChainList(*[SingleNNP(hp, element) for element in set(dataset.composition.element)])
     chainer.serializers.load_npz(masters_path, masters)
     hdnnp = HDNNP(hp, dataset.composition)

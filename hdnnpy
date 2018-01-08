@@ -27,7 +27,8 @@ parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperpa
 # parser.add_argument('', type=, default=, help='')
 # parser.add_argument('', type=, default=, help='')
 # parser.add_argument('', type=, default=, help='')
-# parser.add_argument('', type=, default=, help='')
+parser.add_argument('--log', '-l', action='store_true', default=False,
+                    help='trainer extensions "PlotReport, PrintReport, scatterplot, snapshot_object" is set.')
 parser.add_argument('--test', '-t', action='store_true', default=False,
                     help='perform phonon calculation with trained master models if this flag is set.\
                           master models is specified with option --masters(-m), and structure is read from disp.yaml')
@@ -96,7 +97,7 @@ else:
                         pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                         hp = config + dataset_hp + set
                         hp.id = i
-                        result = training.run(hp, path.join(out_dir, str(i)))
+                        result = training.run(hp, path.join(out_dir, str(i)), log=args.log)
                     else:
                         result = mpi.comm.recv(source=worker)
                     result.update(dict(set))
@@ -117,12 +118,12 @@ else:
                 pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                 hp = config + dataset_hp + set
                 hp.id = i
-                result = training.run(hp, path.join(out_dir, str(i)))
+                result = training.run(hp, path.join(out_dir, str(i)), log=args.log)
                 mpi.comm.send(result, dest=0)
     elif mpi.rank == 0:
         write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
-        write(result_file, yaml.dump({'dataset': dict(dataset_hp).update({'data_dir': file_.data_dir, 'config': file_.config})}))
+        write(result_file, yaml.dump({'dataset': dict(dataset_hp.items() + [('data_dir', file_.data_dir), ('config', file_.config)])}))
         hp = config + dataset_hp + model_hp[0]
-        result = training.run(hp, out_dir)
+        result = training.run(hp, out_dir, log=args.log)
         result.update(dict(model_hp[0]))
         write(result_file, yaml.dump({'result': result}, default_flow_style=False))
