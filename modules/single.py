@@ -21,7 +21,7 @@ def run(hp, out_dir, log):
     results = []
     # dataset and iterator
     dataset = get_simple_function(hp.single)
-    for i, (train, val) in enumerate(chainer.datasets.get_cross_validation_datasets_random(dataset, n_fold=hp.cross_validation)):
+    for i, (train, val) in enumerate(chainer.datasets.get_cross_validation_datasets_random(dataset, n_fold=hp.kfold)):
         train_iter = chainer.iterators.SerialIterator(train, hp.batch_size)
         val_iter = chainer.iterators.SerialIterator(val, hp.batch_size, repeat=False, shuffle=False)
 
@@ -37,7 +37,7 @@ def run(hp, out_dir, log):
         trainer = chainer.training.Trainer(updater, (hp.epoch, 'epoch'), out=out_dir)
 
         # extensions
-        log_name = 'cv_{}.log'.format(i) if hp.cross_validation else 'log'
+        log_name = 'cv_{}.log'.format(i) if hp.mode == 'cv' else 'log'
         trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=optimizer))
         trainer.extend(Evaluator(iterator=val_iter, target=model, device=mpi.gpu))
         trainer.extend(ext.LogReport(log_name=log_name))
@@ -52,11 +52,11 @@ def run(hp, out_dir, log):
         trainer.run()
         results.append(trainer.observation)
 
-    if not hp.cross_validation:
-        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
-    else:
-        result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
+    if hp.mode == 'cv':
+        result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.kfold
                   for k in results[0].keys()}
+    elif hp.mode == 'training':
+        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
     result['id'] = hp.id
     result['sample'], result['input'] = dataset._datasets[0].shape
     return result
