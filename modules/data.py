@@ -27,7 +27,6 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
 
-from preconditioning import PRECOND
 from util import pprint, mkdir
 from util import DictAsAttributes
 
@@ -465,13 +464,13 @@ class DataGenerator(object):
                 elements.update(dataset.composition.element)
         self._length = sum([len(d) for d in alldataset])
 
-        if self._hp.cross_validation:
+        if self._hp.mode == 'cv':
             splited = [[(train, val, d.config, d.composition)
-                        for train, val in get_cross_validation_datasets_random(d, n_fold=self._hp.cross_validation)]
+                        for train, val in get_cross_validation_datasets_random(d, n_fold=self._hp.kfold)]
                        for d in alldataset]
             for dataset in zip(*splited):
                 yield dataset, elements
-        else:
+        elif self._hp.mode == 'training':
             splited = [split_dataset_random(d, len(d)*9/10) + (d.config, d.composition) for d in alldataset]
             yield splited, elements
 
@@ -516,8 +515,8 @@ if __name__ == '__main__':
     with open('hyperparameter.yaml') as f:
         hp_dict = yaml.load(f)
         dataset_hp = DictAsAttributes(hp_dict['dataset'])
+        dataset_hp.mode = 'training'
         dataset_hp.preconditioning = None
-        dataset_hp.cross_validation = None
 
     for _ in DataGenerator(dataset_hp):
         pass

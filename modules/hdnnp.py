@@ -50,7 +50,7 @@ def run(hp, out_dir, log):
             trainer = chainer.training.Trainer(updater, (hp.epoch, 'epoch'), out=out_dir)
 
             # extensions
-            log_name = 'cv_{}.log'.format(i) if hp.cross_validation else 'log'
+            log_name = 'cv_{}.log'.format(i) if hp.mode == 'cv' else 'log'
             trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
             trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))
             trainer.extend(ext.LogReport(log_name=log_name))
@@ -67,15 +67,15 @@ def run(hp, out_dir, log):
         results.append(trainer.observation)
 
     # serialize
-    if not hp.cross_validation:
+    if hp.mode == 'cv':
+        result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.kfold
+                  for k in results[0].keys()}
+        result['id'] = hp.id
+    elif hp.mode == 'training':
         precond.save(path.join(out_dir, 'preconditioning.npz'))
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
         result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
-    else:
-        result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.cross_validation
-                  for k in results[0].keys()}
-        result['id'] = hp.id
     result['input'] = train._dataset.input.shape[2]
     result['sample'] = len(generator)
     return result

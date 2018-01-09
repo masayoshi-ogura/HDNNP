@@ -12,8 +12,8 @@ import argparse
 import yaml
 from itertools import islice
 
-import hdnnp
-import single
+from modules import hdnnp
+from modules import single
 from modules.util import pprint, mkdir, write
 from modules.util import DictAsAttributes, HyperParameter
 
@@ -23,69 +23,55 @@ parser.add_argument('mode', type=str, default='training', choices=['cv', 'traini
                     help='select mode')
 parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
                     help='YAML file which contains all of the hyperparameters.')
-# parser.add_argument('', type=, default=, help='')
-# parser.add_argument('', type=, default=, help='')
-# parser.add_argument('', type=, default=, help='')
-# parser.add_argument('', type=, default=, help='')
 parser.add_argument('--log', '-l', action='store_true', default=False,
                     help='trainer extensions "PlotReport, PrintReport, scatterplot, snapshot_object" is set.')
-parser.add_argument('--test', '-t', action='store_true', default=False,
-                    help='perform phonon calculation with trained master models if this flag is set.\
-                          master models is specified with option --masters(-m), and structure is read from disp.yaml')
 parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
                     help='trained master models for phonon calculation. this is used with option --test(-t)\
                           default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
 parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
                     help='function type for SingleNNP. used for debug.')
 parser.add_argument('--preconditioning', '-p', type=str, default='pca',
-                    help='preconditioning of the input data. defalut is PCA, and threshold is 0.9999')
+                    help='preconditioning of the input data. defalut is PCA, and # of decomposed features.')
 parser.add_argument('--epoch', '-e', type=int, default=1000,
                     help='# of training epochs.')
 parser.add_argument('--batch-size', '-b', type=int, default=100,
                     help='# of data for each minibatches.')
-parser.add_argument('--cross-validation', '-cv', type=int, default=None,
-                    help='# of split size of dataset("k" of the k-fold CV). perform k-fold CV if this flag is set.')
+parser.add_argument('--kfold', '-k', type=int, default=5,
+                    help='# of split size of dataset for k-fold CV. default value is 5')
 parser.add_argument('--random-search', type=int, default=None,
                     help='perform hyperparameter random search if this flag is set.\
                           set iteration number to this option. min&max value for each hyperparameter is read from "hyperparameter_file".')
 parser.add_argument('--metrics', '-M', type=str, default='validation/main/tot_RMSE',
                     help='metrics of hyperparameter search with CV.')
+parser.add_argument('--testdir', '-t', type=str, default='test',
+                    help='test directory containing POSCAR and in which "Symmetry_Function.npz" will be created.')
 
 args = parser.parse_args()
 config = DictAsAttributes({'mode': args.mode,
-                           'preconditioning': args.preconditioning,
-                           'epoch': args.epoch,
-                           'batch_size': args.batch_size,
-                           'cross_validation': args.cross_validation,
-                           'metrics': args.metrics})
+                           'preconditioning': args.preconditioning})
 with open(args.hyperparameter_file) as f:
     hp_dict = yaml.load(f)
     dataset_hp = DictAsAttributes(hp_dict['dataset'])
     model_hp = HyperParameter(hp_dict['model'], random=args.random_search)
-if args.single:
-    config.single = args.single
-    training = single
-else:
-    training = hdnnp
 
-if args.test:
-    if args.single:
-        raise NotImplementedError("option --single(-s) is used for only functional testing.")
-
-    hp = config + dataset_hp + model_hp[0]
-    masters_paths = args.masters if args.masters \
-        else glob(path.join(file_.out_dir, '*', 'masters.npz'))[-1:]
-    poscar = 'test/POSCAR'
-    for masters_path in masters_paths:
-        hdnnp.test(hp, masters_path, poscar)
-else:
+if config.mode in ['cv', 'training']:
     datestr = datetime.now().strftime('%m%d-%H%M%S')
     out_dir = path.join(file_.out_dir, datestr)
     out_dir = mpi.comm.bcast(out_dir, root=0)
     result_file = path.join(out_dir, 'result.yaml')
     mkdir(out_dir)
 
-    if args.cross_validation:
+    config.epoch = args.epoch
+    config.batch_size = args.batch_size
+    if args.single:
+        config.single = args.single
+        training = single
+    else:
+        training = hdnnp
+
+    if config.mode == 'cv':
+        config.kfold = args.kfold
+        config.metrics = args.metrics
         if mpi.rank == 0:
             write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
             write(result_file, yaml.dump({'dataset': dict(dataset_hp.items() + [('data_dir', file_.data_dir), ('config', file_.config)])}))
@@ -120,10 +106,23 @@ else:
                 hp.id = i
                 result = training.run(hp, path.join(out_dir, str(i)), log=args.log)
                 mpi.comm.send(result, dest=0)
-    elif mpi.rank == 0:
+
+    elif config.mode == 'training' and mpi.rank == 0:
         write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
         write(result_file, yaml.dump({'dataset': dict(dataset_hp.items() + [('data_dir', file_.data_dir), ('config', file_.config)])}))
         hp = config + dataset_hp + model_hp[0]
         result = training.run(hp, out_dir, log=args.log)
         result.update(dict(model_hp[0]))
         write(result_file, yaml.dump({'result': result}, default_flow_style=False))
+
+elif config.mode in ['optimize', 'phonon']:
+    if args.single:
+        raise NotImplementedError("option --single(-s) is used for only functional testing.\n\
+                                   can't use with 'optimize', 'phonon' mode.")
+
+    hp = config + dataset_hp + model_hp[0]
+    masters_paths = args.masters if args.masters \
+        else glob(path.join(file_.out_dir, '*', 'masters.npz'))[-1:]
+    poscar = path.join(args.testdir, 'POSCAR')
+    for masters_path in masters_paths:
+        hdnnp.test(hp, masters_path, poscar)
