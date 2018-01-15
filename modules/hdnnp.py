@@ -139,9 +139,31 @@ def phonon(hp, masters_path, *args, **kwargs):
     plt = phonon.plot_band_structure(labels)
     ax = plt.gca()
     xticks = ax.get_xticks()
+
+    # experimental result measured by IXS and Raman is obtained from
+    # Phonon Dispersion Curves in Wurtzite-Structure GaN Determined by Inelastic X-Ray Scattering
+    # PRL vol.86 #5 2001/1/29
+    # @Gamma, Raman
     ax.scatter([xticks[0]]*6 + [xticks[3]]*6,
-               [144.0, 531.8, 558.8, 567.6, 734.0, 741.0]*2,
+               [144.2, 533.5, 560.0, 569.2, 739.3, 746.6]*2,
                marker='o', s=50, facecolors='none', edgecolors='blue')
+    # @Gamma, IXS
+    ax.scatter([xticks[0]]*3 + [xticks[3]]*3,
+               [329, 692, 729]*2,
+               marker='o', s=50, facecolors='none', edgecolors='red')
+    # @A, IXS
+    ax.scatter([xticks[4]]*2 + [xticks[7]]*2,
+               [231, 711]*2,
+               marker='o', s=50, facecolors='none', edgecolors='red')
+    # @M, IXS
+    ax.scatter([xticks[2]]*5,
+               [137, 184, 193, 238, 576],
+               marker='o', s=50, facecolors='none', edgecolors='red')
+    # @K, IXS
+    ax.scatter([xticks[1]]*2,
+               [215, 614],
+               marker='o', s=50, facecolors='none', edgecolors='red')
+
     ax.grid(axis='x')
     plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
     plt.close()

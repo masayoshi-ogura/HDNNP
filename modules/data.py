@@ -27,6 +27,7 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
 
+from preconditioning import PRECOND
 from util import pprint, mkdir
 from util import DictAsAttributes
 
@@ -516,7 +517,7 @@ if __name__ == '__main__':
         hp_dict = yaml.load(f)
         dataset_hp = DictAsAttributes(hp_dict['dataset'])
         dataset_hp.mode = 'training'
-        dataset_hp.preconditioning = None
+    precond = PRECOND[None]()
 
-    for _ in DataGenerator(dataset_hp):
+    for _ in DataGenerator(dataset_hp, precond):
         pass

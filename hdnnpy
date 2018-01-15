@@ -63,6 +63,7 @@ if config.mode in ['cv', 'training']:
 
     config.epoch = args.epoch
     config.batch_size = args.batch_size
+    config.metrics = args.metrics
     if args.single:
         config.single = args.single
         training = single
@@ -71,7 +72,6 @@ if config.mode in ['cv', 'training']:
 
     if config.mode == 'cv':
         config.kfold = args.kfold
-        config.metrics = args.metrics
         if mpi.rank == 0:
             write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
             write(result_file, yaml.dump({'dataset': dict(dataset_hp.items() + [('data_dir', file_.data_dir), ('config', file_.config)])}))

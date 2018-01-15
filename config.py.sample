@@ -8,6 +8,8 @@
 ###########################################################
 
 from mpi4py import MPI
+import matplotlib as mpl
+mpl.use('Agg')
 
 
 class file_:
