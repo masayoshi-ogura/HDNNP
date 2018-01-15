@@ -8,7 +8,6 @@ from config import mpi
 from os import path
 from re import match
 import yaml
-from random import shuffle
 from collections import defaultdict
 from itertools import product
 import dill
@@ -27,9 +26,9 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
 
-from preconditioning import PRECOND
-from util import pprint, mkdir
-from util import DictAsAttributes
+from .preconditioning import PRECOND
+from .util import pprint, mkdir
+from .util import DictAsAttributes
 
 
 def get_simple_function(name, nsample=1000):
@@ -446,7 +445,8 @@ class DataGenerator(object):
     def __init__(self, hp, precond):
         self._hp = hp
         self._precond = precond
-        self._config_type_file = path.join(file_.data_dir, 'config_type.dill')
+        self._data_dir = path.dirname(file_.xyz_file)
+        self._config_type_file = path.join(self._data_dir, 'config_type.dill')
         if not path.exists(self._config_type_file):
             self._parse_xyzfile()
 
@@ -456,7 +456,7 @@ class DataGenerator(object):
         self._elements = set()
         for type in file_.config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
-                xyz_file = path.join(file_.data_dir, config, 'structure.xyz')
+                xyz_file = path.join(self._data_dir, config, 'structure.xyz')
                 dataset = AtomicStructureDataset(self._hp)
                 dataset.load_xyz(xyz_file)
                 self._precond.decompose(dataset)
@@ -483,7 +483,7 @@ class DataGenerator(object):
             pprint('config_type.dill is not found.\nLoad all data from xyz file ...', end='', flush=True)
             config_type = set()
             alldataset = defaultdict(list)
-            for data in AtomsReader(path.join(file_.data_dir, file_.xyz_file)):
+            for data in AtomsReader(file_.xyz_file):
                 config = data.config_type
                 config_type.add(config)
                 alldataset[config].append(data)
@@ -497,9 +497,8 @@ class DataGenerator(object):
                     composition['element'].append(atom.symbol)
                 composition = DictAsAttributes(composition)
 
-                data_dir = path.join(file_.data_dir, config)
+                data_dir = path.join(self._data_dir, config)
                 mkdir(data_dir)
-                shuffle(alldataset[config])
                 writer = AtomsWriter(path.join(data_dir, 'structure.xyz'))
                 for data in alldataset[config]:
                     if data.cohesive_energy < 0.0:

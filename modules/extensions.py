@@ -12,7 +12,7 @@ import chainer
 from chainer import reporter as reporter_module
 from chainer.training.extensions import evaluator
 
-from model import SingleNNP, HDNNP
+from .model import SingleNNP, HDNNP
 
 
 class Evaluator(evaluator.Evaluator):

@@ -12,15 +12,15 @@ from chainer import Variable
 import chainer.training.extensions as ext
 
 # import own modules
-from modules.data import AtomicStructureDataset
-from modules.data import DataGenerator
-from modules.preconditioning import PRECOND
-from modules.model import SingleNNP, HDNNP
-from modules.updater import HDUpdater
-from modules.util import pprint
-from modules.extensions import Evaluator
-from modules.extensions import set_logscale
-from modules.extensions import scatterplot
+from .data import AtomicStructureDataset
+from .data import DataGenerator
+from .preconditioning import PRECOND
+from .model import SingleNNP, HDNNP
+from .updater import HDUpdater
+from .util import pprint
+from .extensions import Evaluator
+from .extensions import set_logscale
+from .extensions import scatterplot
 
 
 def run(hp, out_dir, log):
@@ -56,7 +56,7 @@ def run(hp, out_dir, log):
             trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))
             trainer.extend(ext.LogReport(log_name=log_name))
             if log:
-                trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
+                trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE', 'alpha'], 'epoch',
                                               file_name='learning.png', marker=None, postprocess=set_logscale))
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                 'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))

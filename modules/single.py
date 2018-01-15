@@ -9,12 +9,12 @@ from chainer import Variable
 import chainer.training.extensions as ext
 
 # import own modules
-from modules.data import get_simple_function
-from modules.model import SingleNNP
-from modules.updater import Updater
-from modules.extensions import Evaluator
-from modules.extensions import set_logscale
-from modules.extensions import scatterplot
+from .data import get_simple_function
+from .model import SingleNNP
+from .updater import Updater
+from .extensions import Evaluator
+from .extensions import set_logscale
+from .extensions import scatterplot
 
 
 def run(hp, out_dir, log):

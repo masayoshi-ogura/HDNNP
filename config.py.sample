@@ -16,7 +16,6 @@ class file_:
     xyz_file =
     config = ['all']  # config_type use for training. if 'all', all config_type will be used
     out_dir = 'output'
-    data_dir = 'data'
 
 
 class mpi:
