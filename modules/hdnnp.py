@@ -28,6 +28,7 @@ def run(hp, out_dir, log):
     # dataset and iterator
     precond = PRECOND[hp.preconditioning](ncomponent=20)
     generator = DataGenerator(hp, precond)
+    precond.save(path.join(out_dir, 'preconditioning.npz'))
     for i, (dataset, elements) in enumerate(generator):
         # model and optimizer
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
@@ -72,7 +73,6 @@ def run(hp, out_dir, log):
                   for k in results[0].keys()}
         result['id'] = hp.id
     elif hp.mode == 'training':
-        precond.save(path.join(out_dir, 'preconditioning.npz'))
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
         result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}

@@ -450,30 +450,30 @@ class DataGenerator(object):
         if not path.exists(self._config_type_file):
             self._parse_xyzfile()
 
-    def __iter__(self):
         with open(self._config_type_file, 'r') as f:
             config_type = dill.load(f)
-        alldataset = []
-        elements = set()
+        self._datasets = []
+        self._elements = set()
         for type in file_.config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 xyz_file = path.join(file_.data_dir, config, 'structure.xyz')
                 dataset = AtomicStructureDataset(self._hp)
                 dataset.load_xyz(xyz_file)
                 self._precond.decompose(dataset)
-                alldataset.append(dataset)
-                elements.update(dataset.composition.element)
-        self._length = sum([len(d) for d in alldataset])
+                self._datasets.append(dataset)
+                self._elements.update(dataset.composition.element)
+        self._length = sum([len(d) for d in self._datasets])
 
+    def __iter__(self):
         if self._hp.mode == 'cv':
             splited = [[(train, val, d.config, d.composition)
                         for train, val in get_cross_validation_datasets_random(d, n_fold=self._hp.kfold)]
-                       for d in alldataset]
+                       for d in self._datasets]
             for dataset in zip(*splited):
-                yield dataset, elements
+                yield dataset, self._elements
         elif self._hp.mode == 'training':
-            splited = [split_dataset_random(d, len(d)*9/10) + (d.config, d.composition) for d in alldataset]
-            yield splited, elements
+            splited = [split_dataset_random(d, len(d)*9/10) + (d.config, d.composition) for d in self._datasets]
+            yield splited, self._elements
 
     def __len__(self):
         return self._length

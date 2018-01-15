@@ -32,6 +32,7 @@ class PCA(PreconditionBase):
                 elements = ndarray['elements']
                 self._mean = {element: ndarray['mean/{}'.format(element)] for element in elements}
                 self._components = {element: ndarray['components/{}'.format(element)] for element in elements}
+                self._elements += list(elements)
 
     def save(self, filename):
         if not path.exists(filename):
@@ -61,10 +62,10 @@ class PCA(PreconditionBase):
                 continue
 
             X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
-            pca = decomposition.PCA()
+            pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
-            self._mean[element] = X.mean(axis=0)
-            self._components[element] = pca.components_[:self._ncomponent].T.astype(np.float32)
+            self._mean[element] = pca.mean_
+            self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
 
         mean = np.array([self._mean[element]
