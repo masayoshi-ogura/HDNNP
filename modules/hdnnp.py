@@ -8,7 +8,6 @@ from os import path
 import numpy as np
 import matplotlib.pyplot as plt
 import chainer
-from chainer import Variable
 import chainer.training.extensions as ext
 
 # import own modules
@@ -17,7 +16,7 @@ from .data import DataGenerator
 from .preconditioning import PRECOND
 from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
-from .util import pprint
+from .util import pprint, flatten_dict
 from .extensions import Evaluator
 from .extensions import set_logscale
 from .extensions import scatterplot
@@ -56,8 +55,11 @@ def run(hp, out_dir, log):
             trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))
             trainer.extend(ext.LogReport(log_name=log_name))
             if log:
-                trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE', 'alpha'], 'epoch',
-                                              file_name='learning.png', marker=None, postprocess=set_logscale))
+                trainer.extend(ext.observe_lr('master', 'learning rate'))
+                trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
+                                              file_name='learning_rate.png', marker=None, postprocess=set_logscale))
+                trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
+                                              file_name='RMSE.png', marker=None, postprocess=set_logscale))
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                 'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
                 trainer.extend(scatterplot(hdnnp, val, config),
@@ -65,17 +67,17 @@ def run(hp, out_dir, log):
                 trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'), trigger=(100, 'epoch'))
 
             trainer.run()
-        results.append(trainer.observation)
+        results.append(flatten_dict(trainer.observation))
 
     # serialize
     if hp.mode == 'cv':
-        result = {k: sum([r[k].data.item() if isinstance(r[k], Variable) else r[k].item() for r in results]) / hp.kfold
+        result = {k: sum([r[k] for r in results]) / hp.kfold
                   for k in results[0].keys()}
         result['id'] = hp.id
     elif hp.mode == 'training':
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
-        result = {k: v.data.item() if isinstance(v, Variable) else v.item() for k, v in results[0].items()}
+        result, = results
     result['input'] = train._dataset.input.shape[2]
     result['sample'] = len(generator)
     return result

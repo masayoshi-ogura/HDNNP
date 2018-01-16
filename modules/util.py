@@ -8,6 +8,8 @@ from sys import stdout
 from itertools import product
 from collections import defaultdict
 import random
+import numpy as np
+from chainer import Variable
 
 
 def pprint(str, root_only=True, flush=False, **options):
@@ -25,6 +27,12 @@ def mkdir(path):
 def write(f, str):
     with open(f, 'a') as f:
         f.write(str)
+
+
+def flatten_dict(dic):
+    return {k: v.data.item() if isinstance(v, Variable)
+            else v.item() if isinstance(v, np.float64)
+            else v for k, v in dic.items()}
 
 
 class DictAsAttributes(dict):
