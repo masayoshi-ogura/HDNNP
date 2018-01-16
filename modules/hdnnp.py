@@ -27,7 +27,8 @@ def run(hp, out_dir, log):
     # dataset and iterator
     precond = PRECOND[hp.preconditioning](ncomponent=20)
     generator = DataGenerator(hp, precond)
-    precond.save(path.join(out_dir, 'preconditioning.npz'))
+    if hp.mode == 'training':
+        precond.save(path.join(out_dir, 'preconditioning.npz'))
     for i, (dataset, elements) in enumerate(generator):
         # model and optimizer
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
