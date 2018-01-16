@@ -64,7 +64,7 @@ class PCA(PreconditionBase):
             X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
             pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
-            self._mean[element] = pca.mean_
+            self._mean[element] = pca.mean_.astype(np.float32)
             self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
 
