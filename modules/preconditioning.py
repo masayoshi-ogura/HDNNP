@@ -4,6 +4,8 @@ from os import path
 import numpy as np
 from sklearn import decomposition
 
+from .util import pprint
+
 
 class PreconditionBase(object):
     def __init__(self, *args):
@@ -61,12 +63,15 @@ class PCA(PreconditionBase):
             if element in self._elements:
                 continue
 
+            pprint('{}: decompose SF from {} to {}. Cumulative contribution rate:'
+                   .format(element, dataset.input.shape[-1], self._ncomponent), flush=True, end='')
             X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
             pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
             self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
+            pprint(np.sum(pca.explained_variance_ratio_))
 
         mean = np.array([self._mean[element]
                          for element in dataset.composition.element])
