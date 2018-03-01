@@ -107,8 +107,8 @@ class AtomicStructureDataset(TupleDataset):
 
         self._configure_mpi()
         Es, Fs = self._make_label(save=True)
-        Gs, dGs = self._make_input(save=True)
-        self._datasets = (Gs, dGs, Es, Fs)
+        Gs, dGs, neighbours = self._make_input(save=True)
+        self._datasets = (Gs, dGs, Es, Fs, neighbours)
 
     def load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, save=True, scale=1.0):
         self._data_dir = path.dirname(poscar)
@@ -153,8 +153,8 @@ class AtomicStructureDataset(TupleDataset):
         self._natom = supercells[0].get_number_of_atoms()
 
         self._configure_mpi()
-        Gs, dGs = self._make_input(save=save)
-        self._datasets = (Gs, dGs)
+        Gs, dGs, neighbours = self._make_input(save=save)
+        self._datasets = (Gs, dGs, neighbours)
 
     def reset_inputs(self, input, dinput):
         self._datasets = (input, dinput) + self._datasets[2:]
@@ -191,6 +191,7 @@ class AtomicStructureDataset(TupleDataset):
     def _make_input(self, save):
         Gs = []
         dGs = []
+        neighbours = []
         SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
         existing = np.load(SF_file) if save and path.exists(SF_file) else {}
         new = {}
@@ -201,97 +202,128 @@ class AtomicStructureDataset(TupleDataset):
             key = path.join(*map(str, ['type1', Rc]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
+            neighbour_key = path.join('neighbour', key)
             if G_key in keys and existing[G_key].shape[0] == self._nsample:
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
+                neighbours.append(existing[neighbour_key])
             else:
                 pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G_send, dG_send = self._calc_G1(Rc)
-                G = np.array(mpi.comm.allreduce(G_send, op=MPI.SUM))
+                G_send, dG_send, neighbour_send = self._calc_G1(Rc)
+                G = np.array(mpi.comm.allreduce(G_send, op=MPI.SUM), dtype=np.float32)
                 dG = mpi.comm.allreduce(dG_send, op=MPI.SUM)
+                neighbour = np.array(mpi.comm.allreduce(neighbour_send, op=MPI.SUM))
                 Gs.append(G)
                 dGs.append(dG)
+                neighbours.append(neighbour)
                 new[G_key] = G
                 new[dG_key] = dG
+                new[neighbour_key] = neighbour
 
         # type 2
         for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
             key = path.join(*map(str, ['type2', Rc, eta, Rs]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
+            neighbour_key = path.join('neighbour', key)
             if G_key in keys and existing[G_key].shape[0] == self._nsample:
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
+                neighbours.append(existing[neighbour_key])
             else:
                 pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G_send, dG_send = self._calc_G2(Rc, eta, Rs)
-                G = np.array(mpi.comm.allreduce(G_send, op=MPI.SUM))
+                G_send, dG_send, neighbour_send = self._calc_G2(Rc, eta, Rs)
+                G = np.array(mpi.comm.allreduce(G_send, op=MPI.SUM), dtype=np.float32)
                 dG = mpi.comm.allreduce(dG_send, op=MPI.SUM)
+                neighbour = np.array(mpi.comm.allreduce(neighbour_send, op=MPI.SUM))
                 Gs.append(G)
                 dGs.append(dG)
+                neighbours.append(neighbour)
                 new[G_key] = G
                 new[dG_key] = dG
+                new[neighbour_key] = neighbour
 
         # type 4
         for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
             key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
+            neighbour_key = path.join('neighbour', key)
             if G_key in keys and existing[G_key].shape[0] == self._nsample:
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
+                neighbours.append(existing[neighbour_key])
             else:
                 pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G_send, dG_send = self._calc_G4(Rc, eta, lambda_, zeta)
-                G = np.array(mpi.comm.allreduce(G_send, op=MPI.SUM))
+                G_send, dG_send, neighbour_send = self._calc_G4(Rc, eta, lambda_, zeta)
+                G = np.array(mpi.comm.allreduce(G_send, op=MPI.SUM), dtype=np.float32)
                 dG = mpi.comm.allreduce(dG_send, op=MPI.SUM)
+                neighbour = np.array(mpi.comm.allreduce(neighbour_send, op=MPI.SUM))
                 Gs.append(G)
                 dGs.append(dG)
+                neighbours.append(neighbour)
                 new[G_key] = G
                 new[dG_key] = dG
+                new[neighbour_key] = neighbour
 
         if save and mpi.rank == 0:
             np.savez(SF_file, **dict(existing.items() + new.items()))
-        Gs = np.concatenate(Gs, axis=2)
-        dGs = [np.concatenate([dgs[i] for dgs in dGs], axis=3) for i in xrange(self._nsample)]
-        return Gs, dGs
+        Gs = np.concatenate(Gs, axis=2)  # (sample, atom, feature)
+        dGs = [[b for a in dGs for b in a[i]]
+               for i in xrange(self._nsample)]  # [sample, [feature, (natom, neighbour, 3)]]
+        neighbours = np.concatenate(neighbours, axis=1)  # (sample, feature, natom, natom), type=object:ndarray
+        return Gs, dGs, neighbours
 
     def _calc_G1(self, Rc):
         G = []
         dG = []
+        neighbour = []
         for max_neighb, indices, (R, fc, tanh, dR), _, _ in self._calc_geometry(['homo', 'hetero'], Rc):
             G.append(np.sum(fc))
             dg = np.zeros((max_neighb, 3), dtype=np.float32)
-            dg[indices] = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
+            dg[np.concatenate(indices).astype(np.int32)] = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
             dG.append(dg)
+            neighbour.append(indices)
+            # dg.shape = (nei, 3)
+            # neighbour.shape = (atom) x list(indices)
+            # dg_sum = np.array([dg[indices].sum(axis=0) for indices in neighbour])
         G = [np.array(G[self._natom*i:self._natom*(i+1)] +
                       G[self._natom*(self._n+i):self._natom*(self._n+i+1)]).reshape(2, self._natom).T
              for i in xrange(self._n)]
-        dG = [np.array(dG[self._natom*i:self._natom*(i+1)] +
-                       dG[self._natom*(self._n+i):self._natom*(self._n+i+1)]).reshape(2, self._natom, -1, 3).transpose(2, 3, 1, 0)
+        dG = [[np.array(dG[self._natom*(j*self._n+i):self._natom*(j*self._n+i+1)]).reshape(self._natom, -1, 3)
+               for j in xrange(2)]
               for i in xrange(self._n)]
-        return G, dG
+        neighbour = [np.array(neighbour[self._natom*i:self._natom*(i+1)] +
+                              neighbour[self._natom*(self._n+i):self._natom*(self._n+i+1)]).reshape(2, self._natom, self._natom)
+                     for i in xrange(self._n)]
+        return G, dG, neighbour
 
     def _calc_G2(self, Rc, eta, Rs):
         G = []
         dG = []
+        neighbour = []
         for max_neighb, indices, (R, fc, tanh, dR), _, _ in self._calc_geometry(['homo', 'hetero'], Rc):
             gi = np.exp(- eta * (R - Rs)**2) * fc
             G.append(np.sum(gi))
             dg = np.zeros((max_neighb, 3), dtype=np.float32)
-            dg[indices] = (gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)))[:, None] * dR
+            dg[np.concatenate(indices).astype(np.int32)] = (gi * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)))[:, None] * dR
             dG.append(dg)
+            neighbour.append(indices)
         G = [np.array(G[self._natom*i:self._natom*(i+1)] +
                       G[self._natom*(self._n+i):self._natom*(self._n+i+1)]).reshape(2, self._natom).T
              for i in xrange(self._n)]
-        dG = [np.array(dG[self._natom*i:self._natom*(i+1)] +
-                       dG[self._natom*(self._n+i):self._natom*(self._n+i+1)]).reshape(2, self._natom, -1, 3).transpose(2, 3, 1, 0)
+        dG = [[np.array(dG[self._natom*(j*self._n+i):self._natom*(j*self._n+i+1)]).reshape(self._natom, -1, 3)
+               for j in xrange(2)]
               for i in xrange(self._n)]
-        return G, dG
+        neighbour = [np.array(neighbour[self._natom*i:self._natom*(i+1)] +
+                              neighbour[self._natom*(self._n+i):self._natom*(self._n+i+1)]).reshape(2, self._natom, self._natom)
+                     for i in xrange(self._n)]
+        return G, dG, neighbour
 
     def _calc_G4(self, Rc, eta, lambda_, zeta):
         G = []
         dG = []
+        neighbour = []
         for max_neighb, indices, (R, fc, tanh, dR), _, (cos, dcos) in self._calc_geometry(['homo', 'hetero'], Rc):
             ang = 1. + lambda_ * cos
             ang[np.identity(len(R), dtype=bool)] = 0.
@@ -314,8 +346,9 @@ class AtomicStructureDataset(TupleDataset):
                             dcos)
             G.append(g)
             dg = np.zeros((max_neighb, 3), dtype=np.float32)
-            dg[indices] = 2 * dg_radial_part + dg_angular_part
+            dg[np.concatenate(indices).astype(np.int32)] = 2 * dg_radial_part + dg_angular_part
             dG.append(dg)
+            neighbour.append(indices)
         for max_neighb, (homo_indices, hetero_indices), (R1, fc1, tanh1, dR1), (R2, fc2, tanh2, dR2), (cos, dcos1, dcos2) \
                 in self._calc_geometry(['mix'], Rc):
             ang = 1. + lambda_ * cos
@@ -350,18 +383,22 @@ class AtomicStructureDataset(TupleDataset):
                             dcos2)
             G.append(g)
             dg = np.zeros((max_neighb, 3), dtype=np.float32)
-            dg[homo_indices] = dg_radial_homo + dg_angular_homo
-            dg[hetero_indices] = dg_radial_hetero + dg_angular_hetero
+            dg[np.concatenate(homo_indices).astype(np.int32)] = dg_radial_homo + dg_angular_homo
+            dg[np.concatenate(hetero_indices).astype(np.int32)] = dg_radial_hetero + dg_angular_hetero
             dG.append(dg)
+            neighbour.append([np.concatenate(indices).astype(np.int32) for indices in zip(homo_indices, hetero_indices)])
         G = [np.array(G[self._natom*i:self._natom*(i+1)] +
                       G[self._natom*(self._n+i):self._natom*(self._n+i+1)] +
                       G[self._natom*(2*self._n+i):self._natom*(2*self._n+i+1)]).reshape(3, self._natom).T
              for i in xrange(self._n)]
-        dG = [np.array(dG[self._natom*i:self._natom*(i+1)] +
-                       dG[self._natom*(self._n+i):self._natom*(self._n+i+1)] +
-                       dG[self._natom*(2*self._n+i):self._natom*(2*self._n+i+1)]).reshape(3, self._natom, -1, 3).transpose(2, 3, 1, 0)
+        dG = [[np.array(dG[self._natom*(j*self._n+i):self._natom*(j*self._n+i+1)]).reshape(self._natom, -1, 3)
+               for j in xrange(3)]
               for i in xrange(self._n)]
-        return G, dG
+        neighbour = [np.array(neighbour[self._natom*i:self._natom*(i+1)] +
+                              neighbour[self._natom*(self._n+i):self._natom*(self._n+i+1)] +
+                              neighbour[self._natom*(2*self._n+i):self._natom*(2*self._n+i+1)]).reshape(3, self._natom, self._natom)
+                     for i in xrange(self._n)]
+        return G, dG, neighbour
 
     def memorize_generator(f):
         cache = defaultdict(list)
@@ -398,7 +435,10 @@ class AtomicStructureDataset(TupleDataset):
             for k in xrange(self._natom):
                 n_neighb = atoms.n_neighbours(k+1)
                 if n_neighb == 0:
-                    yield max_neighb, [], [], zeros_radial, zeros_radial, zeros_angular, zeros_angular, zeros_angular
+                    yield max_neighb, [], [], zeros_radial, zeros_radial, zeros_angular, zeros_angular, \
+                        (np.zeros((1, 1), dtype=np.float32),
+                         np.zeros((1, 1, 3), dtype=np.float32),
+                         np.zeros((1, 1, 3), dtype=np.float32))
                     continue
 
                 r, R, cos = self._neighbour(k, n_neighb, atoms)
@@ -408,39 +448,52 @@ class AtomicStructureDataset(TupleDataset):
                 tanh = np.tanh(1-R/Rc)
 
                 element = self._composition.element[k]  # element of the focused atom
-                neighbours = atoms.connect.get_neighbours(k+1)[0] - 1
-                homo_indices = [index for index in xrange(n_neighb) if neighbours[index] in self._composition.index[element]]
-                hetero_indices = [list(set(xrange(n_neighb)) - set(homo_indices))]
-                if not homo_indices:
+                neighbours = atoms.connect.get_neighbours(k+1)[0] - 1  # [0, 4, 1, 1, 3, 2 ...]; length=n_neighb
+                homo_indices = np.empty(self._natom, dtype=object)
+                hetero_indices = np.empty(self._natom, dtype=object)
+                for j in xrange(self._natom):
+                    if j in self._composition.index[element]:
+                        homo_indices[j] = [m for m, index in enumerate(neighbours) if index == j]
+                        hetero_indices[j] = []
+                    else:
+                        homo_indices[j] = []
+                        hetero_indices[j] = [m for m, index in enumerate(neighbours) if index == j]
+
+                homo = np.concatenate(homo_indices).astype(np.int32)
+                if homo.size == 0:
                     yield max_neighb, homo_indices, hetero_indices, zeros_radial, (R, fc, tanh, dR), zeros_angular, (cos, dcos), \
-                        (np.zeros((1, n_neighb), dtype=np.float32), np.zeros((1, n_neighb, 3), dtype=np.float32))
+                        (np.zeros((1, n_neighb), dtype=np.float32),
+                         np.zeros((1, n_neighb, 3), dtype=np.float32),
+                         np.zeros((n_neighb, 1, 3), dtype=np.float32))
                     continue
-                elif not hetero_indices:
+                elif homo.size == n_neighb:
                     yield max_neighb, homo_indices, hetero_indices, (R, fc, tanh, dR), zeros_radial, (cos, dcos), zeros_angular, \
-                        (np.zeros((n_neighb, 1), dtype=np.float32), np.zeros((n_neighb, 1, 3), dtype=np.float32))
+                        (np.zeros((n_neighb, 1), dtype=np.float32),
+                         np.zeros((n_neighb, 1, 3), dtype=np.float32),
+                         np.zeros((1, n_neighb, 3), dtype=np.float32))
                     continue
 
-                homo_R = np.take(R, homo_indices)
-                homo_fc = np.take(fc, homo_indices)
-                homo_tanh = np.take(tanh, homo_indices)
-                homo_dR = np.take(dR, homo_indices, axis=0)
-                homo_cos = np.take(np.take(cos, homo_indices, axis=0), homo_indices, axis=1)
-                homo_dcos = np.take(np.take(dcos, homo_indices, axis=0), homo_indices, axis=1)
+                homo_R = np.take(R, homo)
+                homo_fc = np.take(fc, homo)
+                homo_tanh = np.take(tanh, homo)
+                homo_dR = np.take(dR, homo, axis=0)
+                homo_cos = np.take(np.take(cos, homo, axis=0), homo, axis=1)
+                homo_dcos = np.take(np.take(dcos, homo, axis=0), homo, axis=1)
                 homo_radial = (homo_R, homo_fc, homo_tanh, homo_dR)
                 homo_angular = (homo_cos, homo_dcos)
 
-                hetero_R = np.delete(R, homo_indices)
-                hetero_fc = np.delete(fc, homo_indices)
-                hetero_tanh = np.delete(tanh, homo_indices)
-                hetero_dR = np.delete(dR, homo_indices, axis=0)
-                hetero_cos = np.delete(np.delete(cos, homo_indices, axis=0), homo_indices, axis=1)
-                hetero_dcos = np.delete(np.delete(dcos, homo_indices, axis=0), homo_indices, axis=1)
+                hetero_R = np.delete(R, homo)
+                hetero_fc = np.delete(fc, homo)
+                hetero_tanh = np.delete(tanh, homo)
+                hetero_dR = np.delete(dR, homo, axis=0)
+                hetero_cos = np.delete(np.delete(cos, homo, axis=0), homo, axis=1)
+                hetero_dcos = np.delete(np.delete(dcos, homo, axis=0), homo, axis=1)
                 hetero_radial = (hetero_R, hetero_fc, hetero_tanh, hetero_dR)
                 hetero_angular = (hetero_cos, hetero_dcos)
 
-                mix_cos = np.delete(np.take(cos, homo_indices, axis=0), homo_indices, axis=1)
-                mix_dcos_homo = np.delete(np.take(dcos, homo_indices, axis=0), homo_indices, axis=1)
-                mix_dcos_hetero = np.take(np.delete(dcos, homo_indices, axis=0), homo_indices, axis=1)
+                mix_cos = np.delete(np.take(cos, homo, axis=0), homo, axis=1)
+                mix_dcos_homo = np.delete(np.take(dcos, homo, axis=0), homo, axis=1)
+                mix_dcos_hetero = np.take(np.delete(dcos, homo, axis=0), homo, axis=1)
                 mix_angular = (mix_cos, mix_dcos_homo, mix_dcos_hetero)
 
                 yield max_neighb, homo_indices, hetero_indices, homo_radial, hetero_radial, homo_angular, hetero_angular, mix_angular
@@ -546,7 +599,7 @@ if __name__ == '__main__':
         hp_dict = yaml.load(f)
         dataset_hp = DictAsAttributes(hp_dict['dataset'])
         dataset_hp.mode = 'training'
-    precond = PRECOND[None]()
+    precond = PRECOND['none']()
 
     for _ in DataGenerator(dataset_hp, precond):
         pass

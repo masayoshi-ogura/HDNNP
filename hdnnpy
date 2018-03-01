@@ -30,7 +30,7 @@ parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
                           default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
 parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
                     help='function type for SingleNNP. used for debug.')
-parser.add_argument('--preconditioning', '-p', type=str, default='pca',
+parser.add_argument('--preconditioning', '-p', type=str, default='pca', choices=['pca', 'none'],
                     help='preconditioning of the input data. defalut is PCA, and # of decomposed features.')
 parser.add_argument('--epoch', '-e', type=int, default=1000,
                     help='# of training epochs.')

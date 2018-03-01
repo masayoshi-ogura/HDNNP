@@ -6,16 +6,16 @@ from sklearn import decomposition
 
 
 class PreconditionBase(object):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         pass
 
-    def load(self, *args):
+    def load(self, *args, **kwargs):
         pass
 
-    def save(self, *args):
+    def save(self, *args, **kwargs):
         pass
 
-    def decompose(self, *args):
+    def decompose(self, *args, **kwargs):
         pass
 
 
@@ -77,4 +77,4 @@ class PCA(PreconditionBase):
         dataset.reset_inputs(new_input, new_dinput)
 
 
-PRECOND = {None: PreconditionBase, 'pca': PCA}
+PRECOND = {'none': PreconditionBase, 'pca': PCA}
