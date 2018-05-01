@@ -68,12 +68,12 @@ class PCA(PreconditionBase):
             self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
 
-        mean = np.array([self._mean[element]
+        mean = np.array([self._mean[element]  # (atom, feature)
                          for element in dataset.composition.element])
-        components = np.array([self._components[element]
+        components = np.array([self._components[element]  # (atom, feature, component)
                                for element in dataset.composition.element])
-        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)
-        new_dinput = np.einsum('ijkl,jlm->ijkm', dataset.dinput - mean[:, None, :], components)
+        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean[None, :, :], components)  # (sample, atom, feature)
+        new_dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput - mean[None, :, :, None, None], components)  # (sample, atom, feature, atom, 3)
         dataset.reset_inputs(new_input, new_dinput)
 
 
