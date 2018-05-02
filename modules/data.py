@@ -410,11 +410,10 @@ class AtomicStructureDataset(TupleDataset):
         return r, R, cos
 
     def _deriv_cosine(self, n_neighb, r, R, cos):
-        dcos = np.zeros((n_neighb, n_neighb, 3), dtype=np.float32)
-        for l, m in product(xrange(n_neighb), xrange(n_neighb)):
-            if l == m:
-                continue
-            dcos[l, m] = - r[l]/R[l]**2 * cos[l][m] + r[m]/(R[l] * R[m])  # derivative of cosine(theta) w.r.t. the position of atom l
+        dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
+            + r[None, :, :]/(R[:, None, None] * R[None, :, None])  # derivative of cosine(theta) w.r.t. the position of atom l
+        for i in xrange(n_neighb):
+            dcos[i, i, :] = 0
         return dcos
 
 
