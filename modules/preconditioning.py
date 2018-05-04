@@ -36,8 +36,8 @@ class PCA(PreconditionBase):
 
     def save(self, filename):
         if not path.exists(filename):
-            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.items()}
-            components_dict = {'components/{}'.format(k): v for k, v in self._components.items()}
+            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.iteritems()}
+            components_dict = {'components/{}'.format(k): v for k, v in self._components.iteritems()}
             dic = dict(mean_dict.items() + components_dict.items() + [('elements', self._elements)])
             np.savez(filename, **dic)
 
@@ -57,7 +57,7 @@ class PCA(PreconditionBase):
         #     # adjust ncomponent to max of it
         #     for element, component in self._components.items():
         #         self._components[element] = component[:ncomponent].T
-        for element, indices in dataset.composition.index.items():
+        for element, indices in dataset.composition.index.iteritems():
             if element in self._elements:
                 continue
 

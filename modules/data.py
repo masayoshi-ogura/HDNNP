@@ -7,7 +7,6 @@ from config import mpi
 # import python modules
 from os import path
 from re import match
-import yaml
 from collections import defaultdict
 from itertools import product
 import dill
@@ -26,7 +25,6 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
 
-from .preconditioning import PRECOND
 from .util import pprint, mkdir
 from .util import DictAsAttributes
 
@@ -194,14 +192,13 @@ class AtomicStructureDataset(TupleDataset):
         SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
         existing = np.load(SF_file) if save and path.exists(SF_file) else {}
         new = {}
-        keys = existing.keys()
 
         # type 1
         for Rc in self._hp.Rc:
             key = path.join(*map(str, ['type1', Rc]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
-            if G_key in keys and existing[G_key].shape[0] == self._nsample:
+            if G_key in existing and existing[G_key].shape[0] == self._nsample:
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
             else:
@@ -225,7 +222,7 @@ class AtomicStructureDataset(TupleDataset):
             key = path.join(*map(str, ['type2', Rc, eta, Rs]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
-            if G_key in keys and existing[G_key].shape[0] == self._nsample:
+            if G_key in existing and existing[G_key].shape[0] == self._nsample:
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
             else:
@@ -249,7 +246,7 @@ class AtomicStructureDataset(TupleDataset):
             key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
             G_key = path.join('G', key)
             dG_key = path.join('dG', key)
-            if G_key in keys and existing[G_key].shape[0] == self._nsample:
+            if G_key in existing and existing[G_key].shape[0] == self._nsample:
                 Gs.append(existing[G_key])
                 dGs.append(existing[dG_key])
             else:
@@ -395,18 +392,15 @@ class AtomicStructureDataset(TupleDataset):
                 yield i, k, neighbour, R, fc, tanh, dR, cos, dcos
 
     def _neighbour(self, k, n_neighb, atoms):
-        r = np.zeros((n_neighb, 3), dtype=np.float32)
-        R = np.zeros(n_neighb, dtype=np.float32)
+        diff = np.zeros((n_neighb, 3))
         cos = np.zeros((n_neighb, n_neighb), dtype=np.float32)
         for l in xrange(n_neighb):
-            dist = farray(0.0)
-            diff = fzeros(3)
-            atoms.neighbour(k+1, l+1, distance=dist, diff=diff)
-            r[l] = np.array(diff)
-            R[l] = np.array(dist)
-            for m in xrange(n_neighb):
-                if l != m:
-                    cos[l][m] = atoms.cosine_neighbour(k+1, l+1, m+1)
+            atoms.neighbour(k+1, l+1, diff=diff[l])
+            for m in xrange(l):
+                cos[l, m] = atoms.cosine_neighbour(k+1, l+1, m+1)
+                cos[m, l] = cos[l, m]
+        r = diff.astype(np.float32)
+        R = np.linalg.norm(r, axis=1)
         return r, R, cos
 
     def _deriv_cosine(self, n_neighb, r, R, cos):
@@ -485,14 +479,3 @@ class DataGenerator(object):
             pprint('done')
 
         mpi.comm.Barrier()
-
-
-if __name__ == '__main__':
-    with open('hyperparameter.yaml') as f:
-        hp_dict = yaml.load(f)
-        dataset_hp = DictAsAttributes(hp_dict['dataset'])
-        dataset_hp.mode = 'training'
-    precond = PRECOND['none']()
-
-    for _ in DataGenerator(dataset_hp, precond):
-        pass
