@@ -19,8 +19,6 @@ from quippy import Atoms
 from quippy import AtomsReader
 from quippy import AtomsList
 from quippy import AtomsWriter
-from quippy import farray
-from quippy import fzeros
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.units import VaspToCm
@@ -303,31 +301,13 @@ class AtomicStructureDataset(TupleDataset):
         dG = np.zeros((self._n, self._natom, 3, self._natom, 3), dtype=np.float32)
         for i, k, neighbour, R, fc, tanh, dR, cos, dcos in self._calc_geometry(Rc):
             ang = 1. + lambda_ * cos
+            rad1 = np.exp(-eta * R**2) * fc
+            rad2 = rad1 * (-2.*eta*R + 3./Rc*(tanh - 1./tanh))
             ang[np.identity(len(R), dtype=bool)] = 0.
-            g = 2.**(1-zeta) \
-                * np.einsum('jk,j,k->jk',
-                            ang**zeta,
-                            np.exp(-eta * R**2) * fc,
-                            np.exp(-eta * R**2) * fc)
-            dg_radial_part1 = 2.**(1-zeta) \
-                * np.einsum('jk,j,k,ja->jka',
-                            ang**zeta,
-                            np.exp(-eta * R**2) * fc * (-2.*eta*R + 3./Rc*(tanh - 1./tanh)),
-                            np.exp(-eta * R**2) * fc,
-                            dR)
-            dg_radial_part2 = 2.**(1-zeta) \
-                * np.einsum('jk,j,k,ka->jka',
-                            ang**zeta,
-                            np.exp(-eta * R**2) * fc * (-2.*eta*R + 3./Rc*(tanh - 1./tanh)),
-                            np.exp(-eta * R**2) * fc,
-                            dR)
-            dg_angular_part = zeta * lambda_ * 2.**(1-zeta) \
-                * np.einsum('jk,j,k,jka->jka',
-                            ang**(zeta-1),
-                            np.exp(-eta * R**2) * fc,
-                            np.exp(-eta * R**2) * fc,
-                            dcos)
-            dg = dg_radial_part1 + dg_radial_part2 + dg_angular_part
+            g = 2.**(1-zeta) * ang**zeta * rad1[:, None] * rad1[None, :]
+            dg_radial_part = 2.**(1-zeta) * ang[:, :, None]**zeta * rad2[:, None, None] * rad1[None, :, None] * dR[:, None, :]
+            dg_angular_part = zeta * lambda_ * 2.**(1-zeta) * ang[:, :, None]**(zeta-1) * rad1[:, None, None] * rad1[None, :, None] * dcos
+            dg = dg_radial_part + dg_radial_part.transpose(1, 0, 2) + dg_angular_part
             # homo
             G[i, k, 0] = np.sum(g[np.ix_(neighbour['homo_all'], neighbour['homo_all'])]) / 2.
             dG[i, k, 0] = np.array([dg[np.ix_(indices, indices)].sum(axis=(0, 1)) for indices in neighbour['homo']]) / 2.
@@ -359,20 +339,21 @@ class AtomicStructureDataset(TupleDataset):
 
     @memorize_generator
     def _calc_geometry(self, Rc):
+        dummy = (None, None, [], np.zeros(1, dtype=np.float32), np.zeros(1, dtype=np.float32),
+                 np.ones(1, dtype=np.float32), np.zeros((1, 3), dtype=np.float32),
+                 np.zeros((1, 1), dtype=np.float32), np.zeros((1, 1, 3), dtype=np.float32))
+
         for i, atoms in enumerate(self._atoms_objs):
             atoms.set_cutoff(Rc)
             atoms.calc_connect()
             for k in xrange(self._natom):
                 n_neighb = atoms.n_neighbours(k+1)
                 if n_neighb == 0:
-                    yield i, k, [], np.zeros(1, dtype=np.float32), np.zeros(1, dtype=np.float32), \
-                        np.ones(1, dtype=np.float32), np.zeros((1, 3), dtype=np.float32), \
-                        np.zeros((1, 1), dtype=np.float32), np.zeros((1, 1, 3), dtype=np.float32)
+                    dummy[0:2] = i, k
+                    yield dummy
                     continue
 
-                r, R, cos = self._neighbour(k, n_neighb, atoms)
-                dR = r / R[:, None]
-                dcos = self._deriv_cosine(n_neighb, r, R, cos)
+                r, R, dR, cos, dcos = self._neighbour(k, n_neighb, atoms)
                 fc = np.tanh(1-R/Rc)**3
                 tanh = np.tanh(1-R/Rc)
 
@@ -393,22 +374,18 @@ class AtomicStructureDataset(TupleDataset):
 
     def _neighbour(self, k, n_neighb, atoms):
         diff = np.zeros((n_neighb, 3))
-        cos = np.zeros((n_neighb, n_neighb), dtype=np.float32)
         for l in xrange(n_neighb):
             atoms.neighbour(k+1, l+1, diff=diff[l])
-            for m in xrange(l):
-                cos[l, m] = atoms.cosine_neighbour(k+1, l+1, m+1)
-                cos[m, l] = cos[l, m]
         r = diff.astype(np.float32)
         R = np.linalg.norm(r, axis=1)
-        return r, R, cos
-
-    def _deriv_cosine(self, n_neighb, r, R, cos):
+        dR = r / R[:, None]
+        cos = np.dot(dR, dR.T)
         dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
-            + r[None, :, :]/(R[:, None, None] * R[None, :, None])  # derivative of cosine(theta) w.r.t. the position of atom l
+            + r[None, :, :]/(R[:, None, None] * R[None, :, None])
         for i in xrange(n_neighb):
+            cos[i, i] = 0
             dcos[i, i, :] = 0
-        return dcos
+        return r, R, dR, cos, dcos
 
 
 class DataGenerator(object):
