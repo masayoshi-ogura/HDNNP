@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import chainer
+from chainer import Variable
+import numpy as np
 
 
 class Updater(chainer.training.StandardUpdater):
@@ -29,6 +31,7 @@ class HDUpdater(chainer.training.StandardUpdater):
         main_opt = self.get_optimizer('main')
         masters = master_opt.target
         hdnnp = main_opt.target
+
         batch = self.converter(self.get_iterator('main').next(), self.device)
 
         masters.cleargrads()

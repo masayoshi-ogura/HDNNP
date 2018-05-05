@@ -14,12 +14,14 @@ from itertools import islice
 
 from modules import hdnnp
 from modules import single
+from modules.data import DataGenerator
+from modules.preconditioning import PRECOND
 from modules.util import pprint, mkdir, write
 from modules.util import DictAsAttributes, HyperParameter
 
 
 parser = argparse.ArgumentParser('High Dimensional Neural Network Potential')
-parser.add_argument('mode', type=str, default='training', choices=['cv', 'training', 'optimize', 'phonon'],
+parser.add_argument('mode', type=str, default='training', choices=['cv', 'training', 'optimize', 'phonon', 'sf'],
                     help='select mode')
 parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
                     help='YAML file which contains all of the hyperparameters.')
@@ -30,7 +32,7 @@ parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
                           default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
 parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
                     help='function type for SingleNNP. used for debug.')
-parser.add_argument('--preconditioning', '-p', type=str, default='pca',
+parser.add_argument('--preconditioning', '-p', type=str, default='pca', choices=['pca', 'none'],
                     help='preconditioning of the input data. defalut is PCA, and # of decomposed features.')
 parser.add_argument('--epoch', '-e', type=int, default=1000,
                     help='# of training epochs.')
@@ -90,7 +92,7 @@ if config.mode in ['cv', 'training']:
                     write(result_file, yaml.dump([result], default_flow_style=False))
                     if 'best_result' not in locals() or best_result[args.metrics] > result[args.metrics]:  # NOQA
                         best_result = result.copy()
-                        best_set = {k: [v] for k, v in set.items()}
+                        best_set = {k: [v] for k, v in set.iteritems()}
             except:
                 traceback.print_exc()
             finally:
@@ -126,3 +128,13 @@ elif config.mode in ['optimize', 'phonon']:
     poscar = path.join(args.testdir, 'POSCAR')
     for masters_path in masters_paths:
         hdnnp.test(hp, masters_path, poscar)
+
+elif config.mode in ['sf']:
+    with open('hyperparameter.yaml') as f:
+        hp_dict = yaml.load(f)
+        dataset_hp = DictAsAttributes(hp_dict['dataset'])
+        dataset_hp.mode = 'training'
+    precond = PRECOND['none']()
+
+    for _ in DataGenerator(dataset_hp, precond):
+        pass

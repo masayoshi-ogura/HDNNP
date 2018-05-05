@@ -71,8 +71,11 @@ class HDNNP(chainer.ChainList):
         return [nnp.predict_y(x) for nnp, x in zip(self, xs)]
 
     def predict_dy(self, dxs, y, xs, train):
-        dy = chainer.grad(y, xs, retain_grad=train, enable_double_backprop=train)
-        return - sum([F.batch_matmul(dxi, dyi) for dxi, dyi in zip(dxs, dy)])
+        natom = len(dxs)
+        dys = chainer.grad(y, xs, retain_grad=train, enable_double_backprop=train)
+        forces = - sum([F.sum(dx * F.tile(dy[:, :, None, None], (natom, 3)), axis=1)
+                        for dx, dy in zip(dxs, dys)])
+        return forces
 
     def get_by_element(self, element):
         return [nnp for nnp in self if nnp.element == element]
@@ -89,5 +92,5 @@ class HDNNP(chainer.ChainList):
 
     def _preprocess(self, xs, dxs):
         xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3)]
+        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3, 4)]
         return xs, dxs
