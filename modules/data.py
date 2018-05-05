@@ -272,51 +272,61 @@ class AtomicStructureDataset(TupleDataset):
     def _calc_G1(self, Rc):
         G = np.zeros((self._n, self._natom, 2), dtype=np.float32)
         dG = np.zeros((self._n, self._natom, 2, self._natom, 3), dtype=np.float32)
-        for i, k, neighbour, R, fc, tanh, dR, _, _ in self._calc_geometry(Rc):
+        for i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, _, _ in self._calc_geometry(Rc):
             dg = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
-            # homo
-            G[i, k, 0] = np.sum(fc[neighbour['homo_all']])
-            dG[i, k, 0] = np.array([dg[indices].sum(axis=0) for indices in neighbour['homo']])
-            # hetero
-            G[i, k, 1] = np.sum(fc[neighbour['hetero_all']])
-            dG[i, k, 1] = np.array([dg[indices].sum(axis=0) for indices in neighbour['hetero']])
+            # G
+            G[i, k, 0] = fc[homo_all].sum()
+            G[i, k, 1] = fc[hetero_all].sum()
+            # dG
+            for j, (homo, indices) in enumerate(neighbour):
+                if homo:
+                    dG[i, k, 0, j] = np.take(dg, indices, 0).sum(0)
+                else:
+                    dG[i, k, 1, j] = np.take(dg, indices, 0).sum(0)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
         G = np.zeros((self._n, self._natom, 2), dtype=np.float32)
         dG = np.zeros((self._n, self._natom, 2, self._natom, 3), dtype=np.float32)
-        for i, k, neighbour, R, fc, tanh, dR, _, _ in self._calc_geometry(Rc):
+        for i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, _, _ in self._calc_geometry(Rc):
             g = np.exp(- eta * (R - Rs)**2) * fc
             dg = (g * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)))[:, None] * dR
-            # homo
-            G[i, k, 0] = np.sum(g[neighbour['homo_all']])
-            dG[i, k, 0] = np.array([dg[indices].sum(axis=0) for indices in neighbour['homo']])
-            # hetero
-            G[i, k, 1] = np.sum(g[neighbour['hetero_all']])
-            dG[i, k, 1] = np.array([dg[indices].sum(axis=0) for indices in neighbour['hetero']])
+            # G
+            G[i, k, 0] = g[homo_all].sum()
+            G[i, k, 1] = g[hetero_all].sum()
+            # dG
+            for j, (homo, indices) in enumerate(neighbour):
+                if homo:
+                    dG[i, k, 0, j] = np.take(dg, indices, 0).sum(0)
+                else:
+                    dG[i, k, 1, j] = np.take(dg, indices, 0).sum(0)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lambda_, zeta):
         G = np.zeros((self._n, self._natom, 3), dtype=np.float32)
         dG = np.zeros((self._n, self._natom, 3, self._natom, 3), dtype=np.float32)
-        for i, k, neighbour, R, fc, tanh, dR, cos, dcos in self._calc_geometry(Rc):
+        for i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, cos, dcos in self._calc_geometry(Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R**2) * fc
             rad2 = rad1 * (-2.*eta*R + 3./Rc*(tanh - 1./tanh))
-            ang[np.identity(len(R), dtype=bool)] = 0.
+            ang[np.eye(len(R), dtype=bool)] = 0
             g = 2.**(1-zeta) * ang**zeta * rad1[:, None] * rad1[None, :]
             dg_radial_part = 2.**(1-zeta) * ang[:, :, None]**zeta * rad2[:, None, None] * rad1[None, :, None] * dR[:, None, :]
             dg_angular_part = zeta * lambda_ * 2.**(1-zeta) * ang[:, :, None]**(zeta-1) * rad1[:, None, None] * rad1[None, :, None] * dcos
-            dg = dg_radial_part + dg_radial_part.transpose(1, 0, 2) + dg_angular_part
-            # homo
-            G[i, k, 0] = np.sum(g[np.ix_(neighbour['homo_all'], neighbour['homo_all'])]) / 2.
-            dG[i, k, 0] = np.array([dg[np.ix_(indices, indices)].sum(axis=(0, 1)) for indices in neighbour['homo']]) / 2.
-            # hetero
-            G[i, k, 1] = np.sum(g[np.ix_(neighbour['hetero_all'], neighbour['hetero_all'])]) / 2.
-            dG[i, k, 1] = np.array([dg[np.ix_(indices, indices)].sum(axis=(0, 1)) for indices in neighbour['hetero']]) / 2.
-            # mix
-            G[i, k, 2] = np.sum(g[np.ix_(neighbour['homo_all'], neighbour['hetero_all'])])
-            dG[i, k, 2] = np.array([dg[np.ix_(homo, hetero)].sum(axis=(0, 1)) for homo, hetero in zip(neighbour['homo'], neighbour['hetero'])])
+            dg = dg_radial_part + dg_angular_part
+
+            # G
+            G[i, k, 0] = np.take(np.take(g, homo_all, 0), homo_all, 1).sum() / 2.0
+            G[i, k, 1] = np.take(np.take(g, hetero_all, 0), hetero_all, 1).sum() / 2.0
+            G[i, k, 2] = np.take(np.take(g, homo_all, 0), hetero_all, 1).sum()
+            # dG
+            for j, (homo, indices) in enumerate(neighbour):
+                if homo:
+                    dG[i, k, 0, j] = np.take(np.take(dg, indices, 0), homo_all, 1).sum((0, 1))
+                    dG[i, k, 2, j] = np.take(np.take(dg, indices, 0), hetero_all, 1).sum((0, 1))
+                else:
+                    dG[i, k, 1, j] = np.take(np.take(dg, indices, 0), hetero_all, 1).sum((0, 1))
+                    dG[i, k, 2, j] = np.take(np.take(dg, indices, 0), homo_all, 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
@@ -339,7 +349,7 @@ class AtomicStructureDataset(TupleDataset):
 
     @memorize_generator
     def _calc_geometry(self, Rc):
-        dummy = (None, None, [], np.zeros(1, dtype=np.float32), np.zeros(1, dtype=np.float32),
+        dummy = (None, None, [], [], [], np.zeros(1, dtype=np.float32), np.zeros(1, dtype=np.float32),
                  np.ones(1, dtype=np.float32), np.zeros((1, 3), dtype=np.float32),
                  np.zeros((1, 1), dtype=np.float32), np.zeros((1, 1, 3), dtype=np.float32))
 
@@ -353,39 +363,27 @@ class AtomicStructureDataset(TupleDataset):
                     yield dummy
                     continue
 
-                r, R, dR, cos, dcos = self._neighbour(k, n_neighb, atoms)
+                r = np.zeros((n_neighb, 3), dtype=np.float32)
+                element = self._composition.element[k]
+                neighbour = [(j in self._composition.index[element], []) for j in xrange(self._natom)]
+                homo_all, hetero_all = [], []
+                for l, neighb in enumerate(atoms.connect[k+1]):
+                    r[l] = neighb.diff
+                    neighbour[neighb.j-1][1].append(l)
+                    if neighbour[neighb.j-1][0]:
+                        homo_all.append(l)
+                    else:
+                        hetero_all.append(l)
+                R = np.linalg.norm(r, axis=1)
                 fc = np.tanh(1-R/Rc)**3
                 tanh = np.tanh(1-R/Rc)
-
-                element = self._composition.element[k]  # element of the focused atom
-                neighbour_list = atoms.connect.get_neighbours(k+1)[0] - 1  # [0, 4, 1, 1, 3, 2 ...]; length=n_neighb
-                neighbour = {'homo': [], 'hetero': [], 'homo_all': [], 'hetero_all': []}
-                for j in xrange(self._natom):
-                    if j in self._composition.index[element]:
-                        neighbour['homo'].append([m for m, index in enumerate(neighbour_list) if index == j])
-                        neighbour['hetero'].append([])
-                        neighbour['homo_all'].extend(neighbour['homo'][j])
-                    else:
-                        neighbour['homo'].append([])
-                        neighbour['hetero'].append([m for m, index in enumerate(neighbour_list) if index == j])
-                        neighbour['hetero_all'].extend(neighbour['hetero'][j])
-
-                yield i, k, neighbour, R, fc, tanh, dR, cos, dcos
-
-    def _neighbour(self, k, n_neighb, atoms):
-        diff = np.zeros((n_neighb, 3))
-        for l in xrange(n_neighb):
-            atoms.neighbour(k+1, l+1, diff=diff[l])
-        r = diff.astype(np.float32)
-        R = np.linalg.norm(r, axis=1)
-        dR = r / R[:, None]
-        cos = np.dot(dR, dR.T)
-        dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
-            + r[None, :, :]/(R[:, None, None] * R[None, :, None])
-        for i in xrange(n_neighb):
-            cos[i, i] = 0
-            dcos[i, i, :] = 0
-        return r, R, dR, cos, dcos
+                dR = r / R[:, None]
+                cos = np.dot(dR, dR.T)
+                # cosine(j - i - k) differentiate w.r.t. "j"
+                # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
+                dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
+                    + r[None, :, :]/(R[:, None, None] * R[None, :, None])
+                yield i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, cos, dcos
 
 
 class DataGenerator(object):
