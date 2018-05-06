@@ -280,9 +280,9 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = np.take(dg, indices, 0).sum(0)
+                    dG[i, k, 0, j] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[i, k, 1, j] = np.take(dg, indices, 0).sum(0)
+                    dG[i, k, 1, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
@@ -297,9 +297,9 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = np.take(dg, indices, 0).sum(0)
+                    dG[i, k, 0, j] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[i, k, 1, j] = np.take(dg, indices, 0).sum(0)
+                    dG[i, k, 1, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lambda_, zeta):
@@ -316,17 +316,17 @@ class AtomicStructureDataset(TupleDataset):
             dg = dg_radial_part + dg_angular_part
 
             # G
-            G[i, k, 0] = np.take(np.take(g, homo_all, 0), homo_all, 1).sum() / 2.0
-            G[i, k, 1] = np.take(np.take(g, hetero_all, 0), hetero_all, 1).sum() / 2.0
-            G[i, k, 2] = np.take(np.take(g, homo_all, 0), hetero_all, 1).sum()
+            G[i, k, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
+            G[i, k, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
+            G[i, k, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = np.take(np.take(dg, indices, 0), homo_all, 1).sum((0, 1))
-                    dG[i, k, 2, j] = np.take(np.take(dg, indices, 0), hetero_all, 1).sum((0, 1))
+                    dG[i, k, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[i, k, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
                 else:
-                    dG[i, k, 1, j] = np.take(np.take(dg, indices, 0), hetero_all, 1).sum((0, 1))
-                    dG[i, k, 2, j] = np.take(np.take(dg, indices, 0), homo_all, 1).sum((0, 1))
+                    dG[i, k, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[i, k, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
@@ -372,7 +372,7 @@ class AtomicStructureDataset(TupleDataset):
                 fc = np.tanh(1-R/Rc)**3
                 tanh = np.tanh(1-R/Rc)
                 dR = r / R[:, None]
-                cos = np.dot(dR, dR.T)
+                cos = dR.dot(dR.T)
                 # cosine(j - i - k) differentiate w.r.t. "j"
                 # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
                 dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
