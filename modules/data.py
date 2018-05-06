@@ -280,9 +280,9 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = dg[indices].sum(0)
+                    dG[i, k, 0, j] = np.take(dg, indices, 0).sum(0)
                 else:
-                    dG[i, k, 1, j] = dg[indices].sum(0)
+                    dG[i, k, 1, j] = np.take(dg, indices, 0).sum(0)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
@@ -297,9 +297,9 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = dg[indices].sum(0)
+                    dG[i, k, 0, j] = np.take(dg, indices, 0).sum(0)
                 else:
-                    dG[i, k, 1, j] = dg[indices].sum(0)
+                    dG[i, k, 1, j] = np.take(dg, indices, 0).sum(0)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lambda_, zeta):
@@ -316,17 +316,17 @@ class AtomicStructureDataset(TupleDataset):
             dg = dg_radial_part + dg_angular_part
 
             # G
-            G[i, k, 0] = g[homo_all][:, homo_all].sum() / 2.0
-            G[i, k, 1] = g[hetero_all][:, hetero_all].sum() / 2.0
-            G[i, k, 2] = g[homo_all][:, hetero_all].sum()
+            G[i, k, 0] = np.take(np.take(g, homo_all, 0), homo_all, 1).sum() / 2.0
+            G[i, k, 1] = np.take(np.take(g, hetero_all, 0), hetero_all, 1).sum() / 2.0
+            G[i, k, 2] = np.take(np.take(g, homo_all, 0), hetero_all, 1).sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = dg[indices][:, homo_all].sum((0, 1))
-                    dG[i, k, 2, j] = dg[indices][:, hetero_all].sum((0, 1))
+                    dG[i, k, 0, j] = np.take(np.take(dg, indices, 0), homo_all, 1).sum((0, 1))
+                    dG[i, k, 2, j] = np.take(np.take(dg, indices, 0), hetero_all, 1).sum((0, 1))
                 else:
-                    dG[i, k, 1, j] = dg[indices][:, hetero_all].sum((0, 1))
-                    dG[i, k, 2, j] = dg[indices][:, homo_all].sum((0, 1))
+                    dG[i, k, 1, j] = np.take(np.take(dg, indices, 0), hetero_all, 1).sum((0, 1))
+                    dG[i, k, 2, j] = np.take(np.take(dg, indices, 0), homo_all, 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
