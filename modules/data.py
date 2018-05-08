@@ -272,11 +272,12 @@ class AtomicStructureDataset(TupleDataset):
     def _calc_G1(self, Rc):
         G = np.zeros((self._n, self._natom, 2), dtype=np.float32)
         dG = np.zeros((self._n, self._natom, 2, self._natom, 3), dtype=np.float32)
-        for i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, _, _ in self._calc_geometry(Rc):
+        for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
+            g = tanh**3
             dg = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
             # G
-            G[i, k, 0] = fc[homo_all].sum()
-            G[i, k, 1] = fc[hetero_all].sum()
+            G[i, k, 0] = g[homo_all].sum()
+            G[i, k, 1] = g[hetero_all].sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
@@ -288,9 +289,9 @@ class AtomicStructureDataset(TupleDataset):
     def _calc_G2(self, Rc, eta, Rs):
         G = np.zeros((self._n, self._natom, 2), dtype=np.float32)
         dG = np.zeros((self._n, self._natom, 2, self._natom, 3), dtype=np.float32)
-        for i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, _, _ in self._calc_geometry(Rc):
-            g = np.exp(- eta * (R - Rs)**2) * fc
-            dg = (g * (-2.*eta*(R-Rs) + 3./Rc*(tanh - 1./tanh)))[:, None] * dR
+        for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
+            g = np.exp(- eta * (R - Rs)**2) * tanh**3
+            dg = (np.exp(- eta * (R - Rs)**2) * tanh**2 * (-2.*eta*(R-Rs)*tanh + 3./Rc*(tanh**2 - 1.0)))[:, None] * dR
             # G
             G[i, k, 0] = g[homo_all].sum()
             G[i, k, 1] = g[hetero_all].sum()
@@ -305,10 +306,10 @@ class AtomicStructureDataset(TupleDataset):
     def _calc_G4(self, Rc, eta, lambda_, zeta):
         G = np.zeros((self._n, self._natom, 3), dtype=np.float32)
         dG = np.zeros((self._n, self._natom, 3, self._natom, 3), dtype=np.float32)
-        for i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, cos, dcos in self._calc_geometry(Rc):
+        for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._calc_geometry(Rc):
             ang = 1. + lambda_ * cos
-            rad1 = np.exp(-eta * R**2) * fc
-            rad2 = rad1 * (-2.*eta*R + 3./Rc*(tanh - 1./tanh))
+            rad1 = np.exp(-eta * R**2) * tanh**3
+            rad2 = np.exp(-eta * R**2) * tanh**2 * (-2.*eta*R*tanh + 3./Rc*(tanh**2 - 1.0))
             ang[np.eye(len(R), dtype=bool)] = 0
             g = 2.**(1-zeta) * ang**zeta * rad1[:, None] * rad1[None, :]
             dg_radial_part = 2.**(1-zeta) * ang[:, :, None]**zeta * rad2[:, None, None] * rad1[None, :, None] * dR[:, None, :]
@@ -369,7 +370,6 @@ class AtomicStructureDataset(TupleDataset):
                     else:
                         hetero_all.append(l)
                 R = np.linalg.norm(r, axis=1)
-                fc = np.tanh(1-R/Rc)**3
                 tanh = np.tanh(1-R/Rc)
                 dR = r / R[:, None]
                 cos = dR.dot(dR.T)
@@ -377,7 +377,7 @@ class AtomicStructureDataset(TupleDataset):
                 # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
                 dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
                     + r[None, :, :]/(R[:, None, None] * R[None, :, None])
-                yield i, k, neighbour, homo_all, hetero_all, R, fc, tanh, dR, cos, dcos
+                yield i, k, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
 
 
 class DataGenerator(object):

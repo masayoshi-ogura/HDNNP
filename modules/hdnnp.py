@@ -25,7 +25,7 @@ from .extensions import scatterplot
 def run(hp, out_dir, log):
     results = []
     # dataset and iterator
-    precond = PRECOND[hp.preconditioning](ncomponent=20)
+    precond = PRECOND[hp.preconditioning]()
     generator = DataGenerator(hp, precond)
     if hp.mode == 'training':
         precond.save(path.join(out_dir, 'preconditioning.npz'))
@@ -34,8 +34,8 @@ def run(hp, out_dir, log):
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
         master_opt = chainer.optimizers.Adam(hp.init_lr)
         master_opt.setup(masters)
-        master_opt.add_hook(chainer.optimizer.Lasso(hp.l1_norm))
-        master_opt.add_hook(chainer.optimizer.WeightDecay(hp.l2_norm))
+        master_opt.add_hook(chainer.optimizer_hooks.Lasso(hp.l1_norm))
+        master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(hp.l2_norm))
 
         for train, val, config, composition in dataset:
             train_iter = chainer.iterators.SerialIterator(train, hp.batch_size)
@@ -99,7 +99,7 @@ def optimize(hp, masters_path, *args, **kwargs):
     energy, force = predict(hp, masters_path, *args, **kwargs)
     nsample = len(energy)
     energy = energy.data.reshape(-1)
-    force = np.sqrt((force.data.reshape(nsample, -1)**2).mean(axis=1))
+    force = np.sqrt((force.data**2).mean(axis=(1, 2)))
     x = np.linspace(0.9, 1.1, nsample)
     plt.plot(x, energy, label='energy')
     plt.plot(x, force, label='force')
@@ -117,8 +117,7 @@ def phonon(hp, masters_path, *args, **kwargs):
     dirname, basename = path.split(masters_path)
     root, _ = path.splitext(basename)
     dataset, force = predict(hp, masters_path, *args, **kwargs)
-    nsample = len(dataset)
-    sets_of_forces = force.data.reshape(nsample, 3, -1).transpose(0, 2, 1)
+    sets_of_forces = force.data
     phonon = dataset.phonopy
     phonon.set_forces(sets_of_forces)
     phonon.produce_force_constants()
@@ -175,7 +174,7 @@ def phonon(hp, masters_path, *args, **kwargs):
 def predict(hp, masters_path, *args, **kwargs):
     dataset = AtomicStructureDataset(hp)
     dataset.load_poscar(*args, **kwargs)
-    precond = PRECOND[hp.preconditioning](ncomponent=20)
+    precond = PRECOND[hp.preconditioning]()
     precond.load(path.join(path.dirname(masters_path), 'preconditioning.npz'))
     precond.decompose(dataset)
     masters = chainer.ChainList(*[SingleNNP(hp, element) for element in set(dataset.composition.element)])
