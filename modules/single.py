@@ -33,8 +33,8 @@ def run(hp, out_dir, log):
         model = SingleNNP(hp, hp.single)
         optimizer = chainer.optimizers.Adam(hp.init_lr)
         optimizer.setup(model)
-        optimizer.add_hook(chainer.optimizer.Lasso(hp.l1_norm))
-        optimizer.add_hook(chainer.optimizer.WeightDecay(hp.l2_norm))
+        optimizer.add_hook(chainer.optimizer_hooks.Lasso(hp.l1_norm))
+        optimizer.add_hook(chainer.optimizer_hooks.WeightDecay(hp.l2_norm))
 
         # updater and trainer
         updater = Updater(iterator=train_iter, optimizer=optimizer, device=mpi.gpu)

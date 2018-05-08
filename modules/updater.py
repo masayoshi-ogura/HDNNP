@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import chainer
-from chainer import Variable
-import numpy as np
 
 
-class Updater(chainer.training.StandardUpdater):
+class Updater(chainer.training.updaters.StandardUpdater):
     def __init__(self, *args, **kwargs):
         super(Updater, self).__init__(*args, **kwargs)
 
@@ -22,7 +20,7 @@ class Updater(chainer.training.StandardUpdater):
         optimizer.update()
 
 
-class HDUpdater(chainer.training.StandardUpdater):
+class HDUpdater(chainer.training.updaters.StandardUpdater):
     def __init__(self, *args, **kwargs):
         super(HDUpdater, self).__init__(*args, **kwargs)
 
