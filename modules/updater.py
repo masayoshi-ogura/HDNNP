@@ -3,7 +3,7 @@
 import chainer
 
 
-class Updater(chainer.training.StandardUpdater):
+class Updater(chainer.training.updaters.StandardUpdater):
     def __init__(self, *args, **kwargs):
         super(Updater, self).__init__(*args, **kwargs)
 
@@ -20,7 +20,7 @@ class Updater(chainer.training.StandardUpdater):
         optimizer.update()
 
 
-class HDUpdater(chainer.training.StandardUpdater):
+class HDUpdater(chainer.training.updaters.StandardUpdater):
     def __init__(self, *args, **kwargs):
         super(HDUpdater, self).__init__(*args, **kwargs)
 
@@ -29,6 +29,7 @@ class HDUpdater(chainer.training.StandardUpdater):
         main_opt = self.get_optimizer('main')
         masters = master_opt.target
         hdnnp = main_opt.target
+
         batch = self.converter(self.get_iterator('main').next(), self.device)
 
         masters.cleargrads()

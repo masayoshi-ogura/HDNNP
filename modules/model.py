@@ -45,7 +45,7 @@ class SingleNNP(chainer.Chain):
         return y
 
     def predict_dy(self, dx, y, x, train):
-        return F.batch_matmul(dx, chainer.grad([y], [x], retain_grad=train, enable_double_backprop=train)[0])
+        return F.batch_matmul(dx, chainer.grad([y], [x], enable_double_backprop=train)[0])
 
 
 class HDNNP(chainer.ChainList):
@@ -61,6 +61,14 @@ class HDNNP(chainer.ChainList):
         return y_pred, dy_pred, loss_func(self._mixing_beta, y_pred, y_true, dy_pred, dy_true, self)
 
     def predict(self, xs, dxs):
+        """
+        INPUT
+        xs:  ndarray (nsample, natom, nfeature)
+        dxs: ndarray (nsample, natom, nfeature, natom, 3)
+        OUTPUT
+        y_pred:  Variable (nsample, 1)
+        dy_pred: Variable (nsample, natom, 3)
+        """
         xs, dxs = self._preprocess(xs, dxs)
         y_pred = self.predict_y(xs)
         dy_pred = self.predict_dy(dxs, y_pred, xs, False)
@@ -71,8 +79,23 @@ class HDNNP(chainer.ChainList):
         return [nnp.predict_y(x) for nnp, x in zip(self, xs)]
 
     def predict_dy(self, dxs, y, xs, train):
-        dy = chainer.grad(y, xs, retain_grad=train, enable_double_backprop=train)
-        return - sum([F.batch_matmul(dxi, dyi) for dxi, dyi in zip(dxs, dy)])
+        """
+        INPUT
+        dxs: list of Variable [natom, (nsample, nfeature, natom, 3)]
+        y:   list of Variable [natom, (nsample, 1)]
+        xs:  list of Variable [natom, (nsample, nfeature)]
+        train: boolean
+        OUTPUT
+        forces: Variable (nsample, natom, 3)
+
+        natom, which is length of the list, is the atom energy changes.
+        natom, which is shape[2] of ndarray of y, is the atom forces you want to compute acting on.
+        """
+        shape = dxs[0].shape
+        natom = shape[2]
+        dys = chainer.grad(y, xs, enable_double_backprop=train)
+        forces = - sum([F.sum(dx * F.repeat(dy, 3*natom).reshape(shape), axis=1) for dx, dy in zip(dxs, dys)])
+        return forces
 
     def get_by_element(self, element):
         return [nnp for nnp in self if nnp.element == element]
@@ -88,6 +111,9 @@ class HDNNP(chainer.ChainList):
                 nnp.copyparams(master)
 
     def _preprocess(self, xs, dxs):
+        """
+        convert computed Symmetry Functions from ndarray to list of chainer.Variable
+        """
         xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3)]
+        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3, 4)]
         return xs, dxs

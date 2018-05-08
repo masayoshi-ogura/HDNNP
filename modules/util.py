@@ -32,7 +32,7 @@ def write(f, str):
 def flatten_dict(dic):
     return {k: v.data.item() if isinstance(v, Variable)
             else v.item() if isinstance(v, np.float64)
-            else v for k, v in dic.items()}
+            else v for k, v in dic.iteritems()}
 
 
 class DictAsAttributes(dict):
@@ -46,10 +46,6 @@ class DictAsAttributes(dict):
         self.__dict__.update(state)
 
     def __getattr__(self, name):
-        # if name in dir(self):
-        #     return self.name
-        # elif name == '__setstate__':
-        #     return self.__setstate__
         if name in dir(DictAsAttributes):
             return self.name
 
@@ -81,13 +77,13 @@ class HyperParameter(object):
         if self.random:
             for i in range(self.random):
                 yield DictAsAttributes({k: random.uniform(min(v), max(v)) if k != 'layer'
-                                        else random.choice(v) for k, v in self.hyperparameters.items()})
+                                        else random.choice(v) for k, v in self.hyperparameters.iteritems()})
         else:
             for index in self.indices:
-                yield DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.items(), index)})
+                yield DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.iteritems(), index)})
 
     def __len__(self):
         return self.random if self.random else len(self.indices)
 
     def __getitem__(self, n):
-        return DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.items(), self.indices[n])})
+        return DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.iteritems(), self.indices[n])})

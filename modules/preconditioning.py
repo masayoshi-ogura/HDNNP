@@ -8,21 +8,21 @@ from .util import pprint
 
 
 class PreconditionBase(object):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         pass
 
-    def load(self, *args):
+    def load(self, *args, **kwargs):
         pass
 
-    def save(self, *args):
+    def save(self, *args, **kwargs):
         pass
 
-    def decompose(self, *args):
+    def decompose(self, *args, **kwargs):
         pass
 
 
 class PCA(PreconditionBase):
-    def __init__(self, ncomponent):
+    def __init__(self, ncomponent=20):
         self._ncomponent = ncomponent
         self._mean = {}
         self._components = {}
@@ -38,8 +38,8 @@ class PCA(PreconditionBase):
 
     def save(self, filename):
         if not path.exists(filename):
-            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.items()}
-            components_dict = {'components/{}'.format(k): v for k, v in self._components.items()}
+            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.iteritems()}
+            components_dict = {'components/{}'.format(k): v for k, v in self._components.iteritems()}
             dic = dict(mean_dict.items() + components_dict.items() + [('elements', self._elements)])
             np.savez(filename, **dic)
 
@@ -59,13 +59,13 @@ class PCA(PreconditionBase):
         #     # adjust ncomponent to max of it
         #     for element, component in self._components.items():
         #         self._components[element] = component[:ncomponent].T
-        for element, indices in dataset.composition.index.items():
+        for element, indices in dataset.composition.index.iteritems():
             if element in self._elements:
                 continue
 
             pprint('{}: decompose SF from {} to {}. Cumulative contribution rate:'
                    .format(element, dataset.input.shape[-1], self._ncomponent), flush=True, end='')
-            X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
+            X = dataset.input.take(list(indices), 1).reshape(-1, dataset.input.shape[-1])
             pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
@@ -73,13 +73,13 @@ class PCA(PreconditionBase):
             self._elements.append(element)
             pprint(np.sum(pca.explained_variance_ratio_))
 
-        mean = np.array([self._mean[element]
+        mean = np.array([self._mean[element]  # (atom, feature)
                          for element in dataset.composition.element])
-        components = np.array([self._components[element]
+        components = np.array([self._components[element]  # (atom, feature, component)
                                for element in dataset.composition.element])
-        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)
-        new_dinput = np.einsum('ijkl,jlm->ijkm', dataset.dinput - mean[:, None, :], components)
+        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
+        new_dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput - mean[:, :, None, None], components)  # (sample, atom, feature, atom, 3)
         dataset.reset_inputs(new_input, new_dinput)
 
 
-PRECOND = {None: PreconditionBase, 'pca': PCA}
+PRECOND = {'none': PreconditionBase, 'pca': PCA}
