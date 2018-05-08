@@ -51,7 +51,7 @@ def run(hp, out_dir, log):
             trainer = chainer.training.Trainer(updater, (hp.epoch, 'epoch'), out=out_dir)
 
             # extensions
-            log_name = 'cv_{}.log'.format(i) if hp.mode == 'cv' else 'log'
+            log_name = '{}_cv_{}.log'.format(config, i) if hp.mode == 'cv' else '{}.log'.format(config)
             trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
             trainer.extend(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu))
             trainer.extend(ext.LogReport(log_name=log_name))
@@ -60,12 +60,12 @@ def run(hp, out_dir, log):
                 trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
                                               file_name='learning_rate.png', marker=None, postprocess=set_logscale))
                 trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
-                                              file_name='RMSE.png', marker=None, postprocess=set_logscale))
+                                              file_name='{}_RMSE.png'.format(config), marker=None, postprocess=set_logscale))
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                 'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
                 trainer.extend(scatterplot(hdnnp, val, config),
                                trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
-                trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'), trigger=(100, 'epoch'))
+                trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_{}_epoch_{.updater.epoch}.npz'.format(config)), trigger=(100, 'epoch'))
 
             trainer.run()
         results.append(flatten_dict(trainer.observation))
