@@ -17,6 +17,7 @@
 *.yaml
 *POSCAR
 *.dot
+*.ipynb
 
 *.o[0-9]*
 *.e[0-9]*
@@ -26,3 +27,4 @@
 config.py
 
 *.DS_Store
+.ipynb_checkpoints/
