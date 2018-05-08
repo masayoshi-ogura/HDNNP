@@ -115,5 +115,5 @@ class HDNNP(chainer.ChainList):
         convert computed Symmetry Functions from ndarray to list of chainer.Variable
         """
         xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-        dxs = [Variable(dx) for dx in dxs.transpose(3, 0, 2, 1, 4)]
+        dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3, 4)]
         return xs, dxs
