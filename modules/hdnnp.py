@@ -55,7 +55,7 @@ def run(hp, out_dir, log):
             trainer = chainer.training.Trainer(updater, (hp.epoch, 'epoch'), out=out_dir)
 
             # extensions
-            log_name = 'cv_{}.log'.format(i) if hp.mode == 'cv' else 'log'
+            log_name = '{}_cv_{}.log'.format(config, i) if hp.mode == 'cv' else '{}.log'.format(config)
             trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
             trainer.extend(chainermn.create_multi_node_evaluator(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu), mpi.chainer_comm))
             if mpi.rank == 0:
@@ -65,12 +65,13 @@ def run(hp, out_dir, log):
                     trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
                                                   file_name='learning_rate.png', marker=None, postprocess=set_logscale))
                     trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
-                                                  file_name='RMSE.png', marker=None, postprocess=set_logscale))
+                                                  file_name='{}_RMSE.png'.format(config), marker=None, postprocess=set_logscale))
                     trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                     'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
                     trainer.extend(scatterplot(hdnnp, val, config),
                                    trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
-                    trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'), trigger=(100, 'epoch'))
+                    trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_{}_epoch_{.updater.epoch}.npz'.format(config)),
+                                   trigger=(100, 'epoch'))
 
             trainer.run()
         results.append(flatten_dict(trainer.observation))
@@ -104,7 +105,7 @@ def optimize(hp, masters_path, *args, **kwargs):
     energy, force = predict(hp, masters_path, *args, **kwargs)
     nsample = len(energy)
     energy = energy.data.reshape(-1)
-    force = np.sqrt((force.data.reshape(nsample, -1)**2).mean(axis=1))
+    force = np.sqrt((force.data**2).mean(axis=(1, 2)))
     x = np.linspace(0.9, 1.1, nsample)
     plt.plot(x, energy, label='energy')
     plt.plot(x, force, label='force')
@@ -122,8 +123,7 @@ def phonon(hp, masters_path, *args, **kwargs):
     dirname, basename = path.split(masters_path)
     root, _ = path.splitext(basename)
     dataset, force = predict(hp, masters_path, *args, **kwargs)
-    nsample = len(dataset)
-    sets_of_forces = force.data.reshape(nsample, 3, -1).transpose(0, 2, 1)
+    sets_of_forces = force.data
     phonon = dataset.phonopy
     phonon.set_forces(sets_of_forces)
     phonon.produce_force_constants()
