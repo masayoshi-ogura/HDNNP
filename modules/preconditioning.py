@@ -20,7 +20,7 @@ class PreconditionBase(object):
 
 
 class PCA(PreconditionBase):
-    def __init__(self, ncomponent):
+    def __init__(self, ncomponent=20):
         self._ncomponent = ncomponent
         self._mean = {}
         self._components = {}
@@ -61,7 +61,7 @@ class PCA(PreconditionBase):
             if element in self._elements:
                 continue
 
-            X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
+            X = dataset.input.take(list(indices), 1).reshape(-1, dataset.input.shape[-1])
             pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
@@ -72,8 +72,8 @@ class PCA(PreconditionBase):
                          for element in dataset.composition.element])
         components = np.array([self._components[element]  # (atom, feature, component)
                                for element in dataset.composition.element])
-        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean[None, :, :], components)  # (sample, atom, feature)
-        new_dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput - mean[None, :, :, None, None], components)  # (sample, atom, feature, atom, 3)
+        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
+        new_dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput - mean[:, :, None, None], components)  # (sample, atom, feature, atom, 3)
         dataset.reset_inputs(new_input, new_dinput)
 
 
