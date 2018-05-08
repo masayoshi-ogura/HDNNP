@@ -168,21 +168,24 @@ class AtomicStructureDataset(TupleDataset):
         EF_file = path.join(self._data_dir, 'Energy_Force.npz')
         if path.exists(EF_file):
             ndarray = np.load(EF_file)
-            return ndarray['E'], ndarray['F']
+            Es = ndarray['E']
+            Fs = ndarray['F']
         else:
             pprint('{} doesn\'t exist. calculating ...'.format(EF_file), end='\r')
-            Es = np.empty((self._nsample, 1), dtype=np.float32)
-            Fs = np.empty((self._nsample, self._natom, 3), dtype=np.float32)
-            Es_send = np.array([data.cohesive_energy for data in self._atoms_objs], dtype=np.float32).reshape(-1, 1)
-            Fs_send = np.array([data.force.T for data in self._atoms_objs], dtype=np.float32).reshape(-1, self._natom, 3)
-            mpi.comm.Allgatherv((Es_send, (self._n), MPI.FLOAT),
-                                (Es, (self._count, self._disps), MPI.FLOAT))
+            Es = np.empty((self._nsample, 1))
+            Fs = np.empty((self._nsample, self._natom, 3))
+            Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
+            Fs_send = np.array([data.force.T for data in self._atoms_objs]).reshape(-1, self._natom, 3)
+            mpi.comm.Allgatherv((Es_send, (self._n), MPI.DOUBLE),
+                                (Es, (self._count, self._disps), MPI.DOUBLE))
             num = self._natom * 3
-            mpi.comm.Allgatherv((Fs_send, (self._n*num), MPI.FLOAT),
-                                (Fs, (self._count*num, self._disps*num), MPI.FLOAT))
+            mpi.comm.Allgatherv((Fs_send, (self._n*num), MPI.DOUBLE),
+                                (Fs, (self._count*num, self._disps*num), MPI.DOUBLE))
             if save:
                 np.savez(EF_file, E=Es, F=Fs)
-            return Es, Fs
+        Es = Es.astype(np.float32)
+        Fs = Fs.astype(np.float32)
+        return Es, Fs
 
     def _make_input(self, save):
         Gs = []
@@ -201,15 +204,15 @@ class AtomicStructureDataset(TupleDataset):
                 dGs.append(existing[dG_key])
             else:
                 pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G = np.empty((self._nsample, self._natom, 2), dtype=np.float32)
-                dG = np.empty((self._nsample, self._natom, 2, self._natom, 3), dtype=np.float32)
+                G = np.empty((self._nsample, self._natom, 2))
+                dG = np.empty((self._nsample, self._natom, 2, self._natom, 3))
                 G_send, dG_send = self._calc_G1(Rc)
                 num = 2 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
-                                    (G, (self._count*num, self._disps*num), MPI.FLOAT))
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
+                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
                 num = 2 * self._natom**2 * 3
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
-                                    (dG, (self._count*num, self._disps*num), MPI.FLOAT))
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
+                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
                 Gs.append(G)
                 dGs.append(dG)
                 new[G_key] = G
@@ -225,15 +228,15 @@ class AtomicStructureDataset(TupleDataset):
                 dGs.append(existing[dG_key])
             else:
                 pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G = np.empty((self._nsample, self._natom, 2), dtype=np.float32)
-                dG = np.empty((self._nsample, self._natom, 2, self._natom, 3), dtype=np.float32)
+                G = np.empty((self._nsample, self._natom, 2))
+                dG = np.empty((self._nsample, self._natom, 2, self._natom, 3))
                 G_send, dG_send = self._calc_G2(Rc, eta, Rs)
                 num = 2 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
-                                    (G, (self._count*num, self._disps*num), MPI.FLOAT))
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
+                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
                 num = 2 * self._natom**2 * 3
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
-                                    (dG, (self._count*num, self._disps*num), MPI.FLOAT))
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
+                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
                 Gs.append(G)
                 dGs.append(dG)
                 new[G_key] = G
@@ -249,15 +252,15 @@ class AtomicStructureDataset(TupleDataset):
                 dGs.append(existing[dG_key])
             else:
                 pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G = np.empty((self._nsample, self._natom, 3), dtype=np.float32)
-                dG = np.empty((self._nsample, self._natom, 3, self._natom, 3), dtype=np.float32)
+                G = np.empty((self._nsample, self._natom, 3))
+                dG = np.empty((self._nsample, self._natom, 3, self._natom, 3))
                 G_send, dG_send = self._calc_G4(Rc, eta, lambda_, zeta)
                 num = 3 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.FLOAT),
-                                    (G, (self._count*num, self._disps*num), MPI.FLOAT))
+                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
+                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
                 num = 3 * self._natom**2 * 3
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.FLOAT),
-                                    (dG, (self._count*num, self._disps*num), MPI.FLOAT))
+                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
+                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
                 Gs.append(G)
                 dGs.append(dG)
                 new[G_key] = G
@@ -265,13 +268,13 @@ class AtomicStructureDataset(TupleDataset):
 
         if save and mpi.rank == 0:
             np.savez(SF_file, **dict(existing.items() + new.items()))
-        Gs = np.concatenate(Gs, axis=2)  # (sample, atom, feature)
-        dGs = np.concatenate(dGs, axis=2)  # (sample, atom, feature, atom, 3)
+        Gs = np.concatenate(Gs, axis=2).astype(np.float32)  # (sample, atom, feature)
+        dGs = np.concatenate(dGs, axis=2).astype(np.float32)  # (sample, atom, feature, atom, 3)
         return Gs, dGs
 
     def _calc_G1(self, Rc):
-        G = np.zeros((self._n, self._natom, 2), dtype=np.float32)
-        dG = np.zeros((self._n, self._natom, 2, self._natom, 3), dtype=np.float32)
+        G = np.zeros((self._n, self._natom, 2))
+        dG = np.zeros((self._n, self._natom, 2, self._natom, 3))
         for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
             g = tanh**3
             dg = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
@@ -281,14 +284,14 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = dg.take(indices, 0).sum(0)
+                    dG[i, j, 0, k] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[i, k, 1, j] = dg.take(indices, 0).sum(0)
+                    dG[i, j, 1, k] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
-        G = np.zeros((self._n, self._natom, 2), dtype=np.float32)
-        dG = np.zeros((self._n, self._natom, 2, self._natom, 3), dtype=np.float32)
+        G = np.zeros((self._n, self._natom, 2))
+        dG = np.zeros((self._n, self._natom, 2, self._natom, 3))
         for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
             g = np.exp(- eta * (R - Rs)**2) * tanh**3
             dg = (np.exp(- eta * (R - Rs)**2) * tanh**2 * (-2.*eta*(R-Rs)*tanh + 3./Rc*(tanh**2 - 1.0)))[:, None] * dR
@@ -298,14 +301,14 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = dg.take(indices, 0).sum(0)
+                    dG[i, j, 0, k] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[i, k, 1, j] = dg.take(indices, 0).sum(0)
+                    dG[i, j, 1, k] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lambda_, zeta):
-        G = np.zeros((self._n, self._natom, 3), dtype=np.float32)
-        dG = np.zeros((self._n, self._natom, 3, self._natom, 3), dtype=np.float32)
+        G = np.zeros((self._n, self._natom, 3))
+        dG = np.zeros((self._n, self._natom, 3, self._natom, 3))
         for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._calc_geometry(Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R**2) * tanh**3
@@ -323,11 +326,11 @@ class AtomicStructureDataset(TupleDataset):
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, k, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
-                    dG[i, k, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[i, j, 0, k] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[i, j, 2, k] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
                 else:
-                    dG[i, k, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
-                    dG[i, k, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[i, j, 1, k] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[i, j, 2, k] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
@@ -358,7 +361,7 @@ class AtomicStructureDataset(TupleDataset):
                 if n_neighb == 0:
                     continue
 
-                r = np.zeros((n_neighb, 3), dtype=np.float32)
+                r = np.zeros((n_neighb, 3))
                 element = self._composition.element[k]
                 neighbour = [(j in self._composition.index[element], []) for j in xrange(self._natom)]
                 homo_all, hetero_all = [], []
