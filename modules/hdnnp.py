@@ -25,6 +25,7 @@ from .extensions import scatterplot
 
 def run(hp, out_dir, log):
     results = []
+    time = 0
     # dataset and iterator
     precond = PRECOND[hp.preconditioning]()
     generator = DataGenerator(hp, precond)
@@ -42,8 +43,8 @@ def run(hp, out_dir, log):
             train = chainermn.scatter_dataset(train, mpi.chainer_comm)
             val = chainermn.scatter_dataset(val, mpi.chainer_comm)
 
-            train_iter = chainer.iterators.SerialIterator(train, hp.batch_size)
-            val_iter = chainer.iterators.SerialIterator(val, hp.batch_size, repeat=False, shuffle=False)
+            train_iter = chainer.iterators.SerialIterator(train, hp.batch_size/mpi.size)
+            val_iter = chainer.iterators.SerialIterator(val, hp.batch_size/mpi.size, repeat=False, shuffle=False)
 
             hdnnp = HDNNP(hp, composition)
             hdnnp.sync_param_with(masters)
@@ -61,20 +62,21 @@ def run(hp, out_dir, log):
             if mpi.rank == 0:
                 trainer.extend(ext.LogReport(log_name=log_name))
                 if log:
-                    trainer.extend(ext.observe_lr('master', 'learning rate'))
-                    trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
-                                                  file_name='learning_rate.png', marker=None, postprocess=set_logscale))
+                    # trainer.extend(ext.observe_lr('master', 'learning rate'))
+                    # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
+                    #                               file_name='learning_rate.png', marker=None, postprocess=set_logscale))
                     trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                                   file_name='{}_RMSE.png'.format(config), marker=None, postprocess=set_logscale))
                     trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                     'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
                     trainer.extend(scatterplot(hdnnp, val, config),
                                    trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
-                    trainer.extend(ext.snapshot_object(masters, 'masters_snapshot_{}_epoch_{.updater.epoch}.npz'.format(config)),
+                    trainer.extend(ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
                                    trigger=(100, 'epoch'))
 
             trainer.run()
         results.append(flatten_dict(trainer.observation))
+        time += trainer.elapsed_time
 
     # serialize
     if hp.mode == 'cv':
@@ -87,6 +89,7 @@ def run(hp, out_dir, log):
         result, = results
     result['input'] = train._dataset._dataset.input.shape[2]
     result['sample'] = len(generator)
+    result['elapsed_time'] = time
     return result
 
 
