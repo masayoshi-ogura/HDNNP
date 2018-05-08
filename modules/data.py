@@ -70,7 +70,7 @@ class AtomicStructureDataset(TupleDataset):
         self._hp = hp
 
     def __len__(self):
-        return self._nsample
+        return len(self._datasets[0])
 
     @property
     def phonopy(self):
@@ -393,6 +393,7 @@ class DataGenerator(object):
             config_type = dill.load(f)
         self._datasets = []
         self._elements = set()
+        self._length = 0
         for type in file_.config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 xyz_file = path.join(self._data_dir, config, 'structure.xyz')
@@ -401,9 +402,13 @@ class DataGenerator(object):
                 self._precond.decompose(dataset)
                 self._datasets.append(dataset)
                 self._elements.update(dataset.composition.element)
-        self._length = sum([len(d) for d in self._datasets])
+                self._length += len(dataset)
 
     def __iter__(self):
+        """
+        first iteration: training - validation set
+        second iteration: config_type
+        """
         if self._hp.mode == 'cv':
             splited = [[(train, val, d.config, d.composition)
                         for train, val in get_cross_validation_datasets_random(d, n_fold=self._hp.kfold)]

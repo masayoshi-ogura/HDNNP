@@ -109,13 +109,14 @@ if config.mode in ['cv', 'training']:
                 result = training.run(hp, path.join(out_dir, str(i)), log=args.log)
                 mpi.comm.send(result, dest=0)
 
-    elif config.mode == 'training' and mpi.rank == 0:
-        write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
-        write(result_file, yaml.dump({'dataset': dict(dataset_hp.items() + [('xyz_file', file_.xyz_file), ('config', file_.config)])}))
+    elif config.mode == 'training':
         hp = config + dataset_hp + model_hp[0]
         result = training.run(hp, out_dir, log=args.log)
         result.update(dict(model_hp[0]))
-        write(result_file, yaml.dump({'result': result}, default_flow_style=False))
+        if mpi.rank == 0:
+            write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
+            write(result_file, yaml.dump({'dataset': dict(dataset_hp.items() + [('xyz_file', file_.xyz_file), ('config', file_.config)])}))
+            write(result_file, yaml.dump({'result': result}, default_flow_style=False))
 
 elif config.mode in ['optimize', 'phonon']:
     if args.single:
