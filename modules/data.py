@@ -70,7 +70,7 @@ class AtomicStructureDataset(TupleDataset):
         self._hp = hp
 
     def __len__(self):
-        return self._nsample
+        return len(self._datasets[0])
 
     @property
     def phonopy(self):
@@ -275,41 +275,41 @@ class AtomicStructureDataset(TupleDataset):
     def _calc_G1(self, Rc):
         G = np.zeros((self._n, self._natom, 2))
         dG = np.zeros((self._n, self._natom, 2, self._natom, 3))
-        for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
+        for s, i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
             g = tanh**3
             dg = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
             # G
-            G[i, k, 0] = g[homo_all].sum()
-            G[i, k, 1] = g[hetero_all].sum()
+            G[s, i, 0] = g[homo_all].sum()
+            G[s, i, 1] = g[hetero_all].sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, j, 0, k] = dg.take(indices, 0).sum(0)
+                    dG[s, i, 0, j] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[i, j, 1, k] = dg.take(indices, 0).sum(0)
+                    dG[s, i, 1, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _calc_G2(self, Rc, eta, Rs):
         G = np.zeros((self._n, self._natom, 2))
         dG = np.zeros((self._n, self._natom, 2, self._natom, 3))
-        for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
+        for s, i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
             g = np.exp(- eta * (R - Rs)**2) * tanh**3
             dg = (np.exp(- eta * (R - Rs)**2) * tanh**2 * (-2.*eta*(R-Rs)*tanh + 3./Rc*(tanh**2 - 1.0)))[:, None] * dR
             # G
-            G[i, k, 0] = g[homo_all].sum()
-            G[i, k, 1] = g[hetero_all].sum()
+            G[s, i, 0] = g[homo_all].sum()
+            G[s, i, 1] = g[hetero_all].sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, j, 0, k] = dg.take(indices, 0).sum(0)
+                    dG[s, i, 0, j] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[i, j, 1, k] = dg.take(indices, 0).sum(0)
+                    dG[s, i, 1, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _calc_G4(self, Rc, eta, lambda_, zeta):
         G = np.zeros((self._n, self._natom, 3))
         dG = np.zeros((self._n, self._natom, 3, self._natom, 3))
-        for i, k, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._calc_geometry(Rc):
+        for s, i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._calc_geometry(Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R**2) * tanh**3
             rad2 = np.exp(-eta * R**2) * tanh**2 * (-2.*eta*R*tanh + 3./Rc*(tanh**2 - 1.0))
@@ -320,17 +320,17 @@ class AtomicStructureDataset(TupleDataset):
             dg = dg_radial_part + dg_angular_part
 
             # G
-            G[i, k, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
-            G[i, k, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
-            G[i, k, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
+            G[s, i, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
+            G[s, i, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
+            G[s, i, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[i, j, 0, k] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
-                    dG[i, j, 2, k] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[s, i, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[s, i, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
                 else:
-                    dG[i, j, 1, k] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
-                    dG[i, j, 2, k] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[s, i, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[s, i, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
@@ -353,25 +353,25 @@ class AtomicStructureDataset(TupleDataset):
 
     @memorize_generator
     def _calc_geometry(self, Rc):
-        for i, atoms in enumerate(self._atoms_objs):
+        for s, atoms in enumerate(self._atoms_objs):
             atoms.set_cutoff(Rc)
             atoms.calc_connect()
-            for k in xrange(self._natom):
-                n_neighb = atoms.n_neighbours(k+1)
+            for i in xrange(self._natom):
+                n_neighb = atoms.n_neighbours(i+1)
                 if n_neighb == 0:
                     continue
 
                 r = np.zeros((n_neighb, 3))
-                element = self._composition.element[k]
-                neighbour = [(j in self._composition.index[element], []) for j in xrange(self._natom)]
+                element = self._composition.element[i]
+                neighbour = [(j_prime in self._composition.index[element], []) for j_prime in xrange(self._natom)]
                 homo_all, hetero_all = [], []
-                for l, neighb in enumerate(atoms.connect[k+1]):
-                    r[l] = neighb.diff
-                    neighbour[neighb.j-1][1].append(l)
+                for j, neighb in enumerate(atoms.connect[i+1]):
+                    r[j] = neighb.diff
+                    neighbour[neighb.j-1][1].append(j)
                     if neighbour[neighb.j-1][0]:
-                        homo_all.append(l)
+                        homo_all.append(j)
                     else:
-                        hetero_all.append(l)
+                        hetero_all.append(j)
                 R = np.linalg.norm(r, axis=1)
                 tanh = np.tanh(1-R/Rc)
                 dR = r / R[:, None]
@@ -380,7 +380,7 @@ class AtomicStructureDataset(TupleDataset):
                 # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
                 dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
                     + r[None, :, :]/(R[:, None, None] * R[None, :, None])
-                yield i, k, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
+                yield s, i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
 
 
 class DataGenerator(object):
@@ -396,6 +396,7 @@ class DataGenerator(object):
             config_type = dill.load(f)
         self._datasets = []
         self._elements = set()
+        self._length = 0
         for type in file_.config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 xyz_file = path.join(self._data_dir, config, 'structure.xyz')
@@ -404,9 +405,13 @@ class DataGenerator(object):
                 self._precond.decompose(dataset)
                 self._datasets.append(dataset)
                 self._elements.update(dataset.composition.element)
-        self._length = sum([len(d) for d in self._datasets])
+                self._length += len(dataset)
 
     def __iter__(self):
+        """
+        first iteration: training - validation set
+        second iteration: config_type
+        """
         if self._hp.mode == 'cv':
             splited = [[(train, val, d.config, d.composition)
                         for train, val in get_cross_validation_datasets_random(d, n_fold=self._hp.kfold)]

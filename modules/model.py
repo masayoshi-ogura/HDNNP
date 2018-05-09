@@ -24,10 +24,10 @@ class SingleNNP(chainer.Chain):
         self._mixing_beta = hp.mixing_beta
         self._nlink = len(hp.layer)
         with self.init_scope():
-            # w = chainer.initializers.HeNormal()
+            w = chainer.initializers.HeNormal()
             for i in range(self._nlink):
                 setattr(self, 'f{}'.format(i), eval('F.{}'.format(hp.layer[i].activation)))
-                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i+1], initialW=None))
+                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i+1], initialW=w))
         self.add_persistent('element', element)
 
     def __call__(self, x, dx, y_true, dy_true, train=False):
@@ -88,7 +88,7 @@ class HDNNP(chainer.ChainList):
         OUTPUT
         forces: Variable (nsample, natom, 3)
 
-        natom, which is length of the list, is the atom energy changes.
+        natom, which is length of the list, is the atom energy or energy change of which will be computed
         natom, which is shape[2] of ndarray of y, is the atom forces you want to compute acting on.
         """
         shape = dxs[0].shape

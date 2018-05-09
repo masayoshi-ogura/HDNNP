@@ -10,6 +10,7 @@
 from mpi4py import MPI
 import matplotlib as mpl
 mpl.use('Agg')
+import chainermn
 
 
 class file_:
@@ -23,6 +24,7 @@ class mpi:
     rank = comm.Get_rank()
     size = comm.Get_size()
     gpu = -1
+    chainer_comm = chainermn.create_communicator('naive', comm)
 
 
 class visual:
