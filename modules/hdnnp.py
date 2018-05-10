@@ -23,7 +23,7 @@ from .extensions import set_logscale
 from .extensions import scatterplot
 
 
-def run(hp, out_dir, log):
+def run(hp, out_dir, log, comm=None):
     results = []
     time = 0
     # dataset and iterator
@@ -34,21 +34,26 @@ def run(hp, out_dir, log):
     for i, (dataset, elements) in enumerate(generator):
         # model and optimizer
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
-        master_opt = chainermn.create_multi_node_optimizer(chainer.optimizers.Adam(hp.init_lr), mpi.chainer_comm)
+        master_opt = chainer.optimizers.Adam(hp.init_lr)
+        if comm:
+            master_opt = chainermn.create_multi_node_optimizer(master_opt, comm)
         master_opt.setup(masters)
         master_opt.add_hook(chainer.optimizer_hooks.Lasso(hp.l1_norm))
         master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(hp.l2_norm))
 
         for train, val, config, composition in dataset:
-            train = chainermn.scatter_dataset(train, mpi.chainer_comm)
-            val = chainermn.scatter_dataset(val, mpi.chainer_comm)
+            if comm:
+                train = chainermn.scatter_dataset(train, comm)
+                val = chainermn.scatter_dataset(val, comm)
 
             train_iter = chainer.iterators.SerialIterator(train, hp.batch_size/mpi.size)
             val_iter = chainer.iterators.SerialIterator(val, hp.batch_size/mpi.size, repeat=False, shuffle=False)
 
             hdnnp = HDNNP(hp, composition)
             hdnnp.sync_param_with(masters)
-            main_opt = chainermn.create_multi_node_optimizer(chainer.Optimizer(), mpi.chainer_comm)
+            main_opt = chainer.Optimizer()
+            if comm:
+                main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
             main_opt.setup(hdnnp)
 
             # updater and trainer
@@ -58,7 +63,10 @@ def run(hp, out_dir, log):
             # extensions
             log_name = '{}_cv_{}.log'.format(config, i) if hp.mode == 'cv' else '{}.log'.format(config)
             trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
-            trainer.extend(chainermn.create_multi_node_evaluator(Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu), mpi.chainer_comm))
+            evaluator = Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu)
+            if comm:
+                evaluator = chainermn.create_multi_node_evaluator(evaluator, comm)
+            trainer.extend(evaluator)
             if mpi.rank == 0:
                 trainer.extend(ext.LogReport(log_name=log_name))
                 if log:
@@ -87,7 +95,7 @@ def run(hp, out_dir, log):
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
         result, = results
-    result['input'] = train._dataset._dataset.input.shape[2]
+    result['input'] = masters[0]['l0'].W.shape[1]
     result['sample'] = len(generator)
     result['elapsed_time'] = time
     return result

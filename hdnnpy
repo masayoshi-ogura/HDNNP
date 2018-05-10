@@ -111,7 +111,7 @@ if config.mode in ['cv', 'training']:
 
     elif config.mode == 'training':
         hp = config + dataset_hp + model_hp[0]
-        result = training.run(hp, out_dir, log=args.log)
+        result = training.run(hp, out_dir, log=args.log, comm=mpi.chainer_comm)
         result.update(dict(model_hp[0]))
         if mpi.rank == 0:
             write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
