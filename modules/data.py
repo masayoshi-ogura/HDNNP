@@ -171,7 +171,7 @@ class AtomicStructureDataset(TupleDataset):
             Es = ndarray['E']
             Fs = ndarray['F']
         else:
-            pprint('{} doesn\'t exist. calculating ...'.format(EF_file), end='\r')
+            pprint('making {} ... '.format(EF_file), end='', flush=True)
             Es = np.empty((self._nsample, 1))
             Fs = np.empty((self._nsample, self._natom, 3))
             Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
@@ -183,133 +183,111 @@ class AtomicStructureDataset(TupleDataset):
                                 (Fs, (self._count*num, self._disps*num), MPI.DOUBLE))
             if save:
                 np.savez(EF_file, E=Es, F=Fs)
+            pprint('done')
         Es = Es.astype(np.float32)
         Fs = Fs.astype(np.float32)
         return Es, Fs
 
     def _make_input(self, save):
-        Gs = []
-        dGs = []
-        SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
-        existing = np.load(SF_file) if save and path.exists(SF_file) else {}
+        existing = {'nsample': self._nsample}
         new = {}
-
-        # type 1
-        for Rc in self._hp.Rc:
-            key = path.join(*map(str, ['type1', Rc]))
-            G_key = path.join('G', key)
-            dG_key = path.join('dG', key)
-            if G_key in existing and existing[G_key].shape[0] == self._nsample:
-                Gs.append(existing[G_key])
-                dGs.append(existing[dG_key])
+        SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
+        if save and path.exists(SF_file):
+            ndarray = np.load(SF_file)
+            if 'nsample' in ndarray and ndarray['nsample'] == self._nsample:
+                existing = ndarray
             else:
-                pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G = np.empty((self._nsample, self._natom, 2))
-                dG = np.empty((self._nsample, self._natom, 2, self._natom, 3))
-                G_send, dG_send = self._calc_G1(Rc)
-                num = 2 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                num = 2 * self._natom**2 * 3
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
-                Gs.append(G)
-                dGs.append(dG)
-                new[G_key] = G
-                new[dG_key] = dG
+                pprint('# of samples (or atoms) between Symmetry_Function.npz and structure.xyz doesn\'t match.\n'
+                       're-calculate from structure.xyz.')
+        new_keys = self._check_uncalculated_keys(existing.keys())
 
-        # type 2
-        for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
-            key = path.join(*map(str, ['type2', Rc, eta, Rs]))
-            G_key = path.join('G', key)
-            dG_key = path.join('dG', key)
-            if G_key in existing and existing[G_key].shape[0] == self._nsample:
-                Gs.append(existing[G_key])
-                dGs.append(existing[dG_key])
-            else:
-                pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G = np.empty((self._nsample, self._natom, 2))
-                dG = np.empty((self._nsample, self._natom, 2, self._natom, 3))
-                G_send, dG_send = self._calc_G2(Rc, eta, Rs)
-                num = 2 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                num = 2 * self._natom**2 * 3
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
-                Gs.append(G)
-                dGs.append(dG)
-                new[G_key] = G
-                new[dG_key] = dG
+        for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):  # {key: ndarray(self._n, atom, 2or3) for key in new_keys}
+            G = np.empty((self._nsample,) + G_send.shape[1:])
+            dG = np.empty((self._nsample,) + dG_send.shape[1:])
+            num = G_send.size / self._n
+            mpi.comm.Allgatherv((G_send, (G_send.size), MPI.DOUBLE),
+                                (G, (self._count*num, self._disps*num), MPI.DOUBLE))
+            num = dG_send.size / self._n
+            mpi.comm.Allgatherv((dG_send, (dG_send.size), MPI.DOUBLE),
+                                (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
+            new[path.join(key, 'G')] = G
+            new[path.join(key, 'dG')] = dG
 
-        # type 4
-        for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
-            key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
-            G_key = path.join('G', key)
-            dG_key = path.join('dG', key)
-            if G_key in existing and existing[G_key].shape[0] == self._nsample:
-                Gs.append(existing[G_key])
-                dGs.append(existing[dG_key])
-            else:
-                pprint('calculating symmetry function {} ...'.format(key), end='\r')
-                G = np.empty((self._nsample, self._natom, 3))
-                dG = np.empty((self._nsample, self._natom, 3, self._natom, 3))
-                G_send, dG_send = self._calc_G4(Rc, eta, lambda_, zeta)
-                num = 3 * self._natom
-                mpi.comm.Allgatherv((G_send, (self._n*num), MPI.DOUBLE),
-                                    (G, (self._count*num, self._disps*num), MPI.DOUBLE))
-                num = 3 * self._natom**2 * 3
-                mpi.comm.Allgatherv((dG_send, (self._n*num), MPI.DOUBLE),
-                                    (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
-                Gs.append(G)
-                dGs.append(dG)
-                new[G_key] = G
-                new[dG_key] = dG
-
+        all = dict(existing.items() + new.items())
         if save and mpi.rank == 0:
-            np.savez(SF_file, **dict(existing.items() + new.items()))
-        Gs = np.concatenate(Gs, axis=2).astype(np.float32)  # (sample, atom, feature)
-        dGs = np.concatenate(dGs, axis=2).astype(np.float32)  # (sample, atom, feature, atom, 3)
+            np.savez(SF_file, **all)
+        Gs = np.concatenate([v for k, v in sorted(all.iteritems()) if k.endswith('/G')], axis=2).astype(np.float32)
+        dGs = np.concatenate([v for k, v in sorted(all.iteritems()) if k.endswith('/dG')], axis=2).astype(np.float32)
         return Gs, dGs
 
-    def _calc_G1(self, Rc):
-        G = np.zeros((self._n, self._natom, 2))
-        dG = np.zeros((self._n, self._natom, 2, self._natom, 3))
-        for s, i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
+    def _check_uncalculated_keys(self, existing_keys):
+        all_keys = []
+        for Rc in self._hp.Rc:
+            key = path.join(*map(str, ['type1', Rc]))
+            all_keys.append(key)
+        for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
+            key = path.join(*map(str, ['type2', Rc, eta, Rs]))
+            all_keys.append(key)
+        for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
+            key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
+            all_keys.append(key)
+        new_keys = sorted(set(all_keys) - set([path.dirname(key_) for key_ in existing_keys]))
+        if new_keys:
+            pprint('uncalculated symmetry function parameters are as follows:')
+        for key in new_keys:
+            pprint(key)
+        return new_keys
+
+    def _calculate_symmetry_function(self, keys):
+        Gs = defaultdict(list)
+        dGs = defaultdict(list)
+        for at in self._atoms_objs:
+            for key in keys:
+                params = key.split('/')
+                G, dG = getattr(self, '_'+params[0])(at, *map(float, params[1:]))
+                Gs[key].append(G)
+                dGs[key].append(dG)
+        for key in keys:
+            yield key, np.stack(Gs[key]), np.stack(dGs[key])
+
+    def _type1(self, at, Rc):
+        G = np.zeros((self._natom, 2))
+        dG = np.zeros((self._natom, 2, self._natom, 3))
+        for i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._neighbour(at, Rc):
             g = tanh**3
             dg = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
             # G
-            G[s, i, 0] = g[homo_all].sum()
-            G[s, i, 1] = g[hetero_all].sum()
+            G[i, 0] = g[homo_all].sum()
+            G[i, 1] = g[hetero_all].sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[s, i, 0, j] = dg.take(indices, 0).sum(0)
+                    dG[i, 0, j] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[s, i, 1, j] = dg.take(indices, 0).sum(0)
+                    dG[i, 1, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
-    def _calc_G2(self, Rc, eta, Rs):
-        G = np.zeros((self._n, self._natom, 2))
-        dG = np.zeros((self._n, self._natom, 2, self._natom, 3))
-        for s, i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._calc_geometry(Rc):
+    def _type2(self, at, Rc, eta, Rs):
+        G = np.zeros((self._natom, 2))
+        dG = np.zeros((self._natom, 2, self._natom, 3))
+        for i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._neighbour(at, Rc):
             g = np.exp(- eta * (R - Rs)**2) * tanh**3
             dg = (np.exp(- eta * (R - Rs)**2) * tanh**2 * (-2.*eta*(R-Rs)*tanh + 3./Rc*(tanh**2 - 1.0)))[:, None] * dR
             # G
-            G[s, i, 0] = g[homo_all].sum()
-            G[s, i, 1] = g[hetero_all].sum()
+            G[i, 0] = g[homo_all].sum()
+            G[i, 1] = g[hetero_all].sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[s, i, 0, j] = dg.take(indices, 0).sum(0)
+                    dG[i, 0, j] = dg.take(indices, 0).sum(0)
                 else:
-                    dG[s, i, 1, j] = dg.take(indices, 0).sum(0)
+                    dG[i, 1, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
-    def _calc_G4(self, Rc, eta, lambda_, zeta):
-        G = np.zeros((self._n, self._natom, 3))
-        dG = np.zeros((self._n, self._natom, 3, self._natom, 3))
-        for s, i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._calc_geometry(Rc):
+    def _type4(self, at, Rc, eta, lambda_, zeta):
+        G = np.zeros((self._natom, 3))
+        dG = np.zeros((self._natom, 3, self._natom, 3))
+        for i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._neighbour(at, Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R**2) * tanh**3
             rad2 = np.exp(-eta * R**2) * tanh**2 * (-2.*eta*R*tanh + 3./Rc*(tanh**2 - 1.0))
@@ -320,30 +298,30 @@ class AtomicStructureDataset(TupleDataset):
             dg = dg_radial_part + dg_angular_part
 
             # G
-            G[s, i, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
-            G[s, i, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
-            G[s, i, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
+            G[i, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
+            G[i, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
+            G[i, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
             # dG
             for j, (homo, indices) in enumerate(neighbour):
                 if homo:
-                    dG[s, i, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
-                    dG[s, i, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[i, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[i, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
                 else:
-                    dG[s, i, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
-                    dG[s, i, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[i, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+                    dG[i, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
         cache = defaultdict(list)
         done = []
 
-        def helper(self, Rc):
-            if id(self) not in done:
+        def helper(self, at, Rc):
+            if id(at) not in done:
                 cache.clear()
-                done.append(id(self))
+                done.append(id(at))
 
             if Rc not in cache:
-                for ret in f(self, Rc):
+                for ret in f(self, at, Rc):
                     cache[Rc].append(ret)
                     yield cache[Rc][-1]
             else:
@@ -352,35 +330,34 @@ class AtomicStructureDataset(TupleDataset):
         return helper
 
     @memorize_generator
-    def _calc_geometry(self, Rc):
-        for s, atoms in enumerate(self._atoms_objs):
-            atoms.set_cutoff(Rc)
-            atoms.calc_connect()
-            for i in xrange(self._natom):
-                n_neighb = atoms.n_neighbours(i+1)
-                if n_neighb == 0:
-                    continue
+    def _neighbour(self, at, Rc):
+        at.set_cutoff(Rc)
+        at.calc_connect()
+        for i in xrange(self._natom):
+            n_neighb = at.n_neighbours(i+1)
+            if n_neighb == 0:
+                continue
 
-                r = np.zeros((n_neighb, 3))
-                element = self._composition.element[i]
-                neighbour = [(j_prime in self._composition.index[element], []) for j_prime in xrange(self._natom)]
-                homo_all, hetero_all = [], []
-                for j, neighb in enumerate(atoms.connect[i+1]):
-                    r[j] = neighb.diff
-                    neighbour[neighb.j-1][1].append(j)
-                    if neighbour[neighb.j-1][0]:
-                        homo_all.append(j)
-                    else:
-                        hetero_all.append(j)
-                R = np.linalg.norm(r, axis=1)
-                tanh = np.tanh(1-R/Rc)
-                dR = r / R[:, None]
-                cos = dR.dot(dR.T)
-                # cosine(j - i - k) differentiate w.r.t. "j"
-                # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
-                dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
-                    + r[None, :, :]/(R[:, None, None] * R[None, :, None])
-                yield s, i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
+            r = np.zeros((n_neighb, 3))
+            element = self._composition.element[i]
+            neighbour = [(j_prime in self._composition.index[element], []) for j_prime in xrange(self._natom)]
+            homo_all, hetero_all = [], []
+            for j, neighb in enumerate(at.connect[i+1]):
+                r[j] = neighb.diff
+                neighbour[neighb.j-1][1].append(j)
+                if neighbour[neighb.j-1][0]:
+                    homo_all.append(j)
+                else:
+                    hetero_all.append(j)
+            R = np.linalg.norm(r, axis=1)
+            tanh = np.tanh(1-R/Rc)
+            dR = r / R[:, None]
+            cos = dR.dot(dR.T)
+            # cosine(j - i - k) differentiate w.r.t. "j"
+            # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
+            dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
+                + r[None, :, :]/(R[:, None, None] * R[None, :, None])
+            yield i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
 
 
 class DataGenerator(object):
@@ -427,7 +404,7 @@ class DataGenerator(object):
 
     def _parse_xyzfile(self):
         if mpi.rank == 0:
-            pprint('config_type.dill is not found.\nLoad all data from xyz file ...', end='', flush=True)
+            pprint('config_type.dill is not found.\nLoad all data from xyz file ... ', end='', flush=True)
             config_type = set()
             alldataset = defaultdict(list)
             for data in AtomsReader(file_.xyz_file):
