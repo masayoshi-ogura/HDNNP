@@ -189,19 +189,26 @@ class AtomicStructureDataset(TupleDataset):
         return Es, Fs
 
     def _make_input(self, save):
-        existing = {'nsample': self._nsample}
-        new = {}
+        Gs = {}
+        dGs = {}
+        existing_keys = set()
         SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
         if save and path.exists(SF_file):
             ndarray = np.load(SF_file)
             if 'nsample' in ndarray and ndarray['nsample'] == self._nsample:
-                existing = ndarray
+                for key, value in ndarray.iteritems():
+                    params, GordG = path.split(key)
+                    existing_keys.add(params)
+                    if GordG == 'G':
+                        Gs[key] = value
+                    elif GordG == 'dG':
+                        dGs[key] = value
             else:
                 pprint('# of samples (or atoms) between Symmetry_Function.npz and structure.xyz doesn\'t match.\n'
                        're-calculate from structure.xyz.')
-        new_keys = self._check_uncalculated_keys(existing.keys())
+        new_keys = self._check_uncalculated_keys(existing_keys)
 
-        for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):  # {key: ndarray(self._n, atom, 2or3) for key in new_keys}
+        for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):
             G = np.empty((self._nsample,) + G_send.shape[1:])
             dG = np.empty((self._nsample,) + dG_send.shape[1:])
             num = G_send.size / self._n
@@ -210,15 +217,14 @@ class AtomicStructureDataset(TupleDataset):
             num = dG_send.size / self._n
             mpi.comm.Allgatherv((dG_send, (dG_send.size), MPI.DOUBLE),
                                 (dG, (self._count*num, self._disps*num), MPI.DOUBLE))
-            new[path.join(key, 'G')] = G
-            new[path.join(key, 'dG')] = dG
+            Gs[path.join(key, 'G')] = G
+            dGs[path.join(key, 'dG')] = dG
 
-        all = dict(existing.items() + new.items())
         if save and mpi.rank == 0:
-            np.savez(SF_file, **all)
-        Gs = np.concatenate([v for k, v in sorted(all.iteritems()) if k.endswith('/G')], axis=2).astype(np.float32)
-        dGs = np.concatenate([v for k, v in sorted(all.iteritems()) if k.endswith('/dG')], axis=2).astype(np.float32)
-        return Gs, dGs
+            np.savez(SF_file, nsample=self._nsample, **{k: v for dic in [Gs, dGs] for k, v in dic.iteritems()})
+
+        return np.concatenate([v for k, v in sorted(Gs.iteritems())], axis=2).astype(np.float32), \
+            np.concatenate([v for k, v in sorted(dGs.iteritems())], axis=2).astype(np.float32)
 
     def _check_uncalculated_keys(self, existing_keys):
         all_keys = []
@@ -231,7 +237,7 @@ class AtomicStructureDataset(TupleDataset):
         for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
             key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
             all_keys.append(key)
-        new_keys = sorted(set(all_keys) - set([path.dirname(key_) for key_ in existing_keys]))
+        new_keys = sorted(set(all_keys) - existing_keys)
         if new_keys:
             pprint('uncalculated symmetry function parameters are as follows:')
         for key in new_keys:
