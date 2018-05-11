@@ -102,9 +102,7 @@ class AtomicStructureDataset(TupleDataset):
         self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size) if mpi.rank < self._nsample else []
 
         self._configure_mpi()
-        Es, Fs = self._make_label(save=True)
-        Gs, dGs = self._make_input(save=True)
-        self._datasets = (Gs, dGs, Es, Fs)
+        self._datasets = self._make_input(save=True) + self._make_label(save=True)
 
     def load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, save=True, scale=1.0):
         self._data_dir = path.dirname(poscar)
@@ -149,8 +147,7 @@ class AtomicStructureDataset(TupleDataset):
         self._natom = supercells[0].get_number_of_atoms()
 
         self._configure_mpi()
-        Gs, dGs = self._make_input(save=save)
-        self._datasets = (Gs, dGs)
+        self._datasets = self._make_input(save=save)
 
     def reset_inputs(self, input, dinput):
         self._datasets = (input, dinput) + self._datasets[2:]
@@ -191,23 +188,23 @@ class AtomicStructureDataset(TupleDataset):
     def _make_input(self, save):
         Gs = {}
         dGs = {}
+
         existing_keys = set()
         SF_file = path.join(self._data_dir, 'Symmetry_Function.npz')
         if save and path.exists(SF_file):
             ndarray = np.load(SF_file)
             if 'nsample' in ndarray and ndarray['nsample'] == self._nsample:
-                for key, value in ndarray.iteritems():
-                    params, GordG = path.split(key)
-                    existing_keys.add(params)
-                    if GordG == 'G':
-                        Gs[key] = value
-                    elif GordG == 'dG':
-                        dGs[key] = value
+                existing_keys = set([path.dirname(key) for key in ndarray.iterkeys()])
             else:
                 pprint('# of samples (or atoms) between Symmetry_Function.npz and structure.xyz doesn\'t match.\n'
                        're-calculate from structure.xyz.')
-        new_keys = self._check_uncalculated_keys(existing_keys)
+        for key in existing_keys:
+            G_key = path.join(key, 'G')
+            dG_key = path.join(key, 'dG')
+            Gs[G_key] = ndarray[G_key]
+            dGs[dG_key] = ndarray[dG_key]
 
+        new_keys = self._check_uncalculated_keys(existing_keys)
         for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):
             G = np.empty((self._nsample,) + G_send.shape[1:])
             dG = np.empty((self._nsample,) + dG_send.shape[1:])
@@ -223,25 +220,25 @@ class AtomicStructureDataset(TupleDataset):
         if save and mpi.rank == 0:
             np.savez(SF_file, nsample=self._nsample, **{k: v for dic in [Gs, dGs] for k, v in dic.iteritems()})
 
-        return np.concatenate([v for k, v in sorted(Gs.iteritems())], axis=2).astype(np.float32), \
-            np.concatenate([v for k, v in sorted(dGs.iteritems())], axis=2).astype(np.float32)
+        Gs = np.concatenate([v for k, v in sorted(Gs.iteritems())], axis=2).astype(np.float32)
+        dGs = np.concatenate([v for k, v in sorted(dGs.iteritems())], axis=2).astype(np.float32)
+        return Gs, dGs
 
     def _check_uncalculated_keys(self, existing_keys):
-        all_keys = []
+        all_keys = set()
         for Rc in self._hp.Rc:
             key = path.join(*map(str, ['type1', Rc]))
-            all_keys.append(key)
+            all_keys.add(key)
         for Rc, eta, Rs in product(self._hp.Rc, self._hp.eta, self._hp.Rs):
             key = path.join(*map(str, ['type2', Rc, eta, Rs]))
-            all_keys.append(key)
+            all_keys.add(key)
         for Rc, eta, lambda_, zeta in product(self._hp.Rc, self._hp.eta, self._hp.lambda_, self._hp.zeta):
             key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
-            all_keys.append(key)
-        new_keys = sorted(set(all_keys) - existing_keys)
+            all_keys.add(key)
+        new_keys = sorted(all_keys - existing_keys)
         if new_keys:
             pprint('uncalculated symmetry function parameters are as follows:')
-        for key in new_keys:
-            pprint(key)
+            pprint('\n'.join(new_keys))
         return new_keys
 
     def _calculate_symmetry_function(self, keys):
