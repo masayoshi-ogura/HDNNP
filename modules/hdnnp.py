@@ -189,8 +189,7 @@ def phonon(hp, masters_path, *args, **kwargs):
 
 
 def predict(hp, masters_path, *args, **kwargs):
-    dataset = AtomicStructureDataset(hp)
-    dataset.load_poscar(*args, **kwargs)
+    dataset = AtomicStructureDataset(hp, *args, format='POSCAR', **kwargs)
     precond = PRECOND[hp.preconditioning]()
     precond.load(path.join(path.dirname(masters_path), 'preconditioning.npz'))
     precond.decompose(dataset)
