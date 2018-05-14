@@ -78,9 +78,8 @@ class PCA(PreconditionBase):
                          for element in dataset.composition.element])
         components = np.array([self._components[element]  # (atom, feature, component)
                                for element in dataset.composition.element])
-        new_input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
-        new_dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
-        dataset.reset_inputs(new_input, new_dinput)
+        dataset.input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
+        dataset.dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
 
 
 PRECOND = {'none': PreconditionBase, 'pca': PCA}

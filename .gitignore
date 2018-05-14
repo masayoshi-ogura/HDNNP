@@ -18,6 +18,8 @@
 *POSCAR
 *.dot
 *.ipynb
+*.mprof
+*.lprof
 
 *.o[0-9]*
 *.e[0-9]*

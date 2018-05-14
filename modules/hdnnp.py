@@ -13,7 +13,6 @@ import chainermn
 
 # import own modules
 from .data import AtomicStructureDataset
-from .data import DataGenerator
 from .preconditioning import PRECOND
 from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
@@ -23,14 +22,10 @@ from .extensions import set_logscale
 from .extensions import scatterplot
 
 
-def run(hp, out_dir, log, comm=None):
+def run(hp, generator, out_dir, log, comm=None):
     results = []
     time = 0
     # dataset and iterator
-    precond = PRECOND[hp.preconditioning]()
-    generator = DataGenerator(hp, precond)
-    if hp.mode == 'training':
-        precond.save(path.join(out_dir, 'preconditioning.npz'))
     for i, (dataset, elements) in enumerate(generator):
         # model and optimizer
         masters = chainer.ChainList(*[SingleNNP(hp, element) for element in elements])
@@ -189,8 +184,7 @@ def phonon(hp, masters_path, *args, **kwargs):
 
 
 def predict(hp, masters_path, *args, **kwargs):
-    dataset = AtomicStructureDataset(hp)
-    dataset.load_poscar(*args, **kwargs)
+    dataset = AtomicStructureDataset(hp, *args, format='POSCAR', **kwargs)
     precond = PRECOND[hp.preconditioning]()
     precond.load(path.join(path.dirname(masters_path), 'preconditioning.npz'))
     precond.decompose(dataset)
