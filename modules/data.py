@@ -428,7 +428,12 @@ class DataGenerator(object):
                 dataset = AtomicStructureDataset(self._hp, xyz_file, 'xyz')
                 if mpi.rank == 0:
                     self._precond.decompose(dataset)
-                self._scatter(dataset)
+
+                if hp.mode == 'training':
+                    self._scatter(dataset)
+                elif hp.mode == 'cv':
+                    self._bcast(dataset)
+
                 self._datasets.append(dataset)
                 self._elements.update(dataset.composition.element)
                 mpi.comm.Barrier()
@@ -498,3 +503,15 @@ class DataGenerator(object):
                 recv = np.empty((count[mpi.rank],)+shape, dtype=np.float32)
                 mpi.comm.Scatterv((data, (count*data[0].size, None), MPI.FLOAT), recv, root=0)
                 setattr(dataset, attr, recv)
+
+    def _bcast(self, dataset):
+        for attr in ['input', 'dinput', 'label', 'dlabel']:
+            if mpi.rank != 0:
+                shape = mpi.comm.bcast(None, root=0)
+                data = np.empty(shape, dtype=np.float32)
+                mpi.comm.Bcast(data, root=0)
+                setattr(dataset, attr, data)
+            else:
+                data = getattr(dataset, attr)
+                shape = mpi.comm.bcast(data.shape, root=0)
+                mpi.comm.Bcast(data, root=0)
