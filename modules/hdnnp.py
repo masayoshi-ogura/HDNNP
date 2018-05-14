@@ -37,9 +37,6 @@ def run(hp, generator, out_dir, log, comm=None):
         master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(hp.l2_norm))
 
         for train, val, config, composition in dataset:
-            train = chainermn.scatter_dataset(train, comm)
-            val = chainermn.scatter_dataset(val, comm)
-
             train_iter = chainer.iterators.SerialIterator(train, hp.batch_size/mpi.size)
             val_iter = chainer.iterators.SerialIterator(val, hp.batch_size/mpi.size, repeat=False, shuffle=False)
 
