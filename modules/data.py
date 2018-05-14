@@ -144,8 +144,8 @@ class AtomicStructureDataset(TupleDataset):
         self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size) if mpi.rank < self._nsample else []
 
         self._count = np.array([(self._nsample+i)/mpi.size for i in range(mpi.size)[::-1]], dtype=np.int32)
-        self._make_label(save=True)
         self._make_input(save=True)
+        self._make_label(save=True)
         del self._hp, self._data_dir, self._natom, self._atoms_objs, self._count
 
     def _load_poscar(self, poscar, dimension=[[2, 0, 0], [0, 2, 0], [0, 0, 2]], distance=0.03, save=True, scale=1.0):
@@ -422,7 +422,6 @@ class DataGenerator(object):
             config_type = dill.load(f)
         self._datasets = []
         self._elements = set()
-        self._length = 0
         for type in file_.config:
             for config in filter(lambda config: match(type, config) or type == 'all', config_type):
                 xyz_file = path.join(self._data_dir, config, 'structure.xyz')
@@ -432,8 +431,8 @@ class DataGenerator(object):
                 self._scatter(dataset)
                 self._datasets.append(dataset)
                 self._elements.update(dataset.composition.element)
-                self._length += len(dataset)
                 mpi.comm.Barrier()
+        self._length = sum([d.nsample for d in self._datasets])
 
     def __iter__(self):
         """
