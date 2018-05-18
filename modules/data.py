@@ -362,12 +362,12 @@ class AtomicStructureDataset(TupleDataset):
 
     def memorize_generator(f):
         cache = defaultdict(list)
-        atoms_id = [0]
+        identifier = [None]
 
         def helper(self, at, Rc):
-            if id(at) != atoms_id[0]:
+            if identifier[0] != str(id(self)) + str(id(at)):
                 cache.clear()
-                atoms_id[0] = id(at)
+                identifier[0] = str(id(self)) + str(id(at))
 
             if Rc not in cache:
                 for ret in f(self, at, Rc):
@@ -490,19 +490,23 @@ class DataGenerator(object):
         mpi.comm.Barrier()
 
     def _scatter(self, dataset):
-        count = np.array([(dataset.nsample+i)/mpi.size for i in range(mpi.size)[::-1]], dtype=np.int32)
+        sub_nsample = (dataset.nsample + mpi.size - 1) / mpi.size
+        slice = np.array([(dataset.nsample*i/mpi.size, dataset.nsample*i/mpi.size + sub_nsample)
+                          for i in range(mpi.size)], dtype=np.int32)
         for attr in ['input', 'dinput', 'label', 'dlabel']:
             if mpi.rank != 0:
                 shape = mpi.comm.bcast(None, root=0)
-                recv = np.empty((count[mpi.rank],)+shape, dtype=np.float32)
-                mpi.comm.Scatterv(None, recv, root=0)
+                recv = np.empty((sub_nsample,)+shape, dtype=np.float32)
+                # mpi.comm.Scatterv(None, recv, root=0)
+                mpi.comm.Recv(recv, source=0)
                 setattr(dataset, attr, recv)
             else:
                 data = getattr(dataset, attr)
                 shape = mpi.comm.bcast(data.shape[1:], root=0)
-                recv = np.empty((count[mpi.rank],)+shape, dtype=np.float32)
-                mpi.comm.Scatterv((data, (count*data[0].size, None), MPI.FLOAT), recv, root=0)
-                setattr(dataset, attr, recv)
+                setattr(dataset, attr, data[:sub_nsample])
+                for i in xrange(1, mpi.size):
+                    mpi.comm.Send(data[slice[i][0]:slice[i][1]], dest=i)
+                    # mpi.comm.Scatterv((data, (slice*data[0].size, None), MPI.FLOAT), recv, root=0)
 
     def _bcast(self, dataset):
         for attr in ['input', 'dinput', 'label', 'dlabel']:
