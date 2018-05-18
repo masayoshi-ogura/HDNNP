@@ -145,9 +145,10 @@ def phonon(hp, masters_path, *args, **kwargs):
     bands = [np.concatenate([np.linspace(si, ei, points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
              for s, e in zip(point_symmetry[:-1], point_symmetry[1:])]
     phonon.set_mesh(mesh)
+    phonon.set_total_DOS()
     phonon.set_band_structure(bands, is_band_connection=True)
-    plt = phonon.plot_band_structure(labels)
-    ax = plt.gca()
+    plt = phonon.plot_band_structure_and_dos(labels=labels)
+    ax = plt.gcf().axes[0]
     xticks = ax.get_xticks()
 
     # experimental result measured by IXS and Raman is obtained from
