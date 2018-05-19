@@ -74,8 +74,8 @@ def run(hp, generator, out_dir, log, comm=None):
                                    trigger=(100, 'epoch'))
 
             trainer.run()
+            time += trainer.elapsed_time
         results.append(flatten_dict(trainer.observation))
-        time += trainer.elapsed_time
 
     # serialize
     if hp.mode == 'cv':
