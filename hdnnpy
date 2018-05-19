@@ -131,7 +131,7 @@ elif config.mode in ['optimize', 'phonon']:
 
     hp = config + dataset_hp + model_hp[0]
     masters_paths = args.masters if args.masters \
-        else glob(path.join(file_.out_dir, '*', 'masters.npz'))[-1:]
+        else sorted(glob(path.join(file_.out_dir, '*', 'masters.npz')))[-1:]
     poscar = path.join(args.testdir, 'POSCAR')
     for masters_path in masters_paths:
         hdnnp.test(hp, masters_path, poscar)
