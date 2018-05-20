@@ -12,8 +12,6 @@ import chainer
 from chainer import reporter as reporter_module
 from chainer.training.extensions import evaluator
 
-from .model import SingleNNP, HDNNP
-
 
 class Evaluator(evaluator.Evaluator):
     def evaluate(self):
@@ -49,30 +47,7 @@ class Evaluator(evaluator.Evaluator):
 
 def scatterplot(model, dataset, config):
     @chainer.training.make_extension()
-    def make_image1(trainer):
-        def artist(pred, true, title):
-            fig = plt.figure()
-            min = np.min(true)
-            max = np.max(true)
-            plt.scatter(pred, true, c='blue'),
-            plt.xlabel('prediction'),
-            plt.ylabel('target'),
-            plt.xlim(min, max),
-            plt.ylim(min, max),
-            plt.text(0.5, 0.9,
-                     '{} @epoch={}'.format(title, trainer.updater.epoch),
-                     fontsize=visual.fontsize, ha='center', transform=plt.gcf().transFigure)
-            fig.savefig(path.join(trainer.out, '{}.png'.format(title)))
-
-        x, dx, y_true, dy_true = chainer.dataset.concat_examples(dataset)
-        y_pred, dy_pred, _ = model(x, dx, y_true, dy_true)
-
-        artist(y_pred.data, y_true, '{}_original'.format(config))
-        artist(dy_pred.data, dy_true, '{}_derivative'.format(config))
-        plt.close('all')
-
-    @chainer.training.make_extension()
-    def make_image2(trainer):
+    def make_image(trainer):
         def artist(pred, true, title, unit):
             fig = plt.figure()
             min = np.min(true)
@@ -93,11 +68,7 @@ def scatterplot(model, dataset, config):
         artist(E_pred.data, E_true, '{}_Energy'.format(config), 'eV')
         artist(F_pred.data, F_true, '{}_Force'.format(config), 'eV/$\AA$')
         plt.close('all')
-
-    if isinstance(model, SingleNNP):
-        return make_image1
-    elif isinstance(model, HDNNP):
-        return make_image2
+    return make_image
 
 
 def set_logscale(f, a, summary):
