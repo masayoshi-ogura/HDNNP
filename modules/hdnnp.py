@@ -22,7 +22,7 @@ from .extensions import set_logscale
 from .extensions import scatterplot
 
 
-def run(hp, generator, out_dir, log, comm=None):
+def run(hp, generator, out_dir, verbose, comm=None):
     results = []
     time = 0
     # dataset and iterator
@@ -60,21 +60,24 @@ def run(hp, generator, out_dir, log, comm=None):
             trainer.extend(evaluator)
             if mpi.rank == 0:
                 trainer.extend(ext.LogReport(log_name=log_name))
-                if log:
+                trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
+                                                'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
+                trainer.extend(scatterplot(hdnnp, val, config),
+                               trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
+                if verbose:
                     # trainer.extend(ext.observe_lr('master', 'learning rate'))
                     # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
                     #                               file_name='learning_rate.png', marker=None, postprocess=set_logscale))
                     trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                                   file_name='{}_RMSE.png'.format(config), marker=None, postprocess=set_logscale))
-                    trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
-                                                    'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
-                    trainer.extend(scatterplot(hdnnp, val, config),
-                                   trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
                     trainer.extend(ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
                                    trigger=(100, 'epoch'))
 
             trainer.run()
             time += trainer.elapsed_time
+            if hp.mode == 'training':
+                chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
+                chainer.serializers.save_npz(path.join(out_dir, '{}_optimizer_snapshot.npz'.format(config)), master_opt)
         results.append(flatten_dict(trainer.observation))
 
     # serialize
