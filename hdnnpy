@@ -25,8 +25,9 @@ parser.add_argument('mode', type=str, default='training', choices=['cv', 'traini
                     help='select mode')
 parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
                     help='YAML file which contains all of the hyperparameters.')
-parser.add_argument('--log', '-l', action='store_true', default=False,
-                    help='trainer extensions "PlotReport, PrintReport, scatterplot, snapshot_object" is set.')
+parser.add_argument('--verbose', '-v', action='store_true', default=False,
+                    help='trainer extensions "PlotReport snapshot_object" is set.\
+                          processing time will be long')
 parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
                     help='trained master models for phonon calculation. this is used with option --test(-t)\
                           default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
@@ -87,7 +88,7 @@ if config.mode in ['cv', 'training']:
                         pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                         hp = config + dataset_hp + set
                         hp.id = i
-                        result = training.run(hp, generator, path.join(out_dir, str(i)), log=args.log)
+                        result = training.run(hp, generator, path.join(out_dir, str(i)), verbose=args.verbose)
                     else:
                         result = mpi.comm.recv(source=worker)
                     result.update(dict(set))
@@ -108,7 +109,7 @@ if config.mode in ['cv', 'training']:
                 pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                 hp = config + dataset_hp + set
                 hp.id = i
-                result = training.run(hp, generator, path.join(out_dir, str(i)), log=args.log)
+                result = training.run(hp, generator, path.join(out_dir, str(i)), verbose=args.verbose)
                 mpi.comm.send(result, dest=0)
 
     elif config.mode == 'training':
@@ -117,7 +118,7 @@ if config.mode in ['cv', 'training']:
         generator = DataGenerator(hp, precond)
         if mpi.rank == 0:
             precond.save(path.join(out_dir, 'preconditioning.npz'))
-        result = training.run(hp, generator, out_dir, log=args.log, comm=mpi.chainer_comm)
+        result = training.run(hp, generator, out_dir, verbose=args.verbose, comm=mpi.chainer_comm)
         result.update(dict(model_hp[0]))
         if mpi.rank == 0:
             write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
