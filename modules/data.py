@@ -103,9 +103,9 @@ class AtomicStructureDataset(TupleDataset):
             self._composition = dill.load(f)
         self._nsample = len(AtomsReader(xyz_file))
         self._natom = len(self._composition.element)
-        self._atoms_objs = AtomsList(xyz_file, start=mpi.rank, step=mpi.size) if mpi.rank < self._nsample else []
-
         self._count = np.array([(self._nsample+i)/mpi.size for i in range(mpi.size)[::-1]], dtype=np.int32)
+        self._atoms_objs = AtomsReader(xyz_file)[self._count[:mpi.rank].sum(): self._count[:mpi.rank+1].sum()]
+
         self._make_input(save=True)
         self._make_label(save=True)
         del self._hp, self._data_dir, self._natom, self._atoms_objs, self._count
@@ -120,7 +120,7 @@ class AtomicStructureDataset(TupleDataset):
                 supercell = unitcell.copy()
                 supercell.set_lattice(unitcell.lattice * k, scale_positions=True)
                 supercells.append(supercell)
-            self._atoms_objs = supercells
+            atoms_objs = supercells
         elif self._hp.mode == 'phonon':
             unitcell.set_lattice(unitcell.lattice*scale, scale_positions=True)  # scaling
             unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
@@ -136,16 +136,16 @@ class AtomicStructureDataset(TupleDataset):
             phonon.generate_displacements(distance=distance)
             supercells = phonon.get_supercells_with_displacements()
             self._phonopy = phonon
-            self._atoms_objs = []
+            atoms_objs = []
             for pa in supercells:
                 atoms = Atoms(cell=pa.cell,
                               positions=pa.get_positions(),
                               numbers=pa.numbers,
                               masses=pa.masses)
                 atoms.set_chemical_symbols(pa.get_chemical_symbols())
-                self._atoms_objs.append(atoms)
+                atoms_objs.append(atoms)
 
-        symbols = self._atoms_objs[0].get_chemical_symbols()
+        symbols = atoms_objs[0].get_chemical_symbols()
         composition = {'index': {k: set([i for i, s in enumerate(symbols) if s == k]) for k in set(symbols)},
                        'element': symbols}
         self._composition = DictAsAttributes(composition)
@@ -153,6 +153,7 @@ class AtomicStructureDataset(TupleDataset):
         self._natom = supercells[0].get_number_of_atoms()
 
         self._count = np.array([(self._nsample+i)/mpi.size for i in range(mpi.size)[::-1]], dtype=np.int32)
+        self._atoms_objs = atoms_objs[self._count[:mpi.rank].sum(): self._count[:mpi.rank+1].sum()]
         self._make_input(save=save)
         del self._hp, self._data_dir, self._natom, self._atoms_objs, self._count
 
