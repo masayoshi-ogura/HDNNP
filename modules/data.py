@@ -3,6 +3,8 @@
 # define variables
 from config import file_
 from config import mpi
+import config
+
 
 # import python modules
 from os import path
@@ -195,34 +197,50 @@ class AtomicStructureDataset(TupleDataset):
         del self._hp, self._data_dir, self._natom, self._atoms_objs, self._count
 
     def _make_label(self, save):
-        EF_file = path.join(self._data_dir, 'Energy_Force.npz')
+        #EF_file = path.join(self._data_dir, 'Energy_Force.npz')
+        #born_file = path.join(self._data_dir, 'born.npy')
+        #Es = np.ones((self._nsample, 1))
+        #Fs = np.load(born_file)
+        Fs = np.load("./born.npy")
+        Es = np.load("./E.npy")
+        print("Born effective charge")
+        self._Es = Es.astype(np.float32)
+        self._Fs = Fs.astype(np.float32)
+
 
         # non-root process
-        if mpi.rank != 0 and not path.exists(EF_file):
-            Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
-            Fs_send = np.array([data.force.T for data in self._atoms_objs]).reshape(-1, self._natom, 3)
-            mpi.comm.Gatherv(Es_send, None, 0)
-            mpi.comm.Gatherv(Fs_send, None, 0)
+        #if mpi.rank != 0 and not path.exists(EF_file):
+        #    Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
+        #    Fs_send = np.array([data.force.T for data in self._atoms_objs]).reshape(-1, self._natom, 3)
+        #    mpi.comm.Gatherv(Es_send, None, 0)
+        #    mpi.comm.Gatherv(Fs_send, None, 0)
 
         # root node process
-        else:
-            if path.exists(EF_file):
-                ndarray = np.load(EF_file)
-                Es = ndarray['E']
-                Fs = ndarray['F']
-            else:
-                pprint('making {} ... '.format(EF_file), end='', flush=True)
-                Es = np.empty((self._nsample, 1))
-                Fs = np.empty((self._nsample, self._natom, 3))
-                Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
-                Fs_send = np.array([data.force.T for data in self._atoms_objs]).reshape(-1, self._natom, 3)
-                mpi.comm.Gatherv(Es_send, (Es, (self._count, None), MPI.DOUBLE), root=0)
-                mpi.comm.Gatherv(Fs_send, (Fs, (self._count*self._natom*3, None), MPI.DOUBLE), root=0)
-                if save:
-                    np.savez(EF_file, E=Es, F=Fs)
-                pprint('done')
-            self._Es = Es.astype(np.float32)
-            self._Fs = Fs.astype(np.float32)
+        #else:
+        #    #Es = np.ones((self._nsample, 1))
+        #    #Fs = np.load(born_file)
+        #    #print("Born effective charge")
+        #    if path.exists(EF_file):
+        #        ndarray = np.load(EF_file)
+        #        Es = ndarray['E']
+        #        Fs = ndarray['F']
+        #    else:
+        #        #Es = np.ones((self._nsample, 1))
+        #        #Fs = np.load(born_file)
+        #        #print("Born effective charge")
+        #        pprint('making {} ... '.format(EF_file), end='', flush=True)
+        #        Es = np.empty((self._nsample, 1))
+        #        Fs = np.empty((self._nsample, self._natom, 3))
+        #        Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
+        #        Fs_send = np.array([data.force.T for data in self._atoms_objs]).reshape(-1, self._natom, 3)
+        #        mpi.comm.Gatherv(Es_send, (Es, (self._count, None), MPI.DOUBLE), root=0)
+        #        mpi.comm.Gatherv(Fs_send, (Fs, (self._count*self._natom*3, None), MPI.DOUBLE), root=0)
+        #        if save:
+        #            np.savez(EF_file, E=Es, F=Fs)
+        #        pprint('done')
+        #    self._Es = Es.astype(np.float32)
+        #    self._Fs = Fs.astype(np.float32)
+
 
     def _make_input(self, save):
         if mpi.rank != 0:
@@ -300,43 +318,49 @@ class AtomicStructureDataset(TupleDataset):
             yield key, np.stack(Gs[key]), np.stack(dGs[key])
 
     def _type1(self, at, Rc):
-        G = np.zeros((self._natom, 2))
-        dG = np.zeros((self._natom, 2, self._natom, 3))
-        for i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._neighbour(at, Rc):
+        G = np.zeros((self._natom, 3))
+        dG = np.zeros((self._natom, 3, self._natom, 3))
+        for i, neighbour, species, R, tanh, dR, _, _ in self._neighbour(at, Rc):
             g = tanh**3
             dg = -3./Rc * ((1.-tanh**2)*tanh**2)[:, None] * dR
             # G
-            G[i, 0] = g[homo_all].sum()
-            G[i, 1] = g[hetero_all].sum()
+            G[i, 0] = g[species["Li"]].sum()
+            G[i, 1] = g[species["P"]].sum()
+            G[i, 2] = g[species["O"]].sum()
             # dG
-            for j, (homo, indices) in enumerate(neighbour):
-                if homo:
+            for j, (atomic_species, indices) in enumerate(neighbour):
+                if atomic_species == "Li":
                     dG[i, 0, j] = dg.take(indices, 0).sum(0)
-                else:
+                elif atomic_species == "P":
                     dG[i, 1, j] = dg.take(indices, 0).sum(0)
+                else:
+                    dG[i, 2, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _type2(self, at, Rc, eta, Rs):
-        G = np.zeros((self._natom, 2))
-        dG = np.zeros((self._natom, 2, self._natom, 3))
-        for i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._neighbour(at, Rc):
+        G = np.zeros((self._natom, 3))
+        dG = np.zeros((self._natom, 3, self._natom, 3))
+        for i, neighbour, species, R, tanh, dR, _, _ in self._neighbour(at, Rc):
             g = np.exp(- eta * (R - Rs)**2) * tanh**3
             dg = (np.exp(- eta * (R - Rs)**2) * tanh**2 * (-2.*eta*(R-Rs)*tanh + 3./Rc*(tanh**2 - 1.0)))[:, None] * dR
             # G
-            G[i, 0] = g[homo_all].sum()
-            G[i, 1] = g[hetero_all].sum()
+            G[i, 0] = g[species["Li"]].sum()
+            G[i, 1] = g[species["P"]].sum()
+            G[i, 2] = g[species["O"]].sum()
             # dG
-            for j, (homo, indices) in enumerate(neighbour):
-                if homo:
+            for j, (atomic_species, indices) in enumerate(neighbour):
+                if atomic_species == "Li":
                     dG[i, 0, j] = dg.take(indices, 0).sum(0)
-                else:
+                elif atomic_species == "P":
                     dG[i, 1, j] = dg.take(indices, 0).sum(0)
+                else:
+                    dG[i, 2, j] = dg.take(indices, 0).sum(0)
         return G, dG
 
     def _type4(self, at, Rc, eta, lambda_, zeta):
-        G = np.zeros((self._natom, 3))
-        dG = np.zeros((self._natom, 3, self._natom, 3))
-        for i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._neighbour(at, Rc):
+        G = np.zeros((self._natom, 6))
+        dG = np.zeros((self._natom, 6, self._natom, 3))
+        for i, neighbour, species, R, tanh, dR, cos, dcos in self._neighbour(at, Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R**2) * tanh**3
             rad2 = np.exp(-eta * R**2) * tanh**2 * (-2.*eta*R*tanh + 3./Rc*(tanh**2 - 1.0))
@@ -347,17 +371,26 @@ class AtomicStructureDataset(TupleDataset):
             dg = dg_radial_part + dg_angular_part
 
             # G
-            G[i, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
-            G[i, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
-            G[i, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
+            G[i, 0] = g.take(species["Li"], 0).take(species["Li"], 1).sum() / 2.0
+            G[i, 1] = g.take(species["P"], 0).take(species["P"], 1).sum() / 2.0
+            G[i, 2] = g.take(species["O"], 0).take(species["O"], 1).sum() / 2.0
+            G[i, 3] = g.take(species["Li"], 0).take(species["P"], 1).sum()
+            G[i, 4] = g.take(species["Li"], 0).take(species["O"], 1).sum()
+            G[i, 5] = g.take(species["P"], 0).take(species["O"], 1).sum()
             # dG
-            for j, (homo, indices) in enumerate(neighbour):
-                if homo:
-                    dG[i, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
-                    dG[i, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
+            for j, (atomic_species, indices) in enumerate(neighbour):
+                if atomic_species == "Li":
+                    dG[i, 0, j] = dg.take(indices, 0).take(species["Li"], 1).sum((0, 1))
+                    dG[i, 3, j] = dg.take(indices, 0).take(species["P"], 1).sum((0, 1))
+                    dG[i, 4, j] = dg.take(indices, 0).take(species["O"], 1).sum((0, 1))
+                elif atomic_species == "P":
+                    dG[i, 3, j] = dg.take(indices, 0).take(species["Li"], 1).sum((0, 1))
+                    dG[i, 1, j] = dg.take(indices, 0).take(species["P"], 1).sum((0, 1))
+                    dG[i, 5, j] = dg.take(indices, 0).take(species["O"], 1).sum((0, 1))
                 else:
-                    dG[i, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
-                    dG[i, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+                    dG[i, 4, j] = dg.take(indices, 0).take(species["Li"], 1).sum((0, 1))
+                    dG[i, 5, j] = dg.take(indices, 0).take(species["P"], 1).sum((0, 1))
+                    dG[i, 2, j] = dg.take(indices, 0).take(species["O"], 1).sum((0, 1))
         return G, dG
 
     def memorize_generator(f):
@@ -389,15 +422,31 @@ class AtomicStructureDataset(TupleDataset):
 
             r = np.zeros((n_neighb, 3))
             element = self._composition.element[i]
-            neighbour = [(j_prime in self._composition.index[element], []) for j_prime in xrange(self._natom)]
-            homo_all, hetero_all = [], []
+            #neighbour = [(j_prime in self._composition.index[element], []) for j_prime in xrange(self._natom)]
+            neighbour = [(self._composition.element[j_prime], []) for j_prime in xrange(self._natom)]
+            #print(neighbour)
+            species = {"Li":[],"P":[], "O":[]}
+            #print(asdfgh)
+            #homo_all, hetero_all = [], []
             for j, neighb in enumerate(at.connect[i+1]):
                 r[j] = neighb.diff
+                #print(neighb.diff)
+                #print(neighb.j-1)
                 neighbour[neighb.j-1][1].append(j)
-                if neighbour[neighb.j-1][0]:
-                    homo_all.append(j)
+                #print(neighbour[neighb.j-1][1].append(j))
+                #print(neighbour[neighb.j-1][0])
+                if neighbour[neighb.j-1][0] == "Li":
+                    species["Li"].append(j)
+                elif neighbour[neighb.j-1][0] == "P":
+                    species["P"].append(j)
                 else:
-                    hetero_all.append(j)
+                    species["O"].append(j)
+
+
+            #print(homo_all)
+            #print(neighbour)
+            #print(species)
+            #print(asdfg)
             R = np.linalg.norm(r, axis=1)
             tanh = np.tanh(1-R/Rc)
             dR = r / R[:, None]
@@ -406,7 +455,7 @@ class AtomicStructureDataset(TupleDataset):
             # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
             dcos = - r[:, None, :]/R[:, None, None]**2 * cos[:, :, None] \
                 + r[None, :, :]/(R[:, None, None] * R[None, :, None])
-            yield i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
+            yield i, neighbour, species, R, tanh, dR, cos, dcos
 
 
 class DataGenerator(object):
