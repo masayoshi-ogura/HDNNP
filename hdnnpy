@@ -13,7 +13,6 @@ import yaml
 from itertools import islice
 
 from modules import hdnnp
-from modules import single
 from modules.data import DataGenerator
 from modules.preconditioning import PRECOND
 from modules.util import pprint, mkdir, write
@@ -25,13 +24,12 @@ parser.add_argument('mode', type=str, default='training', choices=['cv', 'traini
                     help='select mode')
 parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
                     help='YAML file which contains all of the hyperparameters.')
-parser.add_argument('--log', '-l', action='store_true', default=False,
-                    help='trainer extensions "PlotReport, PrintReport, scatterplot, snapshot_object" is set.')
+parser.add_argument('--verbose', '-v', action='store_true', default=False,
+                    help='trainer extensions "PlotReport snapshot_object" is set.\
+                          processing time will be long')
 parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
                     help='trained master models for phonon calculation. this is used with option --test(-t)\
                           default, this is set to "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
-parser.add_argument('--single', '-s', type=str, default=None, choices=['complex', 'sin', 'LJ'],
-                    help='function type for SingleNNP. used for debug.')
 parser.add_argument('--preconditioning', '-p', type=str, default='pca', choices=['pca', 'none'],
                     help='preconditioning of the input data. defalut is PCA, and # of decomposed features.')
 parser.add_argument('--epoch', '-e', type=int, default=1000,
@@ -66,11 +64,6 @@ if config.mode in ['cv', 'training']:
     config.epoch = args.epoch
     config.batch_size = args.batch_size
     config.metrics = args.metrics
-    if args.single:
-        config.single = args.single
-        training = single
-    else:
-        training = hdnnp
 
     if config.mode == 'cv':
         config.kfold = args.kfold
@@ -87,7 +80,7 @@ if config.mode in ['cv', 'training']:
                         pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                         hp = config + dataset_hp + set
                         hp.id = i
-                        result = training.run(hp, generator, path.join(out_dir, str(i)), log=args.log)
+                        result = hdnnp.run(hp, generator, path.join(out_dir, str(i)), verbose=args.verbose)
                     else:
                         result = mpi.comm.recv(source=worker)
                     result.update(dict(set))
@@ -108,7 +101,7 @@ if config.mode in ['cv', 'training']:
                 pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
                 hp = config + dataset_hp + set
                 hp.id = i
-                result = training.run(hp, generator, path.join(out_dir, str(i)), log=args.log)
+                result = hdnnp.run(hp, generator, path.join(out_dir, str(i)), verbose=args.verbose)
                 mpi.comm.send(result, dest=0)
 
     elif config.mode == 'training':
@@ -117,7 +110,7 @@ if config.mode in ['cv', 'training']:
         generator = DataGenerator(hp, precond)
         if mpi.rank == 0:
             precond.save(path.join(out_dir, 'preconditioning.npz'))
-        result = training.run(hp, generator, out_dir, log=args.log, comm=mpi.chainer_comm)
+        result = hdnnp.run(hp, generator, out_dir, verbose=args.verbose, comm=mpi.chainer_comm)
         result.update(dict(model_hp[0]))
         if mpi.rank == 0:
             write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
@@ -125,13 +118,9 @@ if config.mode in ['cv', 'training']:
             write(result_file, yaml.dump({'result': result}, default_flow_style=False))
 
 elif config.mode in ['optimize', 'phonon']:
-    if args.single:
-        raise NotImplementedError("option --single(-s) is used for only functional testing.\n\
-                                   can't use with 'optimize', 'phonon' mode.")
-
     hp = config + dataset_hp + model_hp[0]
     masters_paths = args.masters if args.masters \
-        else glob(path.join(file_.out_dir, '*', 'masters.npz'))[-1:]
+        else sorted(glob(path.join(file_.out_dir, '*', 'masters.npz')))[-1:]
     poscar = path.join(args.testdir, 'POSCAR')
     for masters_path in masters_paths:
         hdnnp.test(hp, masters_path, poscar)
