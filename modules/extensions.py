@@ -64,6 +64,8 @@ def scatterplot(model, dataset, config):
 
         G, dG, E_true, F_true = chainer.dataset.concat_examples(dataset)
         E_pred, F_pred, _ = model(G, dG, E_true, F_true)
+        #E_pred = E_pred[:,[0]]
+        #F_pred = F_pred.diagonal(0,1,2)
 
         artist(E_pred.data, E_true, '{}_Energy'.format(config), 'eV')
         artist(F_pred.data, F_true, '{}_Force'.format(config), 'eV/$\AA$')

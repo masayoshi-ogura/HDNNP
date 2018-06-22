@@ -5,10 +5,14 @@ import chainer.links as L
 import chainer.functions as F
 from chainer import Variable
 
+import numpy as np
+
 
 def loss_func(mixing_beta, y_pred, y_true, dy_pred, dy_true, obs):
     y_loss = F.mean_squared_error(y_pred, y_true)
+    #y_loss = F.mean_squared_error(y_pred[:,[0]], y_true)
     dy_loss = F.mean_squared_error(dy_pred, dy_true)
+    #dy_loss = F.mean_squared_error(dy_pred.diagonal(0,1,2), dy_true)
     loss = (1. - mixing_beta) * y_loss + mixing_beta * dy_loss
     RMSE = F.sqrt(y_loss)
     d_RMSE = F.sqrt(dy_loss)
@@ -82,19 +86,21 @@ class HDNNP(chainer.ChainList):
         """
         INPUT
         dxs: list of Variable [natom, (nsample, nfeature, natom, 3)]
-        y:   list of Variable [natom, (nsample, 1)]
+        y:   list of Variable [natom, (nsample, 3)]
         xs:  list of Variable [natom, (nsample, nfeature)]
         train: boolean
         OUTPUT
-        forces: Variable (nsample, natom, 3)
+        forces: Variable (nsample, natom, 3, 3)
 
         natom, which is length of the list, is the atom energy or energy change of which will be computed
         natom, which is shape[2] of ndarray of y, is the atom forces you want to compute acting on.
         """
         shape = dxs[0].shape
         natom = shape[2]
-        dys = chainer.grad(y, xs, enable_double_backprop=train)
-        forces = - sum([F.sum(dx * F.repeat(dy, 3*natom).reshape(shape), axis=1) for dx, dy in zip(dxs, dys)])
+        #dys = chainer.grad(y, xs, enable_double_backprop=train)
+        dys = [chainer.grad([y_[i] for y_ in y], xs, enable_double_backprop=train) for i in range(3)]
+        forces = [- sum([F.sum(dx * F.repeat(dy, 3*natom).reshape(shape), axis=1) for dx, dy in zip(dxs, dys[i])]) for i in range(3)]
+        forces = F.stack(forces, axis=2)
         return forces
 
     def get_by_element(self, element):

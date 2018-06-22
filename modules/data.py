@@ -162,35 +162,35 @@ class AtomicStructureDataset(TupleDataset):
     def _make_label(self, save):
         #EF_file = path.join(self._data_dir, 'Energy_Force.npz')
         #born_file = path.join(self._data_dir, 'born.npy')
-        #Es = np.ones((self._nsample, 1))
+        Es = np.ones((self._nsample, 3))
         #Fs = np.load(born_file)
-        Fs = np.load("./born.npy")
-        Es = np.load("./E.npy")
+        Fs = np.load("./born_tensor.npy")
+        #Es = np.load("./E.npy")
         print("Born effective charge")
         self._Es = Es.astype(np.float32)
         self._Fs = Fs.astype(np.float32)
 
 
-        # non-root process
+        #non-root process
         #if mpi.rank != 0 and not path.exists(EF_file):
         #    Es_send = np.array([data.cohesive_energy for data in self._atoms_objs]).reshape(-1, 1)
         #    Fs_send = np.array([data.force.T for data in self._atoms_objs]).reshape(-1, self._natom, 3)
         #    mpi.comm.Gatherv(Es_send, None, 0)
         #    mpi.comm.Gatherv(Fs_send, None, 0)
 
-        # root node process
+        #root node process
         #else:
-        #    #Es = np.ones((self._nsample, 1))
-        #    #Fs = np.load(born_file)
-        #    #print("Born effective charge")
+            #Es = np.ones((self._nsample, 1))
+            #Fs = np.load(born_file)
+            #print("Born effective charge")
         #    if path.exists(EF_file):
         #        ndarray = np.load(EF_file)
         #        Es = ndarray['E']
         #        Fs = ndarray['F']
         #    else:
-        #        #Es = np.ones((self._nsample, 1))
-        #        #Fs = np.load(born_file)
-        #        #print("Born effective charge")
+                #Es = np.ones((self._nsample, 1))
+                #Fs = np.load(born_file)
+                #print("Born effective charge")
         #        pprint('making {} ... '.format(EF_file), end='', flush=True)
         #        Es = np.empty((self._nsample, 1))
         #        Fs = np.empty((self._nsample, self._natom, 3))
