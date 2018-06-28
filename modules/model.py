@@ -37,6 +37,9 @@ class SingleNNP(chainer.Chain):
         dy_pred = self.predict_dy(dx, y_pred, x, train)
         return y_pred, dy_pred, loss_func(self._mixing_beta, y_pred, y_true, dy_pred, dy_true, self)
 
+    def __len__(self):
+        return self._nlink
+
     def predict_y(self, x):
         h = x
         for i in range(self._nlink):

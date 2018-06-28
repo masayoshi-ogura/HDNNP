@@ -37,8 +37,8 @@ def run(hp, generator, out_dir, verbose, comm=None):
         master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(hp.l2_norm))
 
         for train, val, config, composition in dataset:
-            train_iter = chainer.iterators.SerialIterator(train, hp.batch_size/mpi.size)
-            val_iter = chainer.iterators.SerialIterator(val, hp.batch_size/mpi.size, repeat=False, shuffle=False)
+            train_iter = chainer.iterators.SerialIterator(train, hp.batch_size / mpi.size)
+            val_iter = chainer.iterators.SerialIterator(val, hp.batch_size / mpi.size, repeat=False, shuffle=False)
 
             hdnnp = HDNNP(hp, composition)
             hdnnp.sync_param_with(masters)
@@ -53,7 +53,7 @@ def run(hp, generator, out_dir, verbose, comm=None):
 
             # extensions
             log_name = '{}_cv_{}.log'.format(config, i) if hp.mode == 'cv' else '{}.log'.format(config)
-            trainer.extend(ext.ExponentialShift('alpha', 1-hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
+            trainer.extend(ext.ExponentialShift('alpha', 1 - hp.lr_decay, target=hp.final_lr, optimizer=master_opt))
             evaluator = Evaluator(iterator=val_iter, target=hdnnp, device=mpi.gpu)
             if comm:
                 evaluator = chainermn.create_multi_node_evaluator(evaluator, comm)
@@ -61,7 +61,8 @@ def run(hp, generator, out_dir, verbose, comm=None):
             if mpi.rank == 0:
                 trainer.extend(ext.LogReport(log_name=log_name))
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
-                                                'validation/main/RMSE', 'validation/main/d_RMSE', 'validation/main/tot_RMSE']))
+                                                'validation/main/RMSE', 'validation/main/d_RMSE',
+                                                'validation/main/tot_RMSE']))
                 trainer.extend(scatterplot(hdnnp, val, config),
                                trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
                 if verbose:
@@ -69,15 +70,18 @@ def run(hp, generator, out_dir, verbose, comm=None):
                     # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
                     #                               file_name='learning_rate.png', marker=None, postprocess=set_logscale))
                     trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
-                                                  file_name='{}_RMSE.png'.format(config), marker=None, postprocess=set_logscale))
-                    trainer.extend(ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
-                                   trigger=(100, 'epoch'))
+                                                  file_name='{}_RMSE.png'.format(config), marker=None,
+                                                  postprocess=set_logscale))
+                    trainer.extend(
+                        ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
+                        trigger=(100, 'epoch'))
 
             trainer.run()
             time += trainer.elapsed_time
             if hp.mode == 'training':
                 chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
                 chainer.serializers.save_npz(path.join(out_dir, '{}_optimizer_snapshot.npz'.format(config)), master_opt)
+                dump(hp, path.join(out_dir, '{}_snapshot_lammps.nnp'.format(config)), masters)
         results.append(flatten_dict(trainer.observation))
 
     # serialize
@@ -88,6 +92,7 @@ def run(hp, generator, out_dir, verbose, comm=None):
     elif hp.mode == 'training':
         chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
         chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
+        dump(hp, path.join(out_dir, 'lammps.nnp'), masters)
         result, = results
     result['input'] = masters[0]['l0'].W.shape[1]
     result['sample'] = len(generator)
@@ -110,7 +115,7 @@ def optimize(hp, masters_path, *args, **kwargs):
     energy, force = predict(hp, masters_path, *args, **kwargs)
     nsample = len(energy)
     energy = energy.data.reshape(-1)
-    force = np.sqrt((force.data**2).mean(axis=(1, 2)))
+    force = np.sqrt((force.data ** 2).mean(axis=(1, 2)))
     x = np.linspace(0.9, 1.1, nsample)
     plt.plot(x, energy, label='energy')
     plt.plot(x, force, label='force')
@@ -135,11 +140,11 @@ def phonon(hp, masters_path, *args, **kwargs):
 
     mesh = [8, 8, 8]
     point_symmetry = [[0.0, 0.0, 0.0],  # Gamma
-                      [1.0/3, 1.0/3, 0.0],  # K
+                      [1.0 / 3, 1.0 / 3, 0.0],  # K
                       [0.5, 0.0, 0.0],  # M
                       [0.0, 0.0, 0.0],  # Gamma
                       [0.0, 0.0, 0.5],  # A
-                      [1.0/3, 1.0/3, 0.5],  # H
+                      [1.0 / 3, 1.0 / 3, 0.5],  # H
                       [0.5, 0.0, 0.5],  # L
                       [0.0, 0.0, 0.5],  # A
                       ]
@@ -158,23 +163,23 @@ def phonon(hp, masters_path, *args, **kwargs):
     # Phonon Dispersion Curves in Wurtzite-Structure GaN Determined by Inelastic X-Ray Scattering
     # PRL vol.86 #5 2001/1/29
     # @Gamma, Raman
-    ax.scatter([xticks[0]]*6 + [xticks[3]]*6,
-               [144.2, 533.5, 560.0, 569.2, 739.3, 746.6]*2,
+    ax.scatter([xticks[0]] * 6 + [xticks[3]] * 6,
+               [144.2, 533.5, 560.0, 569.2, 739.3, 746.6] * 2,
                marker='o', s=50, facecolors='none', edgecolors='blue')
     # @Gamma, IXS
-    ax.scatter([xticks[0]]*3 + [xticks[3]]*3,
-               [329, 692, 729]*2,
+    ax.scatter([xticks[0]] * 3 + [xticks[3]] * 3,
+               [329, 692, 729] * 2,
                marker='o', s=50, facecolors='none', edgecolors='red')
     # @A, IXS
-    ax.scatter([xticks[4]]*2 + [xticks[7]]*2,
-               [231, 711]*2,
+    ax.scatter([xticks[4]] * 2 + [xticks[7]] * 2,
+               [231, 711] * 2,
                marker='o', s=50, facecolors='none', edgecolors='red')
     # @M, IXS
-    ax.scatter([xticks[2]]*5,
+    ax.scatter([xticks[2]] * 5,
                [137, 184, 193, 238, 576],
                marker='o', s=50, facecolors='none', edgecolors='red')
     # @K, IXS
-    ax.scatter([xticks[1]]*2,
+    ax.scatter([xticks[1]] * 2,
                [215, 614],
                marker='o', s=50, facecolors='none', edgecolors='red')
 
@@ -197,3 +202,45 @@ def predict(hp, masters_path, *args, **kwargs):
         return energy, force
     elif hp.mode == 'phonon':
         return dataset, force
+
+
+def dump(hp, filepath, masters):
+    with open(filepath, 'w') as f:
+        f.write('''# title
+neural network potential trained by HDNNP
+
+# symmetry function parameters
+{}
+{}
+{}
+{}
+{}
+
+
+# preconditioning parameters
+{}
+{}
+
+# neural network parameters
+{}
+'''.format(' '.join(map(str, hp.Rc)),
+             ' '.join(map(str, hp.eta)),
+             ' '.join(map(str, hp.Rs)),
+             ' '.join(map(str, hp.lambda_)),
+             ' '.join(map(str, hp.zeta)),
+             0 if hp.preconditioning == 'none' else 1,
+             '',
+             len(masters)
+             ))
+
+        for master in masters:
+            for j in range(len(master)):
+                W = getattr(master, 'l{}'.format(j)).W.data
+                b = getattr(master, 'l{}'.format(j)).b.data
+                f.write(
+                    '\n{} {} {} {} {}\n'.format(master.element, j + 1, W.shape[1], W.shape[0], hp.layer[j].activation))
+                f.write('# weight\n')
+                for row in W.T:
+                    f.write('{}\n'.format(' '.join(map(str, row))))
+                f.write('# bias\n')
+                f.write('{}\n'.format(' '.join(map(str, b))))
