@@ -8,9 +8,9 @@
 ###########################################################
 
 from mpi4py import MPI
+import chainermn
 import matplotlib as mpl
 mpl.use('Agg')
-import chainermn
 
 
 class file_:

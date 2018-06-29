@@ -5,8 +5,6 @@ from config import visual
 from os import path
 from copy import copy
 import numpy as np
-import matplotlib as mpl
-mpl.use('Agg')
 import matplotlib.pyplot as plt
 import chainer
 from chainer import reporter as reporter_module
@@ -45,18 +43,18 @@ class Evaluator(evaluator.Evaluator):
         return summary.compute_mean()
 
 
-def scatterplot(model, dataset, config):
+def scatter_plot(model, dataset, config):
     @chainer.training.make_extension()
     def make_image(trainer):
         def artist(pred, true, title, unit):
             fig = plt.figure()
-            min = np.min(true)
-            max = np.max(true)
+            min_ = np.min(true)
+            max_ = np.max(true)
             plt.scatter(pred, true, c='blue'),
             plt.xlabel('NNP ({})'.format(unit)),
             plt.ylabel('DFT ({})'.format(unit)),
-            plt.xlim(min, max),
-            plt.ylim(min, max),
+            plt.xlim(min_, max_),
+            plt.ylim(min_, max_),
             plt.text(0.5, 0.9,
                      '{} @epoch={}'.format(title, trainer.updater.epoch),
                      fontsize=visual.fontsize, ha='center', transform=plt.gcf().transFigure)
@@ -68,8 +66,9 @@ def scatterplot(model, dataset, config):
         artist(E_pred.data, E_true, '{}_Energy'.format(config), 'eV')
         artist(F_pred.data, F_true, '{}_Force'.format(config), 'eV/$\AA$')
         plt.close('all')
+
     return make_image
 
 
-def set_logscale(f, a, summary):
+def set_log_scale(f, a, summary):
     a.set_yscale('log')
