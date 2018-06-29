@@ -12,9 +12,9 @@ import numpy as np
 from chainer import Variable
 
 
-def pprint(str, root_only=True, flush=False, **options):
+def pprint(string, root_only=True, flush=False, **options):
     if mpi.rank == 0 or not root_only:
-        print(str, **options)
+        print(string, **options)
         if flush:
             stdout.flush()
 
@@ -24,9 +24,9 @@ def mkdir(path):
         makedirs(path)
 
 
-def write(f, str):
+def write(f, string):
     with open(f, 'a') as f:
-        f.write(str)
+        f.write(string)
 
 
 def flatten_dict(dic):
@@ -68,14 +68,14 @@ class DictAsAttributes(dict):
 
 
 class HyperParameter(object):
-    def __init__(self, dic, random):
+    def __init__(self, dic, random_search):
         self.hyperparameters = dic
-        self.random = random
+        self.random_search = random_search
         self.indices = list(product(*[range(len(v)) for v in dic.values()]))
 
     def __iter__(self):
-        if self.random:
-            for i in range(self.random):
+        if self.random_search:
+            for i in range(self.random_search):
                 yield DictAsAttributes({k: random.uniform(min(v), max(v)) if k != 'layer'
                                         else random.choice(v) for k, v in self.hyperparameters.iteritems()})
         else:
@@ -83,7 +83,7 @@ class HyperParameter(object):
                 yield DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.iteritems(), index)})
 
     def __len__(self):
-        return self.random if self.random else len(self.indices)
+        return self.random_search if self.random_search else len(self.indices)
 
     def __getitem__(self, n):
         return DictAsAttributes({k: v[i] for (k, v), i in zip(self.hyperparameters.iteritems(), self.indices[n])})

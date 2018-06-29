@@ -27,7 +27,7 @@ class SingleNNP(chainer.Chain):
             w = chainer.initializers.HeNormal()
             for i in range(self._nlink):
                 setattr(self, 'f{}'.format(i), eval('F.{}'.format(hp.layer[i].activation)))
-                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i+1], initialW=w))
+                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i + 1], initialW=w))
         self.add_persistent('element', element)
 
     def __call__(self, x, dx, y_true, dy_true, train=False):
@@ -47,8 +47,9 @@ class SingleNNP(chainer.Chain):
         y = h
         return y
 
-    def predict_dy(self, dx, y, x, train):
-        return F.batch_matmul(dx, chainer.grad([y], [x], enable_double_backprop=train)[0])
+    @staticmethod
+    def predict_dy(dx, y, x, train):
+        return F.matmul(dx, chainer.grad([y], [x], enable_double_backprop=train)[0])
 
 
 class HDNNP(chainer.ChainList):
@@ -81,7 +82,8 @@ class HDNNP(chainer.ChainList):
     def predict_y(self, xs):
         return [nnp.predict_y(x) for nnp, x in zip(self, xs)]
 
-    def predict_dy(self, dxs, y, xs, train):
+    @staticmethod
+    def predict_dy(dxs, y, xs, train):
         """
         INPUT
         dxs: list of Variable [natom, (nsample, nfeature, natom, 3)]
@@ -97,7 +99,7 @@ class HDNNP(chainer.ChainList):
         shape = dxs[0].shape
         natom = shape[2]
         dys = chainer.grad(y, xs, enable_double_backprop=train)
-        forces = - sum([F.sum(dx * F.repeat(dy, 3*natom).reshape(shape), axis=1) for dx, dy in zip(dxs, dys)])
+        forces = - sum([F.sum(dx * F.repeat(dy, 3 * natom).reshape(shape), axis=1) for dx, dy in zip(dxs, dys)])
         return forces
 
     def get_by_element(self, element):
@@ -113,7 +115,8 @@ class HDNNP(chainer.ChainList):
             for nnp in self.get_by_element(master.element):
                 nnp.copyparams(master)
 
-    def _preprocess(self, xs, dxs):
+    @staticmethod
+    def _preprocess(xs, dxs):
         """
         convert computed Symmetry Functions from ndarray to list of chainer.Variable
         """

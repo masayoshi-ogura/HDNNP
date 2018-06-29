@@ -18,12 +18,14 @@ from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
 from .util import pprint, flatten_dict
 from .extensions import Evaluator
-from .extensions import set_logscale
-from .extensions import scatterplot
+from .extensions import set_log_scale
+from .extensions import scatter_plot
 
 
 def run(hp, generator, out_dir, verbose, comm=None):
-    results = []
+    trainer = masters = master_opt = None
+    assert hp.mode in ['training', 'cv']
+    result_list = []
     time = 0
     # dataset and iterator
     for i, (dataset, elements) in enumerate(generator):
@@ -63,15 +65,17 @@ def run(hp, generator, out_dir, verbose, comm=None):
                 trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                                 'validation/main/RMSE', 'validation/main/d_RMSE',
                                                 'validation/main/tot_RMSE']))
-                trainer.extend(scatterplot(hdnnp, val, config),
+                trainer.extend(scatter_plot(hdnnp, val, config),
                                trigger=chainer.training.triggers.MinValueTrigger(hp.metrics, (100, 'epoch')))
                 if verbose:
                     # trainer.extend(ext.observe_lr('master', 'learning rate'))
                     # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
-                    #                               file_name='learning_rate.png', marker=None, postprocess=set_logscale))
+                    #                               file_name='learning_rate.png',
+                    #                               marker=None,
+                    #                               postprocess=set_log_scale))
                     trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                                   file_name='{}_RMSE.png'.format(config), marker=None,
-                                                  postprocess=set_logscale))
+                                                  postprocess=set_log_scale))
                     trainer.extend(
                         ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
                         trigger=(100, 'epoch'))
@@ -82,22 +86,24 @@ def run(hp, generator, out_dir, verbose, comm=None):
                 chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
                 chainer.serializers.save_npz(path.join(out_dir, '{}_optimizer_snapshot.npz'.format(config)), master_opt)
                 dump(hp, path.join(out_dir, '{}_snapshot_lammps.nnp'.format(config)), masters)
-        results.append(flatten_dict(trainer.observation))
+        else:
+            result_list.append(flatten_dict(trainer.observation))
 
-    # serialize
-    if hp.mode == 'cv':
-        result = {k: sum([r[k] for r in results]) / hp.kfold
-                  for k in results[0].keys()}
-        result['id'] = hp.id
-    elif hp.mode == 'training':
-        chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
-        chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
-        dump(hp, path.join(out_dir, 'lammps.nnp'), masters)
-        result, = results
-    result['input'] = masters[0]['l0'].W.shape[1]
-    result['sample'] = len(generator)
-    result['elapsed_time'] = time
-    return result
+    else:
+        result = {'input': masters[0].l0.W.shape[1], 'sample': len(generator), 'elapsed_time': time}
+        if hp.mode == 'cv':
+            result['id'] = hp.id
+            result.update({k: sum([r[k] for r in result_list]) / hp.kfold
+                           for k in result_list[0].keys()})
+            return result
+
+        elif hp.mode == 'training':
+            # serialize
+            chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
+            chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
+            dump(hp, path.join(out_dir, 'lammps.nnp'), masters)
+            result.update(result_list[0])
+            return result
 
 
 def test(hp, *args):
@@ -134,9 +140,9 @@ def phonon(hp, masters_path, *args, **kwargs):
     root, _ = path.splitext(basename)
     dataset, force = predict(hp, masters_path, *args, **kwargs)
     sets_of_forces = force.data
-    phonon = dataset.phonopy
-    phonon.set_forces(sets_of_forces)
-    phonon.produce_force_constants()
+    phonopy = dataset.phonopy
+    phonopy.set_forces(sets_of_forces)
+    phonopy.produce_force_constants()
 
     mesh = [8, 8, 8]
     point_symmetry = [[0.0, 0.0, 0.0],  # Gamma
@@ -152,11 +158,11 @@ def phonon(hp, masters_path, *args, **kwargs):
     points = 101
     bands = [np.concatenate([np.linspace(si, ei, points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
              for s, e in zip(point_symmetry[:-1], point_symmetry[1:])]
-    phonon.set_mesh(mesh)
-    phonon.set_total_DOS()
-    phonon.set_band_structure(bands, is_band_connection=True)
-    plt = phonon.plot_band_structure_and_dos(labels=labels)
-    ax = plt.gcf().axes[0]
+    phonopy.set_mesh(mesh)
+    phonopy.set_total_DOS()
+    phonopy.set_band_structure(bands, is_band_connection=True)
+    phonopy_plt = phonopy.plot_band_structure_and_dos(labels=labels)
+    ax = phonopy_plt.gcf().axes[0]
     xticks = ax.get_xticks()
 
     # experimental result measured by IXS and Raman is obtained from
@@ -184,8 +190,8 @@ def phonon(hp, masters_path, *args, **kwargs):
                marker='o', s=50, facecolors='none', edgecolors='red')
 
     ax.grid(axis='x')
-    plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
-    plt.close()
+    phonopy_plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
+    phonopy_plt.close()
 
 
 def predict(hp, masters_path, *args, **kwargs):
@@ -204,8 +210,8 @@ def predict(hp, masters_path, *args, **kwargs):
         return dataset, force
 
 
-def dump(hp, filepath, masters):
-    with open(filepath, 'w') as f:
+def dump(hp, file_path, masters):
+    with open(file_path, 'w') as f:
         f.write('''# title
 neural network potential trained by HDNNP
 
@@ -224,14 +230,14 @@ neural network potential trained by HDNNP
 # neural network parameters
 {}
 '''.format(' '.join(map(str, hp.Rc)),
-             ' '.join(map(str, hp.eta)),
-             ' '.join(map(str, hp.Rs)),
-             ' '.join(map(str, hp.lambda_)),
-             ' '.join(map(str, hp.zeta)),
-             0 if hp.preconditioning == 'none' else 1,
-             '',
-             len(masters)
-             ))
+           ' '.join(map(str, hp.eta)),
+           ' '.join(map(str, hp.Rs)),
+           ' '.join(map(str, hp.lambda_)),
+           ' '.join(map(str, hp.zeta)),
+           0 if hp.preconditioning == 'none' else 1,
+           '',
+           len(masters)
+           ))
 
         for master in masters:
             for j in range(len(master)):

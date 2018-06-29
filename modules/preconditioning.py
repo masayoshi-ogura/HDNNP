@@ -22,7 +22,8 @@ class PreconditionBase(object):
 
 
 class PCA(PreconditionBase):
-    def __init__(self, ncomponent=20):
+    def __init__(self, ncomponent=20, *args, **kwargs):
+        super(PCA, self).__init__(*args, **kwargs)
         self._ncomponent = ncomponent
         self._mean = {}
         self._components = {}
@@ -64,15 +65,15 @@ class PCA(PreconditionBase):
                 continue
 
             nfeature = dataset.input.shape[-1]
-            pprint('{}: decompose SF from {} to {}. Cumulative contribution rate:'
-                   .format(element, nfeature, self._ncomponent), flush=True, end='')
             X = dataset.input.take(list(indices), 1).reshape(-1, nfeature)
             pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
             self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
-            pprint(np.sum(pca.explained_variance_ratio_))
+            pprint('Initialize PCA parameters of element: {}\n'
+                   '\tdecompose SF from {} to {}.\n\tcumulative contribution rate: {}'
+                   .format(element, nfeature, self._ncomponent, np.sum(pca.explained_variance_ratio_)))
 
         mean = np.array([self._mean[element]  # (atom, feature)
                          for element in dataset.composition.element])
