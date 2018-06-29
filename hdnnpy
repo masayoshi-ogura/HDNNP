@@ -87,7 +87,7 @@ if config.mode in ['cv', 'training']:
                         result = mpi.comm.recv(source=worker)
                     result.update(dict(model_hp_set))
                     write(result_file, yaml.dump([result], default_flow_style=False))
-                    if best_result[args.metrics] > result[args.metrics]:
+                    if best_result is None or best_result[args.metrics] > result[args.metrics]:
                         best_result = result.copy()
                         best_set = {k: [v] for k, v in model_hp_set.iteritems()}
             except Exception:
@@ -124,7 +124,7 @@ elif config.mode in ['optimize', 'phonon']:
     hp = config + dataset_hp + model_hp[0]
     masters_paths = args.masters if args.masters \
         else sorted(glob(path.join(file_.out_dir, '*', 'masters.npz')))[-1:]
-    poscar = path.join(args.testdir, 'POSCAR')
+    poscar = path.join(args.test_dir, 'POSCAR')
     for masters_path in masters_paths:
         hdnnp.test(hp, masters_path, poscar)
 
