@@ -82,10 +82,10 @@ def run(hp, generator, out_dir, verbose, comm=None):
 
             trainer.run()
             time += trainer.elapsed_time
-            if hp.mode == 'training':
+            if hp.mode == 'training' and mpi.rank == 0:
                 chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
                 chainer.serializers.save_npz(path.join(out_dir, '{}_optimizer_snapshot.npz'.format(config)), master_opt)
-                dump(hp, path.join(out_dir, '{}_snapshot_lammps.nnp'.format(config)), masters)
+                dump(hp, path.join(out_dir, '{}_snapshot_lammps.nnp'.format(config)), generator.precond, masters)
         else:
             result_list.append(flatten_dict(trainer.observation))
 
@@ -98,10 +98,10 @@ def run(hp, generator, out_dir, verbose, comm=None):
             return result
 
         elif hp.mode == 'training':
-            # serialize
-            chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
-            chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
-            dump(hp, path.join(out_dir, 'lammps.nnp'), masters)
+            if mpi.rank == 0:
+                chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
+                chainer.serializers.save_npz(path.join(out_dir, 'optimizer.npz'), master_opt)
+                dump(hp, path.join(out_dir, 'lammps.nnp'), generator.precond, masters)
             result.update(result_list[0])
             return result
 
@@ -210,43 +210,42 @@ def predict(hp, masters_path, *args, **kwargs):
         return dataset, force
 
 
-def dump(hp, file_path, masters):
+def dump(hp, file_path, precond, masters):
+    nelements = len(masters)
+    depth = len(masters[0])
     with open(file_path, 'w') as f:
-        f.write('''# title
-neural network potential trained by HDNNP
+        f.write('# title\nneural network potential trained by HDNNP\n\n')
+        f.write('# symmetry function parameters\n{}\n{}\n{}\n{}\n{}\n\n'
+                .format(' '.join(map(str, hp.Rc)),
+                        ' '.join(map(str, hp.eta)),
+                        ' '.join(map(str, hp.Rs)),
+                        ' '.join(map(str, hp.lambda_)),
+                        ' '.join(map(str, hp.zeta))))
 
-# symmetry function parameters
-{}
-{}
-{}
-{}
-{}
+        if hp.preconditioning == 'none':
+            f.write('# preconditioning parameters\n0\n\n')
+        elif hp.preconditioning == 'pca':
+            f.write('# preconditioning parameters\n1\npca\n\n')
+            for i in range(nelements):
+                element = masters[i].element
+                components = precond.components[element]
+                mean = precond.mean[element]
+                f.write('{} {} {}\n'.format(element, components.shape[1], components.shape[0]))
+                f.write('# components\n')
+                for row in components.T:
+                    f.write('{}\n'.format(' '.join(map(str, row))))
+                f.write('# mean\n')
+                f.write('{}\n\n'.format(' '.join(map(str, mean))))
 
-
-# preconditioning parameters
-{}
-{}
-
-# neural network parameters
-{}
-'''.format(' '.join(map(str, hp.Rc)),
-           ' '.join(map(str, hp.eta)),
-           ' '.join(map(str, hp.Rs)),
-           ' '.join(map(str, hp.lambda_)),
-           ' '.join(map(str, hp.zeta)),
-           0 if hp.preconditioning == 'none' else 1,
-           '',
-           len(masters)
-           ))
-
-        for master in masters:
-            for j in range(len(master)):
-                W = getattr(master, 'l{}'.format(j)).W.data
-                b = getattr(master, 'l{}'.format(j)).b.data
-                f.write(
-                    '\n{} {} {} {} {}\n'.format(master.element, j + 1, W.shape[1], W.shape[0], hp.layer[j].activation))
+        f.write('# neural network parameters\n{}\n\n'.format(depth))
+        for i in range(nelements):
+            for j in range(depth):
+                W = getattr(masters[i], 'l{}'.format(j)).W.data
+                b = getattr(masters[i], 'l{}'.format(j)).b.data
+                f.write('{} {} {} {} {}\n'
+                        .format(masters[i].element, j + 1, W.shape[1], W.shape[0], hp.layer[j].activation))
                 f.write('# weight\n')
                 for row in W.T:
                     f.write('{}\n'.format(' '.join(map(str, row))))
                 f.write('# bias\n')
-                f.write('{}\n'.format(' '.join(map(str, b))))
+                f.write('{}\n\n'.format(' '.join(map(str, b))))

@@ -29,6 +29,14 @@ class PCA(PreconditionBase):
         self._components = {}
         self._elements = []
 
+    @property
+    def mean(self):
+        return self._mean
+
+    @property
+    def components(self):
+        return self._components
+
     def load(self, filename):
         if path.exists(filename):
             with np.load(filename) as ndarray:
