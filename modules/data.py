@@ -483,6 +483,10 @@ class DataGenerator(object):
     def __len__(self):
         return self._length
 
+    @property
+    def precond(self):
+        return self._precond
+
     def _parse_xyzfile(self):
         if mpi.rank == 0:
             pprint('config_type.dill is not found.\nparsing {} ... '.format(file_.xyz_file), end='', flush=True)
