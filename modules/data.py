@@ -165,7 +165,7 @@ class AtomicStructureDataset(object):
     def _load_poscar(self, poscar, dimension=None, distance=0.03, save=True, scale=1.0):
         if dimension is None:
             dimension = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
-        assert self._hp.mode in ['optimize', 'phonon']
+        assert self._hp.mode in ['optimize', 'phonon', 'test']
 
         self._data_dir = path.dirname(poscar)
         self._config = path.basename(self._data_dir)
@@ -187,7 +187,8 @@ class AtomicStructureDataset(object):
             phonon = Phonopy(unitcell,
                              dimension,
                              # primitive_matrix=primitive_matrix,
-                             factor=VaspToCm)
+                             factor=VaspToCm,
+                             symprec=1.0e-4)
             phonon.generate_displacements(distance=distance)
             supercells = phonon.get_supercells_with_displacements()
             self._phonopy = phonon
@@ -198,6 +199,8 @@ class AtomicStructureDataset(object):
                            masses=phonopy_at.masses)
                 at.set_chemical_symbols(phonopy_at.get_chemical_symbols())
                 atoms.append(at)
+        elif self._hp.mode == 'test':
+            atoms.append(unitcell)
 
         symbols = atoms[0].get_chemical_symbols()
         composition = {'index': {k: set([i for i, s in enumerate(symbols) if s == k]) for k in set(symbols)},

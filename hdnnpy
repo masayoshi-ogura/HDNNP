@@ -19,7 +19,8 @@ from modules.util import pprint, mkdir, write
 from modules.util import DictAsAttributes, HyperParameter
 
 parser = argparse.ArgumentParser('High Dimensional Neural Network Potential')
-parser.add_argument('mode', type=str, default='training', choices=['cv', 'training', 'optimize', 'phonon', 'sf'],
+parser.add_argument('mode', type=str, default='training',
+                    choices=['cv', 'training', 'optimize', 'phonon', 'sf', 'test'],
                     help='select mode')
 parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
                     help='YAML file which contains all of the hyperparameters.')
@@ -120,7 +121,7 @@ if config.mode in ['cv', 'training']:
                 {'dataset': dict(dataset_hp.items() + [('xyz_file', file_.xyz_file), ('config', file_.config)])}))
             write(result_file, yaml.dump({'result': result}, default_flow_style=False))
 
-elif config.mode in ['optimize', 'phonon']:
+elif config.mode in ['optimize', 'phonon', 'test']:
     hp = config + dataset_hp + model_hp[0]
     masters_paths = args.masters if args.masters \
         else sorted(glob(path.join(file_.out_dir, '*', 'masters.npz')))[-1:]

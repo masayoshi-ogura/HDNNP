@@ -113,6 +113,10 @@ def test(hp, *args):
         phonon(hp, *args, save=False, scale=scale)
     elif hp.mode == 'phonon':
         phonon(hp, *args, save=True)
+    elif hp.mode == 'test':
+        energy, force = predict(hp, *args)
+        pprint('energy:\n{}'.format(energy.data))
+        pprint('force:\n{}'.format(force.data))
 
 
 def optimize(hp, masters_path, *args, **kwargs):
@@ -208,6 +212,8 @@ def predict(hp, masters_path, *args, **kwargs):
         return energy, force
     elif hp.mode == 'phonon':
         return dataset, force
+    elif hp.mode == 'test':
+        return energy, force
 
 
 def dump(hp, file_path, precond, masters):
