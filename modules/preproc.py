@@ -7,7 +7,7 @@ from sklearn import decomposition
 from .util import pprint
 
 
-class PreconditionBase(object):
+class PreprocBase(object):
     def __init__(self, *args, **kwargs):
         pass
 
@@ -21,7 +21,7 @@ class PreconditionBase(object):
         pass
 
 
-class PCA(PreconditionBase):
+class PCA(PreprocBase):
     def __init__(self, ncomponent=20, *args, **kwargs):
         super(PCA, self).__init__(*args, **kwargs)
         self._ncomponent = ncomponent
@@ -91,4 +91,4 @@ class PCA(PreconditionBase):
         dataset.dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
 
 
-PRECOND = {'none': PreconditionBase, 'pca': PCA}
+PREPROC = {None: PreprocBase, 'pca': PCA}
