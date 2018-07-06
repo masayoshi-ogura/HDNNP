@@ -2,6 +2,7 @@
 
 # define variables
 import settings as stg
+import phonopy_settings as ph_stg
 
 # import python modules
 from os import path
@@ -80,7 +81,12 @@ def training(model_hp, dataset, elements, out_dir):
                     ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
                     trigger=(100, 'epoch'))
 
-        trainer.run()
+        try:
+            trainer.run()
+        except KeyboardInterrupt:
+            if stg.mpi.rank == 0:
+                pprint('stop {} training by Keyboard Interrupt!'.format(config))
+                chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
         time += trainer.elapsed_time
 
     result = {'input': masters[0].l0.W.shape[1], 'elapsed_time': time}
@@ -89,7 +95,7 @@ def training(model_hp, dataset, elements, out_dir):
 
 
 def predict(sf_hp, model_hp, masters_path, poscar, save=True):
-    dataset = AtomicStructureDataset(sf_hp, poscar, file_format='POSCAR', save=save)
+    dataset = AtomicStructureDataset(sf_hp, poscar, 'POSCAR', save=save)
     preproc = PREPROC[stg.model.preproc]()
     preproc.load(path.join(path.dirname(masters_path), 'preproc.npz'))
     preproc.decompose(dataset)
@@ -118,7 +124,7 @@ def optimize(sf_hp, model_hp, masters_path, poscar):
 
 
 def phonon(sf_hp, model_hp, masters_path, poscar):
-    pprint('drawing phonon band structure ...')
+    pprint('drawing phonon band structure ... ', end='', flush=True)
     dirname, basename = path.split(masters_path)
     root, _ = path.splitext(basename)
     dataset, _, force = predict(sf_hp, model_hp, masters_path, poscar)
@@ -127,54 +133,16 @@ def phonon(sf_hp, model_hp, masters_path, poscar):
     phonopy.set_forces(sets_of_forces)
     phonopy.produce_force_constants()
 
-    mesh = [8, 8, 8]
-    point_symmetry = [[0.0, 0.0, 0.0],  # Gamma
-                      [1.0 / 3, 1.0 / 3, 0.0],  # K
-                      [0.5, 0.0, 0.0],  # M
-                      [0.0, 0.0, 0.0],  # Gamma
-                      [0.0, 0.0, 0.5],  # A
-                      [1.0 / 3, 1.0 / 3, 0.5],  # H
-                      [0.5, 0.0, 0.5],  # L
-                      [0.0, 0.0, 0.5],  # A
-                      ]
-    labels = ['$\Gamma$', 'K', 'M', '$\Gamma$', 'A', 'H', 'L', 'A']
-    points = 101
-    bands = [np.concatenate([np.linspace(si, ei, points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
-             for s, e in zip(point_symmetry[:-1], point_symmetry[1:])]
-    phonopy.set_mesh(mesh)
+    bands = [np.concatenate([np.linspace(si, ei, ph_stg.points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
+             for s, e in zip(ph_stg.point_symmetry[:-1], ph_stg.point_symmetry[1:])]
+    phonopy.set_mesh(ph_stg.mesh)
     phonopy.set_total_DOS()
     phonopy.set_band_structure(bands, is_band_connection=True)
-    phonopy_plt = phonopy.plot_band_structure_and_dos(labels=labels)
-    ax = phonopy_plt.gcf().axes[0]
-    xticks = ax.get_xticks()
-
-    # experimental result measured by IXS and Raman is obtained from
-    # Phonon Dispersion Curves in Wurtzite-Structure GaN Determined by Inelastic X-Ray Scattering
-    # PRL vol.86 #5 2001/1/29
-    # @Gamma, Raman
-    ax.scatter([xticks[0]] * 6 + [xticks[3]] * 6,
-               [144.2, 533.5, 560.0, 569.2, 739.3, 746.6] * 2,
-               marker='o', s=50, facecolors='none', edgecolors='blue')
-    # @Gamma, IXS
-    ax.scatter([xticks[0]] * 3 + [xticks[3]] * 3,
-               [329, 692, 729] * 2,
-               marker='o', s=50, facecolors='none', edgecolors='red')
-    # @A, IXS
-    ax.scatter([xticks[4]] * 2 + [xticks[7]] * 2,
-               [231, 711] * 2,
-               marker='o', s=50, facecolors='none', edgecolors='red')
-    # @M, IXS
-    ax.scatter([xticks[2]] * 5,
-               [137, 184, 193, 238, 576],
-               marker='o', s=50, facecolors='none', edgecolors='red')
-    # @K, IXS
-    ax.scatter([xticks[1]] * 2,
-               [215, 614],
-               marker='o', s=50, facecolors='none', edgecolors='red')
-
-    ax.grid(axis='x')
+    phonopy_plt = phonopy.plot_band_structure_and_dos(labels=ph_stg.labels)
+    ph_stg.callback(phonopy_plt.gcf().axes[0])
     phonopy_plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
     phonopy_plt.close()
+    pprint('done')
 
 
 def dump(file_path, preproc, masters):

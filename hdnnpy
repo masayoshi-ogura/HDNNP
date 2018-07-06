@@ -5,6 +5,8 @@ import settings as stg
 
 import yaml
 import copy
+import shutil
+import traceback
 from os import path
 from glob import glob
 from datetime import datetime
@@ -27,63 +29,73 @@ def main():
         result_file = path.join(out_dir, 'result.yaml')
         mkdir(out_dir)
 
-        if stg.args.mode == 'training':
-            preproc = PREPROC[stg.model.preproc]()
-            dataset, elements = DataGenerator(preproc).holdout(ratio=0.9)
-            masters, result = hdnnp.training(stg.model, dataset, elements, out_dir)
-            if stg.mpi.rank == 0:
-                preproc.save(path.join(out_dir, 'preproc.npz'))
-                chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
-                hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
-                write(result_file, yaml.dump({
-                    'args': vars(stg.args),
-                    'file': dict(stg.file),
-                    'sym_func': dict(stg.sym_func),
-                    'model': dict(stg.model),
-                    'result': result,
-                }, default_flow_style=False))
+        try:
+            if stg.args.mode == 'training':
+                preproc = PREPROC[stg.model.preproc]()
+                dataset, elements = DataGenerator(preproc).holdout(ratio=0.9)
+                masters, result = hdnnp.training(stg.model, dataset, elements, out_dir)
+                if stg.mpi.rank == 0:
+                    preproc.save(path.join(out_dir, 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
+                    hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
+                    write(result_file, yaml.dump({
+                        'args': vars(stg.args),
+                        'file': dict(stg.file),
+                        'sym_func': dict(stg.sym_func),
+                        'model': dict(stg.model),
+                        'result': result,
+                    }, default_flow_style=False))
 
-        elif stg.args.mode == 'param_search':
-            preproc = PREPROC[stg.model.preproc]()
-            generator = DataGenerator(preproc)
+            elif stg.args.mode == 'param_search':
+                preproc = PREPROC[stg.model.preproc]()
+                generator = DataGenerator(preproc)
 
-            def gpyopt_func(x):
+                def gpyopt_func(x):
+                    model_hp = copy.copy(stg.model)
+                    for dic, value in zip(stg.gpyopt_bounds, x[0]):
+                        if dic['name'] in ['epoch', 'batch_size']:
+                            setattr(model_hp, dic['name'], int(value))
+                        else:
+                            setattr(model_hp, dic['name'], value)
+
+                    results = []
+                    for i, (dataset, elements) in enumerate(
+                            generator.cross_validation(ratio=0.9, kfold=stg.args.kfold)):
+                        _, result = hdnnp.training(model_hp, dataset, elements, path.join(out_dir, str(i + 1)))
+                        results.append(result[stg.model.metrics])
+                    avg = sum(results) / stg.args.kfold
+                    return avg
+
+                gpyopt = GPyOpt.methods.BayesianOptimization(f=gpyopt_func, domain=stg.gpyopt_bounds,
+                                                             initial_design_numdata=stg.args.init,
+                                                             acquisition_type='LCB')
+                gpyopt.run_optimization(max_iter=stg.args.max_iter)
+
                 model_hp = copy.copy(stg.model)
-                for dic, value in zip(stg.gpyopt_bounds, x[0]):
+                for dic, value in zip(stg.gpyopt_bounds, gpyopt.x_opt):
                     if dic['name'] in ['epoch', 'batch_size']:
                         setattr(model_hp, dic['name'], int(value))
                     else:
-                        setattr(model_hp, dic['name'], value)
+                        setattr(model_hp, dic['name'], float(value))
+                dataset, elements = generator.holdout(ratio=0.9)
+                masters, result = hdnnp.training(model_hp, dataset, elements, out_dir)
+                if stg.mpi.rank == 0:
+                    preproc.save(path.join(out_dir, 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
+                    hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
+                    write(result_file, yaml.dump({
+                        'args': vars(stg.args),
+                        'file': dict(stg.file),
+                        'sym_func': dict(stg.sym_func),
+                        'model': dict(model_hp),
+                        'result': result,
+                    }, default_flow_style=False))
 
-                results = []
-                for i, (dataset, elements) in enumerate(generator.cross_validation(ratio=0.9, kfold=stg.args.kfold)):
-                    _, result = hdnnp.training(model_hp, dataset, elements, path.join(out_dir, str(i+1)))
-                    results.append(result[stg.model.metrics])
-                avg = sum(results) / stg.args.kfold
-                return avg
-            gpyopt = GPyOpt.methods.BayesianOptimization(f=gpyopt_func, domain=stg.gpyopt_bounds,
-                                                         initial_design_numdata=stg.args.init, acquisition_type='LCB')
-            gpyopt.run_optimization(max_iter=stg.args.max_iter)
-
-            model_hp = copy.copy(stg.model)
-            for dic, value in zip(stg.gpyopt_bounds, gpyopt.x_opt):
-                if dic['name'] in ['epoch', 'batch_size']:
-                    setattr(model_hp, dic['name'], int(value))
-                else:
-                    setattr(model_hp, dic['name'], float(value))
-            dataset, elements = generator.holdout(ratio=0.9)
-            masters, result = hdnnp.training(model_hp, dataset, elements, out_dir)
-            if stg.mpi.rank == 0:
-                preproc.save(path.join(out_dir, 'preproc.npz'))
-                chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
-                hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
-                write(result_file, yaml.dump({
-                    'args': vars(stg.args),
-                    'file': dict(stg.file),
-                    'sym_func': dict(stg.sym_func),
-                    'model': dict(model_hp),
-                    'result': result,
-                }, default_flow_style=False))
+        except Exception:
+            pprint(traceback.format_exc())
+            shutil.rmtree(out_dir)
+        else:
+            shutil.copy('./settings.py', path.join(out_dir, 'settings.py'))
 
     elif stg.args.mode in ['sym_func']:
         preproc = PREPROC[None]()
@@ -105,6 +117,7 @@ def main():
                 pprint('force:\n{}'.format(force.data))
             elif stg.args.mode == 'phonon':
                 hdnnp.phonon(sf_hp, model_hp, masters_path, poscar)
+                shutil.copy('./phonopy_settings.py', path.join(path.dirname(masters_path), 'phonopy_settings.py'))
             elif stg.args.mode == 'optimize':
                 e_scale, f_scale = hdnnp.optimize(sf_hp, model_hp, masters_path, poscar)
                 pprint('energy-optimized lattice parameter: {}'.format(e_scale))

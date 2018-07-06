@@ -1,7 +1,5 @@
 # -*- coding: utf -*-
 
-import settings as stg
-
 from os import path
 from copy import copy
 import numpy as np
@@ -57,7 +55,7 @@ def scatter_plot(model, dataset, config):
             plt.ylim(min_, max_),
             plt.text(0.5, 0.9,
                      '{} @epoch={}'.format(title, trainer.updater.epoch),
-                     fontsize=stg.visual.fontsize, ha='center', transform=plt.gcf().transFigure)
+                     ha='center', transform=plt.gcf().transFigure)
             fig.savefig(path.join(trainer.out, '{}.png'.format(title)))
 
         G, dG, E_true, F_true = chainer.dataset.concat_examples(dataset)

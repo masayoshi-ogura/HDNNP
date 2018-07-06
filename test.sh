@@ -1,40 +1,45 @@
 #!/bin/sh
+set -euxp
 
-home_path=/Users/jas/Desktop/HDNNP
-debug_path=${home_path}/GaN/debug_test
+debug_path=./GaN/debug_test
+tmp1=$(mktemp)
+tmp2=$(mktemp)
 
-cd $debug_path; rm -rf CrystalGa16N16 CrystalGa2N2 config_type.dill; cd $home_path
-echo "test './hdnnpy sf'"
-./hdnnpy sf > /dev/null
+cp settings.py ${tmp1}
+cp phonopy_settings.py ${tmp2}
+cp settings.py.sample settings.py
+cp phonopy_settings.py.sample phonopy_settings.py
 
-cd $debug_path; rm -rf CrystalGa16N16 CrystalGa2N2 config_type.dill; cd $home_path
-echo "test 'mpirun -np 4 ./hdnnpy sf'"
-mpirun -np 4 ./hdnnpy sf > /dev/null
 
-cd $debug_path; rm -rf CrystalGa16N16 CrystalGa2N2 config_type.dill; cd $home_path
-echo "test './hdnnpy training -e 10'"
-./hdnnpy training -e 10 > /dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
+./hdnnpy sym_func > /dev/null
 
-cd $debug_path; rm -rf CrystalGa16N16 CrystalGa2N2 config_type.dill; cd $home_path
-echo "test 'mpirun -np 4 ./hdnnpy training -e 10'"
-mpirun -np 4 ./hdnnpy training -e 10 > /dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
+mpirun -np 4 ./hdnnpy sym_func > /dev/null
 
-cd $debug_path; rm -rf CrystalGa16N16 CrystalGa2N2 config_type.dill; cd $home_path
-echo "test './hdnnpy cv -k 2 -e 10 --random-search 5'"
-./hdnnpy cv -k 2 -e 10 --random-search 5 > /dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
+./hdnnpy training --verbose > /dev/null
 
-cd $debug_path; rm -rf CrystalGa16N16 CrystalGa2N2 config_type.dill; cd $home_path
-echo "test 'mpirun -np 4 ./hdnnpy cv -k 2 -e 10 --random-search 5'"
-mpirun -np 4 ./hdnnpy cv -k 2 -e 10 --random-search 5 > /dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
+mpirun -np 4 ./hdnnpy training --verbose > /dev/null
 
-echo "test './hdnnpy training -e 10'"
-./hdnnpy training -e 10 > /dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
+./hdnnpy param_search --kfold 2 --init 1 --max-iter 1 > /dev/null
 
-echo "test 'mpirun -np 4 ./hdnnpy training -e 10'"
-mpirun -np 4 ./hdnnpy training -e 10 > /dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
+mpirun -np 4 ./hdnnpy param_search --kfold 2 --init 1 --max-iter 1 > /dev/null
 
-echo "test './hdnnpy phonon'"
+./hdnnpy training --verbose > /dev/null
+
+mpirun -np 4 ./hdnnpy training --verbose > /dev/null
+
+./hdnnpy test > /dev/null
+
 ./hdnnpy phonon > /dev/null
 
-echo "test './hdnnpy optimize'"
 ./hdnnpy optimize > /dev/null
+
+
+cp ${tmp1} settings.py
+cp ${tmp2} phonopy_settings.py
+rm ${tmp1} ${tmp2}

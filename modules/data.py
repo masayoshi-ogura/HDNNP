@@ -2,6 +2,7 @@
 
 # define variables
 import settings as stg
+import phonopy_settings as ph_stg
 
 # import python modules
 from os import path
@@ -19,7 +20,6 @@ from quippy import AtomsList
 from quippy import AtomsWriter
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
-from phonopy.units import VaspToCm
 
 from .util import pprint, mkdir
 from .util import DictAsAttributes
@@ -46,13 +46,13 @@ def memorize(f):
 
 
 class AtomicStructureDataset(object):
-    def __init__(self, hp, filename, file_format, *args, **kwargs):
+    def __init__(self, hp, filename, file_format, save=True):
         assert file_format in ['xyz', 'POSCAR']
         self._hp = hp
         if file_format == 'xyz':
             self._load_xyz(filename)
         elif file_format == 'POSCAR':
-            self._load_poscar(filename, *args, **kwargs)
+            self._load_poscar(filename, save)
 
     def __getitem__(self, index):
         batches = [self._Gs[index], self._dGs[index], self._Es[index], self._Fs[index]]
@@ -150,9 +150,7 @@ class AtomicStructureDataset(object):
         self._shuffle()  # shuffle dataset at once
         del self._atoms
 
-    def _load_poscar(self, poscar, dimension=None, distance=0.03, save=True, scale=1.0):
-        if dimension is None:
-            dimension = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
+    def _load_poscar(self, poscar, save):
         assert stg.args.mode in ['test', 'phonon', 'optimize']
 
         data_dir = path.dirname(poscar)
@@ -162,7 +160,6 @@ class AtomicStructureDataset(object):
         if stg.args.mode == 'test':
             atoms.append(unitcell)
         elif stg.args.mode == 'phonon':
-            unitcell.set_lattice(unitcell.lattice * scale, scale_positions=True)  # scaling
             unitcell = PhonopyAtoms(symbols=unitcell.get_chemical_symbols(),
                                     positions=unitcell.positions,
                                     numbers=unitcell.numbers,
@@ -170,11 +167,10 @@ class AtomicStructureDataset(object):
                                     scaled_positions=unitcell.get_scaled_positions(),
                                     cell=unitcell.cell)
             phonon = Phonopy(unitcell,
-                             dimension,
-                             # primitive_matrix=primitive_matrix,
-                             factor=VaspToCm,
-                             symprec=1.0e-4)
-            phonon.generate_displacements(distance=distance)
+                             ph_stg.dimensions,
+                             factor=ph_stg.units,
+                             symprec=ph_stg.symprec)
+            phonon.generate_displacements(distance=ph_stg.distance)
             supercells = phonon.get_supercells_with_displacements()
             self._phonopy = phonon
             for phonopy_at in supercells:

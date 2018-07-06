@@ -13,19 +13,18 @@ from modules.util import DictAsAttributes
 from modules.argparser import get_parser
 
 import matplotlib as mpl
-mpl.use('Agg')
 
+mpl.use('Agg')
+mpl.rc('font', size=20)
 
 args = get_parser()
 
-
 file = DictAsAttributes(
-    xyz_file='GaN/debug_benchmark/GaN.xyz',
+    xyz_file='GaN/debug_test/GaN.xyz',
     config=['all'],
     out_dir='output',
     test_dir='test',
 )
-
 
 mpi = DictAsAttributes(
     comm=MPI.COMM_WORLD,
@@ -35,12 +34,6 @@ mpi = DictAsAttributes(
     chainer_comm=chainermn.create_communicator('naive', MPI.COMM_WORLD),
 )
 
-
-visual = DictAsAttributes(
-    fontsize=12
-)
-
-
 sym_func = DictAsAttributes(
     Rc=[5.0],
     eta=[0.01, 0.1, 1.0],
@@ -49,10 +42,9 @@ sym_func = DictAsAttributes(
     zeta=[1, 2, 4],
 )
 
-
 model = DictAsAttributes(
     epoch=10,
-    batch_size=10,
+    batch_size=5,
     preproc='pca',
     init_lr=1.0e-3,
     final_lr=1.0e-5,
@@ -68,9 +60,9 @@ model = DictAsAttributes(
     metrics='validation/main/tot_RMSE',
 )
 
-
 gpyopt_bounds = [
     {'name': 'init_lr', 'type': 'continuous', 'domain': (1.0e-4, 1.0e-2)},
     {'name': 'l1_norm', 'type': 'continuous', 'domain': (1.0e-4, 1.0e-2)},
     {'name': 'l2_norm', 'type': 'continuous', 'domain': (1.0e-4, 1.0e-2)},
 ]
+
