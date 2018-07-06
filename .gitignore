@@ -1,25 +1,19 @@
 *.bash
 *.xyz
 *.pyc
-*.out
 *.idx
-*.npy
 *.npz
 *.png
 *.gif
 *.pdf
-*.json
-*.pickle
 *.dill
-*.profile
 *.dat
-*log
+log
+*.log
 *.yaml
 *POSCAR
 *.dot
 *.ipynb
-*.mprof
-*.lprof
 *.nnp
 
 *.o[0-9]*
@@ -27,7 +21,8 @@
 *.po[0-9]*
 *.pe[0-9]*
 
-config.py
+settings.py
+phonopy_settings.py
 
 *.DS_Store
 .ipynb_checkpoints/

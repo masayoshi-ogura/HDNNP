@@ -1,139 +1,128 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from config import file_
-from config import mpi
+import settings as stg
 
+import yaml
+import copy
+import shutil
+import traceback
 from os import path
 from glob import glob
-import traceback
 from datetime import datetime
-import argparse
-import yaml
-from itertools import islice
+import GPyOpt
+import chainer
 
 from modules import hdnnp
 from modules.data import DataGenerator
-from modules.preconditioning import PRECOND
-from modules.util import pprint, mkdir, write
-from modules.util import DictAsAttributes, HyperParameter
+from modules.preproc import PREPROC
+from modules.util import pprint, mkdir, write, DictAsAttributes
 
-parser = argparse.ArgumentParser('High Dimensional Neural Network Potential')
-parser.add_argument('mode', type=str, default='training', choices=['cv', 'training', 'optimize', 'phonon', 'sf'],
-                    help='select mode')
-parser.add_argument('hyperparameter_file', nargs='?', type=str, default='hyperparameter.yaml',
-                    help='YAML file which contains all of the hyperparameters.')
-parser.add_argument('--verbose', '-v', action='store_true', default=False,
-                    help='trainer extensions "PlotReport snapshot_object" is set.\
-                          processing time will be long')
-parser.add_argument('--masters', '-m', nargs='*', type=str, default=None,
-                    help='trained master models for phonon calculation.\n'
-                         'default: "masters.npz" in the latest directory in "file_.out_dir" in "config.py"')
-parser.add_argument('--preconditioning', '-p', type=str, default='pca', choices=['pca', 'none'],
-                    help='preconditioning of the input data. default is PCA, and # of decomposed features.')
-parser.add_argument('--epoch', '-e', type=int, default=1000,
-                    help='# of training epochs.')
-parser.add_argument('--batch-size', '-b', type=int, default=100,
-                    help='# of data for each mini-batches.')
-parser.add_argument('--kfold', '-k', type=int, default=5,
-                    help='# of split size of dataset for k-fold CV. default value is 5')
-parser.add_argument('--random-search', type=int, default=None,
-                    help='perform hyperparameter random search if this flag is set.\n'
-                         'set iteration number to this option.\n'
-                         'min&max value for each hyperparameter is read from "hyperparameter_file".')
-parser.add_argument('--metrics', '-M', type=str, default='validation/main/tot_RMSE',
-                    help='metrics of hyperparameter search with CV.')
-parser.add_argument('--test-dir', '-t', type=str, default='test',
-                    help='test directory containing POSCAR and in which "Symmetry_Function.npz" will be created.')
 
-args = parser.parse_args()
-config = DictAsAttributes({'mode': args.mode,
-                           'preconditioning': args.preconditioning})
-with open(args.hyperparameter_file) as f:
-    hp_dict = yaml.load(f)
-    dataset_hp = DictAsAttributes(hp_dict['dataset'])
-    model_hp = HyperParameter(hp_dict['model'], random_search=args.random_search)
+def main():
+    assert stg.args.mode in ['training', 'param_search', 'sym_func', 'test', 'phonon', 'optimize']
 
-if config.mode in ['cv', 'training']:
-    datestr = datetime.now().strftime('%m%d-%H%M%S')
-    out_dir = path.join(file_.out_dir, datestr)
-    out_dir = mpi.comm.bcast(out_dir, root=0)
-    result_file = path.join(out_dir, 'result.yaml')
-    mkdir(out_dir)
+    if stg.args.mode in ['training', 'param_search']:
+        datestr = datetime.now().strftime('%m%d-%H%M%S')
+        out_dir = path.join(stg.file.out_dir, datestr)
+        out_dir = stg.mpi.comm.bcast(out_dir, root=0)
+        result_file = path.join(out_dir, 'result.yaml')
+        mkdir(out_dir)
 
-    config.epoch = args.epoch
-    config.batch_size = args.batch_size
-    config.metrics = args.metrics
+        try:
+            if stg.args.mode == 'training':
+                preproc = PREPROC[stg.model.preproc]()
+                dataset, elements = DataGenerator(preproc).holdout(ratio=0.9)
+                masters, result = hdnnp.training(stg.model, dataset, elements, out_dir)
+                if stg.mpi.rank == 0:
+                    preproc.save(path.join(out_dir, 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
+                    hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
+                    write(result_file, yaml.dump({
+                        'args': vars(stg.args),
+                        'file': dict(stg.file),
+                        'sym_func': dict(stg.sym_func),
+                        'model': dict(stg.model),
+                        'result': result,
+                    }, default_flow_style=False))
 
-    if config.mode == 'cv':
-        config.kfold = args.kfold
-        precond = PRECOND[config.preconditioning]()
-        generator = DataGenerator(config + dataset_hp, precond)
-        if mpi.rank == 0:
-            best_result = best_set = None
-            write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
-            write(result_file, yaml.dump(
-                {'dataset': dict(dataset_hp.items() + [('xyz_file', file_.xyz_file), ('config', file_.config)])}))
-            write(result_file, 'results:\n')
-            try:
-                for i, model_hp_set in enumerate(model_hp):
-                    worker = i % mpi.size
-                    if worker == 0:
-                        pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
-                        hp = config + dataset_hp + model_hp_set
-                        hp.id = i
-                        result = hdnnp.run(hp, generator, path.join(out_dir, str(i)), verbose=args.verbose)
+            elif stg.args.mode == 'param_search':
+                preproc = PREPROC[stg.model.preproc]()
+                generator = DataGenerator(preproc)
+
+                def gpyopt_func(x):
+                    model_hp = copy.copy(stg.model)
+                    for dic, value in zip(stg.gpyopt_bounds, x[0]):
+                        if dic['name'] in ['epoch', 'batch_size']:
+                            setattr(model_hp, dic['name'], int(value))
+                        else:
+                            setattr(model_hp, dic['name'], value)
+
+                    results = []
+                    for i, (dataset, elements) in enumerate(
+                            generator.cross_validation(ratio=0.9, kfold=stg.args.kfold)):
+                        _, result = hdnnp.training(model_hp, dataset, elements, path.join(out_dir, str(i + 1)))
+                        results.append(result[stg.model.metrics])
+                    avg = sum(results) / stg.args.kfold
+                    return avg
+
+                gpyopt = GPyOpt.methods.BayesianOptimization(f=gpyopt_func, domain=stg.gpyopt_bounds,
+                                                             initial_design_numdata=stg.args.init,
+                                                             acquisition_type='LCB')
+                gpyopt.run_optimization(max_iter=stg.args.max_iter)
+
+                model_hp = copy.copy(stg.model)
+                for dic, value in zip(stg.gpyopt_bounds, gpyopt.x_opt):
+                    if dic['name'] in ['epoch', 'batch_size']:
+                        setattr(model_hp, dic['name'], int(value))
                     else:
-                        result = mpi.comm.recv(source=worker)
-                    result.update(dict(model_hp_set))
-                    write(result_file, yaml.dump([result], default_flow_style=False))
-                    if best_result is None or best_result[args.metrics] > result[args.metrics]:
-                        best_result = result.copy()
-                        best_set = {k: [v] for k, v in model_hp_set.iteritems()}
-            except Exception:
-                traceback.print_exc()
-            finally:
-                write(result_file, yaml.dump({'best result': best_result}, default_flow_style=False))
-                best_hp_file = path.join(out_dir, 'best_hyperparameter.yaml')
-                write(best_hp_file, yaml.dump({'dataset': dict(dataset_hp)}))
-                write(best_hp_file, yaml.dump({'model': dict(best_set)}, default_flow_style=False))
+                        setattr(model_hp, dic['name'], float(value))
+                dataset, elements = generator.holdout(ratio=0.9)
+                masters, result = hdnnp.training(model_hp, dataset, elements, out_dir)
+                if stg.mpi.rank == 0:
+                    preproc.save(path.join(out_dir, 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
+                    hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
+                    write(result_file, yaml.dump({
+                        'args': vars(stg.args),
+                        'file': dict(stg.file),
+                        'sym_func': dict(stg.sym_func),
+                        'model': dict(model_hp),
+                        'result': result,
+                    }, default_flow_style=False))
+
+        except Exception:
+            pprint(traceback.format_exc())
+            shutil.rmtree(out_dir)
         else:
-            num = len(model_hp)
-            for i, model_hp_set in islice(zip(range(num), model_hp), mpi.rank, num, mpi.size):
-                pprint('hyperparameter set id: {} (Rank{})'.format(i, mpi.rank), root_only=False)
-                hp = config + dataset_hp + model_hp_set
-                hp.id = i
-                result = hdnnp.run(hp, generator, path.join(out_dir, str(i)), verbose=args.verbose)
-                mpi.comm.send(result, dest=0)
+            shutil.copy('./settings.py', path.join(out_dir, 'settings.py'))
 
-    elif config.mode == 'training':
-        hp = config + dataset_hp + model_hp[0]
-        precond = PRECOND[hp.preconditioning]()
-        generator = DataGenerator(hp, precond)
-        if mpi.rank == 0:
-            precond.save(path.join(out_dir, 'preconditioning.npz'))
-        result = hdnnp.run(hp, generator, out_dir, verbose=args.verbose, comm=mpi.chainer_comm)
-        result.update(dict(model_hp[0]))
-        if mpi.rank == 0:
-            write(result_file, yaml.dump({'config': dict(config)}, default_flow_style=False))
-            write(result_file, yaml.dump(
-                {'dataset': dict(dataset_hp.items() + [('xyz_file', file_.xyz_file), ('config', file_.config)])}))
-            write(result_file, yaml.dump({'result': result}, default_flow_style=False))
+    elif stg.args.mode in ['sym_func']:
+        preproc = PREPROC[None]()
+        for _ in DataGenerator(preproc).holdout(ratio=0.9):
+            pass
 
-elif config.mode in ['optimize', 'phonon']:
-    hp = config + dataset_hp + model_hp[0]
-    masters_paths = args.masters if args.masters \
-        else sorted(glob(path.join(file_.out_dir, '*', 'masters.npz')))[-1:]
-    poscar = path.join(args.test_dir, 'POSCAR')
-    for masters_path in masters_paths:
-        hdnnp.test(hp, masters_path, poscar)
+    elif stg.args.mode in ['test', 'phonon', 'optimize']:
+        masters_paths = stg.args.masters if stg.args.masters \
+            else sorted(glob(path.join(stg.file.out_dir, '*', 'masters.npz')))[-1:]
+        poscar = path.join(stg.file.test_dir, 'POSCAR')
+        for masters_path in masters_paths:
+            with open(path.join(path.dirname(masters_path), 'result.yaml')) as f:
+                stg_yaml = yaml.load(f)
+                sf_hp = DictAsAttributes(**stg_yaml['sym_func'])
+                model_hp = DictAsAttributes(**stg_yaml['model'])
+            if stg.args.mode == 'test':
+                _, energy, force = hdnnp.predict(sf_hp, model_hp, masters_path, poscar)
+                pprint('energy:\n{}'.format(energy.data))
+                pprint('force:\n{}'.format(force.data))
+            elif stg.args.mode == 'phonon':
+                hdnnp.phonon(sf_hp, model_hp, masters_path, poscar)
+                shutil.copy('./phonopy_settings.py', path.join(path.dirname(masters_path), 'phonopy_settings.py'))
+            elif stg.args.mode == 'optimize':
+                e_scale, f_scale = hdnnp.optimize(sf_hp, model_hp, masters_path, poscar)
+                pprint('energy-optimized lattice parameter: {}'.format(e_scale))
+                pprint('force-optimized lattice parameter: {}'.format(f_scale))
 
-elif config.mode in ['sf']:
-    with open('hyperparameter.yaml') as f:
-        hp_dict = yaml.load(f)
-        dataset_hp = DictAsAttributes(hp_dict['dataset'])
-        dataset_hp.mode = 'training'
-    precond = PRECOND['none']()
 
-    for _ in DataGenerator(dataset_hp, precond):
-        pass
+if __name__ == '__main__':
+    main()
