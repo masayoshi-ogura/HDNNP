@@ -8,7 +8,7 @@ import phonopy_settings as ph_stg
 from os import path
 from re import match
 from collections import defaultdict
-from itertools import product
+from itertools import product, combinations, combinations_with_replacement
 import dill
 import copy
 import numpy as np
@@ -141,7 +141,7 @@ class AtomicStructureDataset(object):
         with open(path.join(data_dir, 'composition.dill')) as f:
             self._composition = dill.load(f)
         self._nsample = len(AtomsReader(xyz_file))
-        self._natom = len(self._composition.element)
+        self._natom = len(self._composition.atom)
         count = np.array([(self._nsample + i) / stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
         self._atoms = AtomsReader(xyz_file)[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
 
@@ -187,8 +187,9 @@ class AtomicStructureDataset(object):
                 atoms.append(supercell)
 
         symbols = atoms[0].get_chemical_symbols()
-        composition = {'index': {k: set([i for i, s in enumerate(symbols) if s == k]) for k in set(symbols)},
-                       'element': symbols}
+        composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k]) for k in set(symbols)},
+                       'atom': symbols,
+                       'element': sorted(set(symbols))}
         self._composition = DictAsAttributes(**composition)
         self._nsample = len(atoms)
         self._natom = len(atoms[0])
@@ -281,7 +282,7 @@ class AtomicStructureDataset(object):
 
             else:
                 pprint('1)save flag off, or 2){} not found.\n'
-                       'calculate symmetry functions from scratch in this time.')
+                       'calculate symmetry functions from scratch in this time.'.format(SF_file))
                 keys, _, _ = self._check_uncalculated_keys()
                 stg.mpi.comm.bcast(keys, root=0)
                 pprint('making {} ... '.format(SF_file), end='', flush=True)
@@ -332,42 +333,36 @@ class AtomicStructureDataset(object):
     def _type1(self, at, Rc):
         G = np.zeros((self._natom, 2))
         dG = np.zeros((self._natom, 2, self._natom, 3))
-        for i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._neighbour(at, Rc):
+        for i, ifeat, indices, R, tanh, dR, _, _ in self._neighbour_info(at, Rc):
             g = tanh ** 3
             dg = -3. / Rc * ((1. - tanh ** 2) * tanh ** 2)[:, None] * dR
             # G
-            G[i, 0] = g[homo_all].sum()
-            G[i, 1] = g[hetero_all].sum()
+            for jelem in self._composition.element:
+                G[i, ifeat[self._composition.element[0]][jelem]] = g[indices[jelem]].sum()
             # dG
-            for j, (homo, indices) in enumerate(neighbour):
-                if homo:
-                    dG[i, 0, j] = dg.take(indices, 0).sum(0)
-                else:
-                    dG[i, 1, j] = dg.take(indices, 0).sum(0)
+            for j, jelem in enumerate(self._composition.atom):
+                dG[i, ifeat[self._composition.element[0]][jelem], j] = dg.take(indices[j], 0).sum(0)
         return G, dG
 
     def _type2(self, at, Rc, eta, Rs):
         G = np.zeros((self._natom, 2))
         dG = np.zeros((self._natom, 2, self._natom, 3))
-        for i, neighbour, homo_all, hetero_all, R, tanh, dR, _, _ in self._neighbour(at, Rc):
+        for i, ifeat, indices, R, tanh, dR, _, _ in self._neighbour_info(at, Rc):
             g = np.exp(- eta * (R - Rs) ** 2) * tanh ** 3
             dg = (np.exp(- eta * (R - Rs) ** 2) * tanh ** 2 * (
                     -2. * eta * (R - Rs) * tanh + 3. / Rc * (tanh ** 2 - 1.0)))[:, None] * dR
             # G
-            G[i, 0] = g[homo_all].sum()
-            G[i, 1] = g[hetero_all].sum()
+            for jelem in self._composition.element:
+                G[i, ifeat[self._composition.element[0]][jelem]] = g[indices[jelem]].sum()
             # dG
-            for j, (homo, indices) in enumerate(neighbour):
-                if homo:
-                    dG[i, 0, j] = dg.take(indices, 0).sum(0)
-                else:
-                    dG[i, 1, j] = dg.take(indices, 0).sum(0)
+            for j, jelem in enumerate(self._composition.atom):
+                dG[i, ifeat[self._composition.element[0]][jelem], j] = dg.take(indices[j], 0).sum(0)
         return G, dG
 
     def _type4(self, at, Rc, eta, lambda_, zeta):
         G = np.zeros((self._natom, 3))
         dG = np.zeros((self._natom, 3, self._natom, 3))
-        for i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos in self._neighbour(at, Rc):
+        for i, ifeat, indices, R, tanh, dR, cos, dcos in self._neighbour_info(at, Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R ** 2) * tanh ** 3
             rad2 = np.exp(-eta * R ** 2) * tanh ** 2 * (-2. * eta * R * tanh + 3. / Rc * (tanh ** 2 - 1.0))
@@ -380,39 +375,34 @@ class AtomicStructureDataset(object):
             dg = dg_radial_part + dg_angular_part
 
             # G
-            G[i, 0] = g.take(homo_all, 0).take(homo_all, 1).sum() / 2.0
-            G[i, 1] = g.take(hetero_all, 0).take(hetero_all, 1).sum() / 2.0
-            G[i, 2] = g.take(homo_all, 0).take(hetero_all, 1).sum()
+            for jelem in self._composition.element:
+                G[i, ifeat[jelem][jelem]] = g.take(indices[jelem], 0).take(indices[jelem], 1).sum() / 2.0
+            for jelem, kelem in combinations(self._composition.element, 2):
+                G[i, ifeat[jelem][kelem]] = g.take(indices[jelem], 0).take(indices[kelem], 1).sum()
             # dG
-            for j, (homo, indices) in enumerate(neighbour):
-                if homo:
-                    dG[i, 0, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
-                    dG[i, 2, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
-                else:
-                    dG[i, 1, j] = dg.take(indices, 0).take(hetero_all, 1).sum((0, 1))
-                    dG[i, 2, j] = dg.take(indices, 0).take(homo_all, 1).sum((0, 1))
+            for (j, jelem), kelem in product(enumerate(self._composition.atom), self._composition.element):
+                dG[i, ifeat[jelem][kelem], j] = dg.take(indices[j], 0).take(indices[kelem], 1).sum((0, 1))
         return G, dG
 
     @memorize
-    def _neighbour(self, at, Rc):
+    def _neighbour_info(self, at, Rc):
         at.set_cutoff(Rc)
         at.calc_connect()
         for i in xrange(self._natom):
-            n_neighb = at.n_neighbours(i + 1)
-            if n_neighb == 0:
+            n_neigh = at.n_neighbours(i + 1)
+            if n_neigh == 0:
                 continue
 
-            r = np.zeros((n_neighb, 3))
-            element = self._composition.element[i]
-            neighbour = [[j_prime in self._composition.index[element], []] for j_prime in xrange(self._natom)]
-            homo_all, hetero_all = [], []
-            for j, neighb in enumerate(at.connect[i + 1]):
-                r[j] = neighb.diff
-                neighbour[neighb.j - 1][1].append(j)
-                if neighbour[neighb.j - 1][0]:
-                    homo_all.append(j)
-                else:
-                    hetero_all.append(j)
+            ifeat = defaultdict(dict)
+            for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition.element, 2)):
+                ifeat[jelem][kelem] = ifeat[kelem][jelem] = idx
+
+            indices = defaultdict(list)
+            r = np.empty((n_neigh, 3))
+            for j, neigh in enumerate(at.connect[i + 1]):
+                r[j] = neigh.diff
+                indices[neigh.j - 1].append(j)
+                indices[self._composition.atom[neigh.j - 1]].append(j)
             R = np.linalg.norm(r, axis=1)
             tanh = np.tanh(1 - R / Rc)
             dR = r / R[:, None]
@@ -421,7 +411,7 @@ class AtomicStructureDataset(object):
             # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
             dcos = - r[:, None, :] / R[:, None, None] ** 2 * cos[:, :, None] \
                    + r[None, :, :] / (R[:, None, None] * R[None, :, None])
-            yield i, neighbour, homo_all, hetero_all, R, tanh, dR, cos, dcos
+            yield i, ifeat, indices, R, tanh, dR, cos, dcos
 
 
 class DataGenerator(object):
@@ -435,7 +425,7 @@ class DataGenerator(object):
         with open(self._config_type_file, 'r') as f:
             config_type = dill.load(f)
         self._datasets = []
-        self._elements = set()
+        elements = set()
         for required_cnf in stg.file.config:
             for config in filter(lambda cnf: match(required_cnf, cnf) or required_cnf == 'all', config_type):
                 pprint('Construct dataset of configuration type: {}'.format(config))
@@ -446,9 +436,10 @@ class DataGenerator(object):
                     self._preproc.decompose(dataset)
 
                 self._datasets.append(dataset)
-                self._elements.update(dataset.composition.element)
+                elements.update(dataset.composition.element)
                 pprint('')
                 stg.mpi.comm.Barrier()
+        self._elements = sorted(elements)
         self._length = sum([d.nsample for d in self._datasets])
 
     def __len__(self):
@@ -498,10 +489,11 @@ class DataGenerator(object):
                 dill.dump(config_type, f)
 
             for config in config_type:
-                composition = {'index': defaultdict(set), 'element': []}
+                composition = {'indices': defaultdict(list), 'atom': [], 'element': []}
                 for i, atom in enumerate(all_dataset[config][0]):
-                    composition['index'][atom.symbol].add(i)
-                    composition['element'].append(atom.symbol)
+                    composition['indices'][atom.symbol].append(i)
+                    composition['atom'].append(atom.symbol)
+                composition['element'] = sorted(set(composition['atom']))
                 composition = DictAsAttributes(**composition)
 
                 data_dir = path.join(self._data_dir, config)

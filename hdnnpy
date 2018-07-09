@@ -92,8 +92,9 @@ def main():
                     }, default_flow_style=False))
 
         except Exception:
-            pprint(traceback.format_exc())
-            shutil.rmtree(out_dir)
+            if stg.mpi.rank == 0:
+                pprint(traceback.print_exc())
+                shutil.rmtree(out_dir)
         else:
             shutil.copy('./settings.py', path.join(out_dir, 'settings.py'))
 
