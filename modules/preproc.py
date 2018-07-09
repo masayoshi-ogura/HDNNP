@@ -53,27 +53,12 @@ class PCA(PreprocBase):
             np.savez(filename, **dic)
 
     def decompose(self, dataset):
-        # # !!! USING THRESHOLD !!!
-        # elements = dataset.composition.index.keys()
-        # if elements != self._elements:
-        #     ncomponent = 0
-        #     for element, indices in dataset.composition.index.items():
-        #         X = dataset.input[:, list(indices), :].reshape(-1, dataset.input.shape[-1])
-        #         pca = decomposition.PCA()
-        #         pca.fit(X)
-        #         self._mean[element] = X.mean(axis=0)
-        #         self._components[element] = pca.components_.astype(np.float32)
-        #         ncomponent = max(ncomponent,
-        #                          sum(np.add.accumulate(pca.explained_variance_ratio_) < self._threshold))
-        #     # adjust ncomponent to max of it
-        #     for element, component in self._components.items():
-        #         self._components[element] = component[:ncomponent].T
-        for element, indices in dataset.composition.index.iteritems():
+        for element in dataset.composition.element:
             if element in self._elements:
                 continue
 
             nfeature = dataset.input.shape[-1]
-            X = dataset.input.take(list(indices), 1).reshape(-1, nfeature)
+            X = dataset.input.take(dataset.composition.indices[element], 1).reshape(-1, nfeature)
             pca = decomposition.PCA(n_components=self._ncomponent)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
@@ -84,9 +69,9 @@ class PCA(PreprocBase):
                    .format(element, nfeature, self._ncomponent, np.sum(pca.explained_variance_ratio_)))
 
         mean = np.array([self._mean[element]  # (atom, feature)
-                         for element in dataset.composition.element])
+                         for element in dataset.composition.atom])
         components = np.array([self._components[element]  # (atom, feature, component)
-                               for element in dataset.composition.element])
+                               for element in dataset.composition.atom])
         dataset.input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
         dataset.dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
 

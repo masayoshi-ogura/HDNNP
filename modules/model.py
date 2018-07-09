@@ -54,7 +54,7 @@ class SingleNNP(chainer.Chain):
 
 class HDNNP(chainer.ChainList):
     def __init__(self, model_hp, composition):
-        super(HDNNP, self).__init__(*[SingleNNP(model_hp, element) for element in composition.element])
+        super(HDNNP, self).__init__(*[SingleNNP(model_hp, element) for element in composition.atom])
         self._mixing_beta = model_hp.mixing_beta
 
     def __call__(self, xs, dxs, y_true, dy_true, train=False):
