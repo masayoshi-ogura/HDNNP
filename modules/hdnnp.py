@@ -23,7 +23,7 @@ from .extensions import set_log_scale
 from .extensions import scatter_plot
 
 
-def training(model_hp, dataset, elements, out_dir):
+def training(model_hp, dataset, elements, out_dir, output=True):
     trainer = None
     time = 0
 
@@ -58,7 +58,7 @@ def training(model_hp, dataset, elements, out_dir):
                                             target=model_hp.final_lr, optimizer=master_opt))
         evaluator = Evaluator(iterator=test_iter, target=hdnnp, device=stg.mpi.gpu)
         trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
-        if stg.mpi.rank == 0:
+        if stg.mpi.rank == 0 and output:
             config = train.config
             trainer.extend(ext.LogReport(log_name='{}.log'.format(config)))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',

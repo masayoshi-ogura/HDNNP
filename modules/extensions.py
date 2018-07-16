@@ -45,7 +45,7 @@ def scatter_plot(model, dataset, config):
     @chainer.training.make_extension()
     def make_image(trainer):
         def artist(pred, true, title, unit):
-            fig = plt.figure()
+            fig = plt.figure(figsize=(10, 10))
             min_ = np.min(true)
             max_ = np.max(true)
             plt.scatter(pred, true, c='blue'),

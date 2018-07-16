@@ -32,7 +32,8 @@ def main():
         try:
             if stg.args.mode == 'training':
                 preproc = PREPROC[stg.model.preproc]()
-                dataset, elements = DataGenerator(preproc).holdout(ratio=0.9)
+                generator = DataGenerator(preproc)
+                dataset, elements = generator.holdout(ratio=0.9)
                 masters, result = hdnnp.training(stg.model, dataset, elements, out_dir)
                 if stg.mpi.rank == 0:
                     preproc.save(path.join(out_dir, 'preproc.npz'))
@@ -40,7 +41,7 @@ def main():
                     hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
                     write(result_file, yaml.dump({
                         'args': vars(stg.args),
-                        'file': dict(stg.file),
+                        'file': dict(stg.file, nsample=len(generator)),
                         'sym_func': dict(stg.sym_func),
                         'model': dict(stg.model),
                         'result': result,
@@ -61,14 +62,16 @@ def main():
                     results = []
                     for i, (dataset, elements) in enumerate(
                             generator.cross_validation(ratio=0.9, kfold=stg.args.kfold)):
-                        _, result = hdnnp.training(model_hp, dataset, elements, path.join(out_dir, str(i + 1)))
+                        _, result = hdnnp.training(model_hp, dataset, elements, out_dir, output=False)
                         results.append(result[stg.model.metrics])
                     avg = sum(results) / stg.args.kfold
+                    pprint(model_hp)
+                    pprint('result: {}\n'.format(avg))
                     return avg
 
                 gpyopt = GPyOpt.methods.BayesianOptimization(f=gpyopt_func, domain=stg.gpyopt_bounds,
                                                              initial_design_numdata=stg.args.init,
-                                                             acquisition_type='LCB')
+                                                             acquisition_type='EI')
                 gpyopt.run_optimization(max_iter=stg.args.max_iter)
 
                 model_hp = copy.copy(stg.model)
@@ -85,7 +88,7 @@ def main():
                     hdnnp.dump(path.join(out_dir, 'lammps.nnp'), preproc, masters)
                     write(result_file, yaml.dump({
                         'args': vars(stg.args),
-                        'file': dict(stg.file),
+                        'file': dict(stg.file, nsample=len(generator)),
                         'sym_func': dict(stg.sym_func),
                         'model': dict(model_hp),
                         'result': result,

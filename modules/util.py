@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import settings as stg
 
+from pprint import pprint as pretty_print
 from os import makedirs
 from sys import stdout
 from collections import defaultdict
@@ -10,9 +11,12 @@ import numpy as np
 from chainer import Variable
 
 
-def pprint(string, root_only=True, flush=False, **options):
+def pprint(data, root_only=True, flush=False, **options):
     if stg.mpi.rank == 0 or not root_only:
-        print(string, **options)
+        if isinstance(data, list) or isinstance(data, dict):
+            pretty_print(data, **options)
+        else:
+            print(data, **options)
         if flush:
             stdout.flush()
 
