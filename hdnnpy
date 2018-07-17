@@ -10,7 +10,8 @@ import traceback
 from os import path
 from glob import glob
 from datetime import datetime
-import GPyOpt
+from skopt import gp_minimize
+from skopt.utils import use_named_args
 import chainer
 
 from modules import hdnnp
@@ -51,35 +52,33 @@ def main():
                 preproc = PREPROC[stg.model.preproc]()
                 generator = DataGenerator(preproc)
 
-                def gpyopt_func(x):
+                @use_named_args(stg.skopt.space)
+                def objective_func(**params):
+                    params = stg.mpi.comm.bcast(params, root=0)
                     model_hp = copy.copy(stg.model)
-                    for dic, value in zip(stg.gpyopt_bounds, x[0]):
-                        if dic['name'] in ['epoch', 'batch_size']:
-                            setattr(model_hp, dic['name'], int(value))
-                        else:
-                            setattr(model_hp, dic['name'], value)
+                    for key, value in params.iteritems():
+                        setattr(model_hp, key, value)
 
                     results = []
                     for i, (dataset, elements) in enumerate(
-                            generator.cross_validation(ratio=0.9, kfold=stg.args.kfold)):
+                            generator.cross_validation(ratio=0.9, kfold=stg.skopt.kfold)):
                         _, result = hdnnp.training(model_hp, dataset, elements, out_dir, output=False)
                         results.append(result[stg.model.metrics])
-                    avg = sum(results) / stg.args.kfold
-                    pprint(model_hp)
+                    avg = sum(results) / stg.skopt.kfold
+                    pprint(params)
                     pprint('result: {}\n'.format(avg))
                     return avg
 
-                gpyopt = GPyOpt.methods.BayesianOptimization(f=gpyopt_func, domain=stg.gpyopt_bounds,
-                                                             initial_design_numdata=stg.args.init,
-                                                             acquisition_type='EI')
-                gpyopt.run_optimization(max_iter=stg.args.max_iter)
+                res = gp_minimize(objective_func, stg.skopt.space,
+                                  n_random_starts=stg.skopt.init_num,
+                                  n_calls=stg.skopt.max_num,
+                                  acq_func=stg.skopt.acq_func,
+                                  verbose=stg.args.verbose,
+                                  callback=stg.skopt.callback)
 
                 model_hp = copy.copy(stg.model)
-                for dic, value in zip(stg.gpyopt_bounds, gpyopt.x_opt):
-                    if dic['name'] in ['epoch', 'batch_size']:
-                        setattr(model_hp, dic['name'], int(value))
-                    else:
-                        setattr(model_hp, dic['name'], float(value))
+                for key, value in zip(stg.skopt.space, res.x):
+                    setattr(model_hp, key.name, value.item())
                 dataset, elements = generator.holdout(ratio=0.9)
                 masters, result = hdnnp.training(model_hp, dataset, elements, out_dir)
                 if stg.mpi.rank == 0:

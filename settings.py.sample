@@ -9,8 +9,11 @@
 
 from mpi4py import MPI
 import chainermn
+from skopt.space import *
+from skopt.callbacks import *
 from modules.util import DictAsAttributes
 from modules.argparser import get_parser
+from modules.skopt_callbacks import SamePointStopper
 
 import matplotlib as mpl
 
@@ -21,7 +24,7 @@ args = get_parser()
 
 file = DictAsAttributes(
     xyz_file='GaN/debug_test/GaN.xyz',
-    config=['all'],
+    config=['CrystalGa2N2', 'CrystalGa16N16'],
     out_dir='output',
     test_dir='test',
 )
@@ -60,9 +63,21 @@ model = DictAsAttributes(
     metrics='validation/main/tot_RMSE',
 )
 
-gpyopt_bounds = [
-    {'name': 'init_lr', 'type': 'continuous', 'domain': (1.0e-4, 1.0e-2)},
-    {'name': 'l1_norm', 'type': 'continuous', 'domain': (1.0e-4, 1.0e-2)},
-    {'name': 'l2_norm', 'type': 'continuous', 'domain': (1.0e-4, 1.0e-2)},
-]
+skopt = DictAsAttributes(
+    kfold=2,
+    init_num=5,
+    max_num=10,
+    space=[
+        Real(1.0e-4, 1.0e-2, prior='log-uniform', name='init_lr'),
+        Real(1.0e-6, 1.0e-4, prior='log-uniform', name='final_lr'),
+        Real(1.0e-6, 1.0e-3, prior='log-uniform', name='lr_decay'),
+        # Integer(50, 200, prior='uniform', name='batch_size'),
+        # Categorical(['pca', None], name='preproc')
+    ],
+    acq_func='LCB',
+    callback=[
+        SamePointStopper(),
+        DeltaYStopper(1.0e-3, n_best=3),
+    ],
+)
 

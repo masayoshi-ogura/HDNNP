@@ -18,9 +18,9 @@ from .preproc import PREPROC
 from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
 from .util import pprint, flatten_dict
-from .extensions import Evaluator
-from .extensions import set_log_scale
-from .extensions import scatter_plot
+from .chainer_extensions import Evaluator
+from .chainer_extensions import set_log_scale
+from .chainer_extensions import scatter_plot
 
 
 def training(model_hp, dataset, elements, out_dir, output=True):

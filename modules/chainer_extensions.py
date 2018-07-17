@@ -1,4 +1,4 @@
-# -*- coding: utf -*-
+# -*- coding: utf-8 -*-
 
 from os import path
 from copy import copy
