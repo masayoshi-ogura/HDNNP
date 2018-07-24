@@ -334,8 +334,9 @@ class AtomicStructureDataset(object):
             yield key, np.stack(Gs[key]), np.stack(dGs[key])
 
     def _type1(self, at, Rc):
-        G = np.zeros((self._natom, 2))
-        dG = np.zeros((self._natom, 2, self._natom, 3))
+        size = len(self._composition.element)
+        G = np.zeros((self._natom, size))
+        dG = np.zeros((self._natom, size, self._natom, 3))
         for i, ifeat, indices, R, tanh, dR, _, _ in self._neighbour_info(at, Rc):
             g = tanh ** 3
             dg = -3. / Rc * ((1. - tanh ** 2) * tanh ** 2)[:, None] * dR
@@ -348,8 +349,9 @@ class AtomicStructureDataset(object):
         return G, dG
 
     def _type2(self, at, Rc, eta, Rs):
-        G = np.zeros((self._natom, 2))
-        dG = np.zeros((self._natom, 2, self._natom, 3))
+        size = len(self._composition.element)
+        G = np.zeros((self._natom, size))
+        dG = np.zeros((self._natom, size, self._natom, 3))
         for i, ifeat, indices, R, tanh, dR, _, _ in self._neighbour_info(at, Rc):
             g = np.exp(- eta * (R - Rs) ** 2) * tanh ** 3
             dg = (np.exp(- eta * (R - Rs) ** 2) * tanh ** 2 * (
@@ -363,8 +365,9 @@ class AtomicStructureDataset(object):
         return G, dG
 
     def _type4(self, at, Rc, eta, lambda_, zeta):
-        G = np.zeros((self._natom, 3))
-        dG = np.zeros((self._natom, 3, self._natom, 3))
+        size = len(self._composition.element) * (1 + len(self._composition.element)) // 2
+        G = np.zeros((self._natom, size))
+        dG = np.zeros((self._natom, size, self._natom, 3))
         for i, ifeat, indices, R, tanh, dR, cos, dcos in self._neighbour_info(at, Rc):
             ang = 1. + lambda_ * cos
             rad1 = np.exp(-eta * R ** 2) * tanh ** 3
