@@ -15,6 +15,7 @@ log
 *.dot
 *.ipynb
 *.nnp
+*.csv
 
 *.o[0-9]*
 *.e[0-9]*

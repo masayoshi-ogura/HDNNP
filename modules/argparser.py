@@ -25,16 +25,7 @@ def get_parser():
     ps_parser.add_argument('--verbose', '-v', action='store_true',
                            help='trainer extensions "PlotReport snapshot_object" is set.\n'
                                 'this flag increases processing time.')
-    ps_parser.add_argument('--kfold', '-k', type=int,
-                           help='# of block in k-fold cross validation\n'
-                                'default value is 5')
-    ps_parser.add_argument('--init', '-i', type=int,
-                           help='# of initial data in Bayesian Optimization\n'
-                                'default value is 10')
-    ps_parser.add_argument('--max-iter', '-m', type=int,
-                           help='max # of iteration in Bayesian Optimization\n'
-                                'default value is 30')
-    ps_parser.set_defaults(verbose=False, kfold=5, init=10, max_iter=30)
+    ps_parser.set_defaults(verbose=False)
 
     # test mode
     test_parser.add_argument('--masters', '-m', nargs='*', type=str,
