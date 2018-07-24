@@ -25,6 +25,9 @@ from .util import pprint, mkdir
 from .util import DictAsAttributes
 
 
+RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets
+
+
 def memorize(f):
     cache = defaultdict(list)
     identifier = ['']
@@ -126,13 +129,13 @@ class AtomicStructureDataset(object):
         return sliced
 
     def _shuffle(self):
-        state = np.random.get_state()
+        np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._Gs)
-        np.random.set_state(state)
+        np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._dGs)
-        np.random.set_state(state)
+        np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._Es)
-        np.random.set_state(state)
+        np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._Fs)
 
     def _load_xyz(self, xyz_file):

@@ -32,10 +32,10 @@ rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
 mpirun -np 4 ./hdnnpy training --verbose >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-./hdnnpy param_search --kfold 2 --init 1 --max-iter 1 >/dev/null
+./hdnnpy param_search --verbose >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 4 ./hdnnpy param_search --kfold 2 --init 1 --max-iter 1 >/dev/null
+mpirun -np 4 ./hdnnpy param_search --verbose >/dev/null
 
 ./hdnnpy training --verbose >/dev/null
 

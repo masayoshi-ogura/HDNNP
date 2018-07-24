@@ -96,7 +96,7 @@ def training(model_hp, dataset, elements, out_dir, output=True):
 
 def predict(sf_hp, model_hp, masters_path, poscar, save=True):
     dataset = AtomicStructureDataset(sf_hp, poscar, 'POSCAR', save=save)
-    preproc = PREPROC[stg.model.preproc]()
+    preproc = PREPROC[model_hp.preproc](model_hp.input_size)
     preproc.load(path.join(path.dirname(masters_path), 'preproc.npz'))
     preproc.decompose(dataset)
     masters = chainer.ChainList(*[SingleNNP(model_hp, element)
@@ -146,7 +146,7 @@ def phonon(sf_hp, model_hp, masters_path, poscar):
     pprint('done')
 
 
-def dump(file_path, preproc, masters):
+def dump(model_hp, file_path, preproc, masters):
     nelements = len(masters)
     depth = len(masters[0])
     with open(file_path, 'w') as f:
@@ -158,9 +158,9 @@ def dump(file_path, preproc, masters):
                         ' '.join(map(str, stg.sym_func.lambda_)),
                         ' '.join(map(str, stg.sym_func.zeta))))
 
-        if stg.model.preproc is None:
+        if model_hp.preproc is None:
             f.write('# preprocess parameters\n0\n\n')
-        elif stg.model.preproc == 'pca':
+        elif model_hp.preproc == 'pca':
             f.write('# preprocess parameters\n1\npca\n\n')
             for i in range(nelements):
                 element = masters[i].element
@@ -179,7 +179,7 @@ def dump(file_path, preproc, masters):
                 W = getattr(masters[i], 'l{}'.format(j)).W.data
                 b = getattr(masters[i], 'l{}'.format(j)).b.data
                 f.write('{} {} {} {} {}\n'
-                        .format(masters[i].element, j + 1, W.shape[1], W.shape[0], stg.model.layer[j].activation))
+                        .format(masters[i].element, j + 1, W.shape[1], W.shape[0], model_hp.layer[j].activation))
                 f.write('# weight\n')
                 for row in W.T:
                     f.write('{}\n'.format(' '.join(map(str, row))))

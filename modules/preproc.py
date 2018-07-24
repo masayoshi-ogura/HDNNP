@@ -22,9 +22,9 @@ class PreprocBase(object):
 
 
 class PCA(PreprocBase):
-    def __init__(self, ncomponent=20, *args, **kwargs):
+    def __init__(self, n_components, *args, **kwargs):
         super(PCA, self).__init__(*args, **kwargs)
-        self._ncomponent = ncomponent
+        self.n_components = n_components
         self._mean = {}
         self._components = {}
         self._elements = []
@@ -59,14 +59,14 @@ class PCA(PreprocBase):
 
             nfeature = dataset.input.shape[-1]
             X = dataset.input.take(dataset.composition.indices[element], 1).reshape(-1, nfeature)
-            pca = decomposition.PCA(n_components=self._ncomponent)
+            pca = decomposition.PCA(n_components=self.n_components)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
             self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
             pprint('Initialize PCA parameters of element: {}\n'
                    '\tdecompose SF from {} to {}.\n\tcumulative contribution rate: {}'
-                   .format(element, nfeature, self._ncomponent, np.sum(pca.explained_variance_ratio_)))
+                   .format(element, nfeature, self.n_components, np.sum(pca.explained_variance_ratio_)))
 
         mean = np.array([self._mean[element]  # (atom, feature)
                          for element in dataset.composition.atom])

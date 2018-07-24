@@ -49,6 +49,7 @@ model = DictAsAttributes(
     epoch=10,
     batch_size=5,
     preproc='pca',
+    input_size=20,
     init_lr=1.0e-3,
     final_lr=1.0e-5,
     lr_decay=0.0e-3,
