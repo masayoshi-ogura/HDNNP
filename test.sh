@@ -23,23 +23,23 @@ rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
 ./hdnnpy sym_func >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 4 ./hdnnpy sym_func >/dev/null
+mpirun -np 2 ./hdnnpy sym_func >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
 ./hdnnpy training --verbose >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 4 ./hdnnpy training --verbose >/dev/null
+mpirun -np 2 ./hdnnpy training --verbose >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
 ./hdnnpy param_search --verbose >/dev/null
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 4 ./hdnnpy param_search --verbose >/dev/null
+mpirun -np 2 ./hdnnpy param_search --verbose >/dev/null
 
 ./hdnnpy training --verbose >/dev/null
 
-mpirun -np 4 ./hdnnpy training --verbose >/dev/null
+mpirun -np 2 ./hdnnpy training --verbose >/dev/null
 
 ./hdnnpy test >/dev/null
 
