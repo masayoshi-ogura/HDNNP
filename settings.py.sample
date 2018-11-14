@@ -11,7 +11,6 @@ from mpi4py import MPI
 import chainermn
 from skopt.space import *
 from skopt.callbacks import *
-from modules.util import DictAsAttributes
 from modules.argparser import get_parser
 from modules.skopt_callbacks import SamePointStopper
 
@@ -20,16 +19,16 @@ import matplotlib as mpl
 mpl.use('Agg')
 mpl.rc('font', size=20)
 
-args = get_parser()
+args = vars(get_parser())
 
-file = DictAsAttributes(
+file = dict(
     xyz_file='GaN/debug_test/GaN.xyz',
     config=['CrystalGa2N2', 'CrystalGa16N16'],
     out_dir='output',
     test_dir='test',
 )
 
-mpi = DictAsAttributes(
+mpi = dict(
     comm=MPI.COMM_WORLD,
     rank=MPI.COMM_WORLD.Get_rank(),
     size=MPI.COMM_WORLD.Get_size(),
@@ -37,7 +36,7 @@ mpi = DictAsAttributes(
     chainer_comm=chainermn.create_communicator('naive', MPI.COMM_WORLD),
 )
 
-sym_func = DictAsAttributes(
+sym_func = dict(
     Rc=[5.0],
     eta=[0.01, 0.1, 1.0],
     Rs=[2.0, 3.2, 3.8],
@@ -45,7 +44,7 @@ sym_func = DictAsAttributes(
     zeta=[1, 2, 4],
 )
 
-model = DictAsAttributes(
+model = dict(
     epoch=10,
     batch_size=5,
     preproc='pca',
@@ -64,7 +63,7 @@ model = DictAsAttributes(
     metrics='validation/main/tot_RMSE',
 )
 
-skopt = DictAsAttributes(
+skopt = dict(
     kfold=2,
     init_num=5,
     max_num=10,

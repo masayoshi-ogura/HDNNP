@@ -5,17 +5,16 @@ name = "pypi"
 
 [packages]
 numpy = "*"
-ase = "*"
 matplotlib = "*"
+pyyaml = "*"
 scikit-optimize = "*"
+ase = "*"
 "mpi4py" = "*"
 chainer = "*"
-pyyaml = "*"
 phonopy = "*"
-dill = "*"
 
 [dev-packages]
 jupyter = "*"
 
 [requires]
-python_version = "2.7"
+python_version = "3.7"
