@@ -20,13 +20,13 @@ def loss_func(mixing_beta, y_pred, y_true, dy_pred, dy_true, obs):
 class SingleNNP(chainer.Chain):
     def __init__(self, model_hp, element):
         super(SingleNNP, self).__init__()
-        nodes = [None] + [h.node for h in model_hp.layer]
-        self._mixing_beta = model_hp.mixing_beta
-        self._nlink = len(model_hp.layer)
+        nodes = [None] + [h['node'] for h in model_hp['layer']]
+        self._mixing_beta = model_hp['mixing_beta']
+        self._nlink = len(model_hp['layer'])
         with self.init_scope():
             w = chainer.initializers.HeNormal()
             for i in range(self._nlink):
-                setattr(self, 'f{}'.format(i), eval('F.{}'.format(model_hp.layer[i].activation)))
+                setattr(self, 'f{}'.format(i), eval('F.{}'.format(model_hp['layer'][i]['activation'])))
                 setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i + 1], initialW=w))
         self.add_persistent('element', element)
 
@@ -54,8 +54,8 @@ class SingleNNP(chainer.Chain):
 
 class HDNNP(chainer.ChainList):
     def __init__(self, model_hp, composition):
-        super(HDNNP, self).__init__(*[SingleNNP(model_hp, element) for element in composition.atom])
-        self._mixing_beta = model_hp.mixing_beta
+        super(HDNNP, self).__init__(*[SingleNNP(model_hp, element) for element in composition['atom']])
+        self._mixing_beta = model_hp['mixing_beta']
 
     def __call__(self, xs, dxs, y_true, dy_true, train=False):
         xs, dxs = self._preprocess(xs, dxs)

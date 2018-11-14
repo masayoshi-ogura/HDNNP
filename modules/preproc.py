@@ -47,18 +47,18 @@ class PCA(PreprocBase):
 
     def save(self, filename):
         if not path.exists(filename):
-            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.iteritems()}
-            components_dict = {'components/{}'.format(k): v for k, v in self._components.iteritems()}
-            dic = dict(mean_dict.items() + components_dict.items() + [('elements', self._elements)])
+            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.items()}
+            components_dict = {'components/{}'.format(k): v for k, v in self._components.items()}
+            dic = {'elements': self._elements, **mean_dict, **components_dict}
             np.savez(filename, **dic)
 
     def decompose(self, dataset):
-        for element in dataset.composition.element:
+        for element in dataset.composition['element']:
             if element in self._elements:
                 continue
 
             nfeature = dataset.input.shape[-1]
-            X = dataset.input.take(dataset.composition.indices[element], 1).reshape(-1, nfeature)
+            X = dataset.input.take(dataset.composition['indices'][element], 1).reshape(-1, nfeature)
             pca = decomposition.PCA(n_components=self.n_components)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
@@ -69,9 +69,9 @@ class PCA(PreprocBase):
                    .format(element, nfeature, self.n_components, np.sum(pca.explained_variance_ratio_)))
 
         mean = np.array([self._mean[element]  # (atom, feature)
-                         for element in dataset.composition.atom])
+                         for element in dataset.composition['atom']])
         components = np.array([self._components[element]  # (atom, feature, component)
-                               for element in dataset.composition.atom])
+                               for element in dataset.composition['atom']])
         dataset.input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
         dataset.dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
 

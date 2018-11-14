@@ -19,32 +19,32 @@ cp settings.py.sample settings.py
 cp phonopy_settings.py.sample phonopy_settings.py
 
 
-rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-./hdnnpy sym_func >/dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
+python -W ignore hdnnpy sym_func >/dev/null
 
-rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 2 ./hdnnpy sym_func >/dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
+mpirun -np 2 python -W ignore hdnnpy sym_func >/dev/null
 
-rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-./hdnnpy training --verbose >/dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
+python -W ignore hdnnpy training --verbose >/dev/null
 
-rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 2 ./hdnnpy training --verbose >/dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
+mpirun -np 2 python -W ignore hdnnpy training --verbose >/dev/null
 
-rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-./hdnnpy param_search --verbose >/dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
+python -W ignore hdnnpy param_search --verbose >/dev/null
 
-rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.dill}
-mpirun -np 2 ./hdnnpy param_search --verbose >/dev/null
+rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
+mpirun -np 2 python -W ignore hdnnpy param_search --verbose >/dev/null
 
-./hdnnpy training --verbose >/dev/null
+python -W ignore hdnnpy training --verbose >/dev/null
 
-mpirun -np 2 ./hdnnpy training --verbose >/dev/null
+mpirun -np 2 python -W ignore hdnnpy training --verbose >/dev/null
 
-./hdnnpy test >/dev/null
+python -W ignore hdnnpy test >/dev/null
 
-./hdnnpy phonon >/dev/null
+python -W ignore hdnnpy phonon >/dev/null
 
-./hdnnpy optimize >/dev/null
+python -W ignore hdnnpy optimize >/dev/null
 
 
