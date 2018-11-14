@@ -15,6 +15,7 @@ phonopy = "*"
 dill = "*"
 
 [dev-packages]
+jupyter = "*"
 
 [requires]
 python_version = "2.7"
