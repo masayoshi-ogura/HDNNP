@@ -29,46 +29,46 @@ def training(model_hp, dataset, elements, out_dir, output=True):
 
     # model and optimizer
     masters = chainer.ChainList(*[SingleNNP(model_hp, element) for element in elements])
-    master_opt = chainer.optimizers.Adam(model_hp.init_lr)
-    master_opt = chainermn.create_multi_node_optimizer(master_opt, stg.mpi.chainer_comm)
+    master_opt = chainer.optimizers.Adam(model_hp['init_lr'])
+    master_opt = chainermn.create_multi_node_optimizer(master_opt, stg.mpi['chainer_comm'])
     master_opt.setup(masters)
-    master_opt.add_hook(chainer.optimizer_hooks.Lasso(model_hp.l1_norm))
-    master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(model_hp.l2_norm))
+    master_opt.add_hook(chainer.optimizer_hooks.Lasso(model_hp['l1_norm']))
+    master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(model_hp['l2_norm']))
 
     for train, test, composition in dataset:
-        train_iter = chainer.iterators.SerialIterator(chainermn.scatter_dataset(train, stg.mpi.chainer_comm),
-                                                      model_hp.batch_size / stg.mpi.size)
-        test_iter = chainer.iterators.SerialIterator(chainermn.scatter_dataset(test, stg.mpi.chainer_comm),
-                                                     model_hp.batch_size / stg.mpi.size,
+        train_iter = chainer.iterators.SerialIterator(chainermn.scatter_dataset(train, stg.mpi['chainer_comm']),
+                                                      model_hp['batch_size'] // stg.mpi['size'])
+        test_iter = chainer.iterators.SerialIterator(chainermn.scatter_dataset(test, stg.mpi['chainer_comm']),
+                                                     model_hp['batch_size'] // stg.mpi['size'],
                                                      repeat=False, shuffle=False)
 
         hdnnp = HDNNP(model_hp, composition)
         hdnnp.sync_param_with(masters)
         main_opt = chainer.Optimizer()
-        main_opt = chainermn.create_multi_node_optimizer(main_opt, stg.mpi.chainer_comm)
+        main_opt = chainermn.create_multi_node_optimizer(main_opt, stg.mpi['chainer_comm'])
         main_opt.setup(hdnnp)
 
         # updater and trainer
-        updater = HDUpdater(iterator=train_iter, device=stg.mpi.gpu,
+        updater = HDUpdater(iterator=train_iter, device=stg.mpi['gpu'],
                             optimizer={'main': main_opt, 'master': master_opt})
-        trainer = chainer.training.Trainer(updater, (model_hp.epoch, 'epoch'), out=out_dir)
+        trainer = chainer.training.Trainer(updater, (model_hp['epoch'], 'epoch'), out=out_dir)
 
         # extensions
-        trainer.extend(ext.ExponentialShift('alpha', 1 - model_hp.lr_decay,
-                                            target=model_hp.final_lr, optimizer=master_opt))
-        evaluator = Evaluator(iterator=test_iter, target=hdnnp, device=stg.mpi.gpu)
-        trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
-        if stg.mpi.rank == 0 and output:
+        trainer.extend(ext.ExponentialShift('alpha', 1 - model_hp['lr_decay'],
+                                            target=model_hp['final_lr'], optimizer=master_opt))
+        evaluator = Evaluator(iterator=test_iter, target=hdnnp, device=stg.mpi['gpu'])
+        trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi['chainer_comm']))
+        if stg.mpi['rank'] == 0 and output:
             config = train.config
             trainer.extend(ext.LogReport(log_name='{}.log'.format(config)))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                             'validation/main/RMSE', 'validation/main/d_RMSE',
                                             'validation/main/tot_RMSE']))
             trainer.extend(scatter_plot(hdnnp, test, config),
-                           trigger=chainer.training.triggers.MinValueTrigger(model_hp.metrics, (5, 'epoch')))
+                           trigger=chainer.training.triggers.MinValueTrigger(model_hp['metrics'], (5, 'epoch')))
             trainer.extend(ext.snapshot_object(masters, '{}_masters_snapshot.npz'.format(config)),
-                           trigger=(stg.model.epoch, 'epoch'))
-            if stg.args.verbose:
+                           trigger=(stg.model['epoch'], 'epoch'))
+            if stg.args['verbose']:
                 # trainer.extend(ext.observe_lr('master', 'learning rate'))
                 # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
                 #                               file_name='learning_rate.png',
@@ -84,7 +84,7 @@ def training(model_hp, dataset, elements, out_dir, output=True):
         try:
             trainer.run()
         except KeyboardInterrupt:
-            if stg.mpi.rank == 0:
+            if stg.mpi['rank'] == 0:
                 pprint('stop {} training by Keyboard Interrupt!'.format(config))
                 chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
         time += trainer.elapsed_time
@@ -96,11 +96,11 @@ def training(model_hp, dataset, elements, out_dir, output=True):
 
 def predict(sf_hp, model_hp, masters_path, poscar, save=True):
     dataset = AtomicStructureDataset(sf_hp, poscar, 'POSCAR', save=save)
-    preproc = PREPROC[model_hp.preproc](model_hp.input_size)
+    preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
     preproc.load(path.join(path.dirname(masters_path), 'preproc.npz'))
     preproc.decompose(dataset)
     masters = chainer.ChainList(*[SingleNNP(model_hp, element)
-                                  for element in dataset.composition.element])
+                                  for element in dataset.composition['element']])
     chainer.serializers.load_npz(masters_path, masters)
     hdnnp = HDNNP(model_hp, dataset.composition)
     hdnnp.sync_param_with(masters)
@@ -152,15 +152,15 @@ def dump(model_hp, file_path, preproc, masters):
     with open(file_path, 'w') as f:
         f.write('# title\nneural network potential trained by HDNNP\n\n')
         f.write('# symmetry function parameters\n{}\n{}\n{}\n{}\n{}\n\n'
-                .format(' '.join(map(str, stg.sym_func.Rc)),
-                        ' '.join(map(str, stg.sym_func.eta)),
-                        ' '.join(map(str, stg.sym_func.Rs)),
-                        ' '.join(map(str, stg.sym_func.lambda_)),
-                        ' '.join(map(str, stg.sym_func.zeta))))
+                .format(' '.join(map(str, stg.sym_func['Rc'])),
+                        ' '.join(map(str, stg.sym_func['eta'])),
+                        ' '.join(map(str, stg.sym_func['Rs'])),
+                        ' '.join(map(str, stg.sym_func['lambda_'])),
+                        ' '.join(map(str, stg.sym_func['zeta']))))
 
-        if model_hp.preproc is None:
+        if model_hp['preproc'] is None:
             f.write('# preprocess parameters\n0\n\n')
-        elif model_hp.preproc == 'pca':
+        elif model_hp['preproc'] == 'pca':
             f.write('# preprocess parameters\n1\npca\n\n')
             for i in range(nelements):
                 element = masters[i].element
@@ -179,7 +179,7 @@ def dump(model_hp, file_path, preproc, masters):
                 W = getattr(masters[i], 'l{}'.format(j)).W.data
                 b = getattr(masters[i], 'l{}'.format(j)).b.data
                 f.write('{} {} {} {} {}\n'
-                        .format(masters[i].element, j + 1, W.shape[1], W.shape[0], model_hp.layer[j].activation))
+                        .format(masters[i].element, j + 1, W.shape[1], W.shape[0], model_hp['layer'][j]['activation']))
                 f.write('# weight\n')
                 for row in W.T:
                     f.write('{}\n'.format(' '.join(map(str, row))))
