@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys
+from ase.io import iread
+from ase.io import write
+
+args = sys.argv
+config = args[1]
+input = args[2]
+output = args[3]
+
+images = []
+for atoms in iread(input, index=':', format='vasp-out'):
+    # stress = atoms.get_stress(voigt=False)
+    # atoms.set_param_value('stress', stress)
+    atoms.info['config_type'] = config + atoms.get_chemical_formula()
+    images.append(atoms)
+write(output, images, format='xyz')
