@@ -1,35 +1,48 @@
-*.bash
+# input file formats
+*POSCAR*
+*OUTCAR*
+*.xml
 *.xyz
+*.xyz.idx
+
+# intermediate file formats
 *.pyc
-*.idx
+*.pickle
 *.npz
+
+# output file formats
+*.log
 *.png
+*.yaml
+*.dot
+*.nnp
+
+# other file formats
+*.bash
 *.gif
 *.pdf
-*.dill
-*.pickle
 *.dat
-log
-*.log
-*.yaml
-*POSCAR
-*.dot
-*.ipynb
-*.nnp
 *.csv
+*.ipynb
 
+# job queue system output files
 *.o[0-9]*
 *.e[0-9]*
 *.po[0-9]*
 *.pe[0-9]*
 
+# setting files
 settings.py
 phonopy_settings.py
+
+# environment files
+.venv/
+.python-version
+!Pipfile
+!Pipfile.lock
 !condaenv.yaml
 !condaenv.*.yaml
-.python-version
-.venv/
 
-*.DS_Store
-.ipynb_checkpoints/
+# others
 .idea/
+.ipynb_checkpoints/
