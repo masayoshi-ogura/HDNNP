@@ -25,6 +25,10 @@ log
 
 settings.py
 phonopy_settings.py
+!condaenv.yaml
+!condaenv.*.yaml
+.python-version
+.venv/
 
 *.DS_Store
 .ipynb_checkpoints/
