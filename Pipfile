@@ -7,14 +7,15 @@ name = "pypi"
 numpy = "*"
 matplotlib = "*"
 pyyaml = "*"
+scikit-learn = "*"
 scikit-optimize = "*"
-ase = "*"
 "mpi4py" = "*"
-chainer = "*"
+ase = "*"
 phonopy = "*"
+chainer = "*"
 
 [dev-packages]
 jupyter = "*"
 
 [requires]
-python_version = "3.6.7"
+python_version = "3.6"
