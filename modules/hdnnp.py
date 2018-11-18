@@ -36,10 +36,9 @@ def training(model_hp, dataset, elements, out_dir, output=True):
     master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(model_hp['l2_norm']))
 
     for train, test, composition in dataset:
-        train_iter = chainer.iterators.SerialIterator(chainermn.scatter_dataset(train, stg.mpi['chainer_comm']),
-                                                      model_hp['batch_size'] // stg.mpi['size'])
-        test_iter = chainer.iterators.SerialIterator(chainermn.scatter_dataset(test, stg.mpi['chainer_comm']),
-                                                     model_hp['batch_size'] // stg.mpi['size'],
+        train_iter = chainer.iterators.SerialIterator(train, model_hp['batch_size'] // stg.mpi['size'],
+                                                      repeat=True, shuffle=True)
+        test_iter = chainer.iterators.SerialIterator(test, model_hp['batch_size'] // stg.mpi['size'],
                                                      repeat=False, shuffle=False)
 
         hdnnp = HDNNP(model_hp, composition)
@@ -125,7 +124,7 @@ def optimize(sf_hp, model_hp, masters_path, poscar):
 
 
 def phonon(sf_hp, model_hp, masters_path, poscar):
-    pprint('drawing phonon band structure ... ', end='', flush=True)
+    pprint('drawing phonon band structure ... ', end='')
     dirname, basename = path.split(masters_path)
     root, _ = path.splitext(basename)
     dataset, _, force = predict(sf_hp, model_hp, masters_path, poscar)

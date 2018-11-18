@@ -25,7 +25,7 @@ from phonopy.structure.atoms import PhonopyAtoms
 from .util import pprint, mkdir
 
 
-RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets
+RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution
 
 
 def memorize(f):
@@ -224,7 +224,7 @@ class AtomicStructureDataset(object):
                 Es = ndarray['E']
                 Fs = ndarray['F']
             else:
-                pprint('making {} ... '.format(EF_file), end='', flush=True)
+                pprint('making {} ... '.format(EF_file), end='')
                 Es = np.empty((self._nsample, 1))
                 Fs = np.empty((self._nsample, self._natom, 3))
                 Es_send = np.array([data.get_potential_energy() for data in self._atoms]).reshape(-1, 1)
@@ -254,7 +254,7 @@ class AtomicStructureDataset(object):
             if save and path.exists(SF_file):
                 ndarray = np.load(SF_file)
                 if 'nsample' in ndarray and ndarray['nsample'] == self._nsample:
-                    existing_keys = set([path.dirname(key) for key in ndarray.keys() if key.endswith('G')])
+                    existing_keys = set([path.dirname(key) for key in list(ndarray.keys()) if key.endswith('G')])
                     new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys(existing_keys)
                 else:
                     pprint("# of samples (or atoms) between Symmetry_Function.npz and structure.xyz don't match.\n"
@@ -262,7 +262,7 @@ class AtomicStructureDataset(object):
                     new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys()
                 stg.mpi['comm'].bcast(new_keys, root=0)
                 if new_keys:
-                    pprint('making {} ... '.format(SF_file), end='', flush=True)
+                    pprint('making {} ... '.format(SF_file), end='')
                 for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):
                     G = np.empty((self._nsample,) + G_send.shape[1:])
                     dG = np.empty((self._nsample,) + dG_send.shape[1:])
@@ -279,19 +279,20 @@ class AtomicStructureDataset(object):
                     pprint('done')
                 self._Gs = np.concatenate([v for k, v in sorted(Gs.items())], axis=2).astype(np.float32)
                 self._dGs = np.concatenate([v for k, v in sorted(dGs.items())], axis=2).astype(np.float32)
-                for key in no_used_keys:
-                    G_key = path.join(key, 'G')
-                    dG_key = path.join(key, 'dG')
-                    Gs[G_key] = ndarray[G_key]
-                    dGs[dG_key] = ndarray[dG_key]
-                np.savez(SF_file, **{'nsample': self._nsample, **Gs, **dGs})
+                if new_keys:
+                    for key in no_used_keys:
+                        G_key = path.join(key, 'G')
+                        dG_key = path.join(key, 'dG')
+                        Gs[G_key] = ndarray[G_key]
+                        dGs[dG_key] = ndarray[dG_key]
+                    np.savez(SF_file, **{'nsample': self._nsample, **Gs, **dGs})
 
             else:
                 pprint('1)save flag off, or 2){} not found.\n'
                        'calculate symmetry functions from scratch in this time.'.format(SF_file))
                 keys, _, _ = self._check_uncalculated_keys()
                 stg.mpi['comm'].bcast(keys, root=0)
-                pprint('making {} ... '.format(SF_file), end='', flush=True)
+                pprint('making {} ... '.format(SF_file), end='')
                 for key, G_send, dG_send in self._calculate_symmetry_function(keys):
                     G = np.empty((self._nsample,) + G_send.shape[1:])
                     dG = np.empty((self._nsample,) + dG_send.shape[1:])
@@ -421,30 +422,7 @@ class AtomicStructureDataset(object):
 class DataGenerator(object):
     def __init__(self, preproc):
         self._preproc = preproc
-        self._data_dir = path.dirname(stg.file['xyz_file'])
-        config_type_file = path.join(self._data_dir, 'config_type.pickle')
-        if not path.exists(config_type_file):
-            self._parse_xyzfile(config_type_file)
-
-        with open(config_type_file, 'rb') as f:
-            config_type = pickle.load(f)
-        self._datasets = []
-        elements = set()
-        for required_cnf in stg.file['config']:
-            for config in filter(lambda cnf: match(required_cnf, cnf) or required_cnf == 'all', config_type):
-                pprint('Construct dataset of configuration type: {}'.format(config))
-
-                xyz_file = path.join(self._data_dir, config, 'structure.xyz')
-                dataset = AtomicStructureDataset(stg.sym_func, xyz_file, 'xyz')
-                if stg.mpi['rank'] == 0:
-                    self._preproc.decompose(dataset)
-
-                self._datasets.append(dataset)
-                elements.update(dataset.composition['element'])
-                pprint('')
-                stg.mpi['comm'].Barrier()
-        self._elements = sorted(elements)
-        self._length = sum([d.nsample for d in self._datasets])
+        self._construct_datasets()
 
     def __len__(self):
         return self._length
@@ -454,56 +432,151 @@ class DataGenerator(object):
         return self._preproc
 
     def holdout(self, ratio):
-        if stg.mpi['rank'] != 0:
-            return [(None, None, dataset.composition) for dataset in self._datasets], self._elements
-        else:
-            splited = []
-            for dataset in self._datasets:
-                train = dataset.take(slice(None, int(len(dataset) * ratio), None))
-                test = dataset.take(slice(int(len(dataset) * ratio), None, None))
-                splited.append((train, test, dataset.composition))
-            return splited, self._elements
+        split = []
+        while self._datasets:
+            dataset = self._datasets.pop(0)
+            s = int(len(dataset) * ratio)
+            train = dataset.take(slice(None, s, None))
+            test = dataset.take(slice(s, None, None))
+            split.append((train, test, dataset.composition))
+        return split, self._elements
 
     def cross_validation(self, ratio, kfold):
-        if stg.mpi['rank'] != 0:
-            for i in range(kfold):
-                yield [(None, None, dataset.composition) for dataset in self._datasets], self._elements
-        else:
-            kf = KFold(n_splits=kfold)
-            splited = []
-            for dataset in self._datasets:
-                splited.append([])
-                for train_idx, test_idx in kf.split(range(int(len(dataset) * ratio))):
-                    train = dataset.take(train_idx)
-                    test = dataset.take(test_idx)
-                    splited[-1].append((train, test, dataset.composition))
-            for dataset in zip(*splited):
-                yield dataset, self._elements
+        kf = KFold(n_splits=kfold)
+        kfold_indices = [kf.split(range(int(len(dataset) * ratio)))
+                         for dataset in self._datasets]
 
-    def _parse_xyzfile(self, config_type_file):
-        if stg.mpi['rank'] == 0:
-            pprint('config_type.pickle is not found.\nparsing {} ... '.format(stg.file['xyz_file']), end='', flush=True)
-            config_type = set()
-            dataset = defaultdict(list)
-            for atoms in iread(stg.file['xyz_file'], index=':', format='xyz', parallel=False):
-                config = atoms.info['config_type']
-                config_type.add(config)
-                dataset[config].append(atoms)
-            with open(config_type_file, 'wb') as f:
-                pickle.dump(config_type, f)
+        for indices in zip(*kfold_indices):
+            split = []
+            for dataset, (train_idx, test_idx) in zip(self._datasets, indices):
+                train = dataset.take(train_idx)
+                test = dataset.take(test_idx)
+                split.append((train, test, dataset.composition))
+            yield split, self._elements
 
-            for config in config_type:
-                composition = {'indices': defaultdict(list), 'atom': [], 'element': []}
-                for i, atom in enumerate(dataset[config][0]):
-                    composition['indices'][atom.symbol].append(i)
-                    composition['atom'].append(atom.symbol)
-                composition['element'] = sorted(set(composition['atom']))
+    def _construct_datasets(self):
+        original_xyz = stg.file['xyz_file']
+        data_dir = path.dirname(original_xyz)
+        cfg_pickle = path.join(data_dir, 'config_type.pickle')
+        if not path.exists(cfg_pickle):
+            parse_xyzfile(original_xyz, data_dir, cfg_pickle)
+        with open(cfg_pickle, 'rb') as f:
+            config_type = pickle.load(f)
 
-                data_dir = path.join(self._data_dir, config)
-                mkdir(data_dir)
-                write(path.join(data_dir, 'structure.xyz'), dataset[config], format='xyz', parallel=False)
-                with open(path.join(data_dir, 'composition.pickle'), 'wb') as f:
-                    pickle.dump(dict(composition), f)
-            pprint('done')
+        self._datasets = []
+        elements = set()
+        for required_cnf in stg.file['config']:
+            for config in filter(lambda cnf: match(required_cnf, cnf) or required_cnf == 'all', config_type):
+                pprint('Construct dataset of configuration type: {}'.format(config))
 
-        stg.mpi['comm'].Barrier()
+                parsed_xyz = path.join(data_dir, config, 'structure.xyz')
+                dataset = AtomicStructureDataset(stg.sym_func, parsed_xyz, 'xyz')
+                if stg.mpi['rank'] == 0:
+                    self._preproc.decompose(dataset)
+                stg.mpi['comm'].Barrier()
+
+                dataset = scatter_dataset(dataset)
+                self._datasets.append(dataset)
+                elements.update(dataset.composition['element'])
+                pprint('')
+        self._elements = sorted(elements)
+        self._length = sum([d.nsample for d in self._datasets])
+
+def parse_xyzfile(xyz_file, data_dir, cfg_pickle):
+    if stg.mpi['rank'] == 0:
+        pprint('config_type.pickle is not found.\nparsing {} ... '.format(xyz_file), end='')
+        config_type = set()
+        dataset = defaultdict(list)
+        for atoms in iread(xyz_file, index=':', format='xyz', parallel=False):
+            config = atoms.info['config_type']
+            config_type.add(config)
+            dataset[config].append(atoms)
+        with open(cfg_pickle, 'wb') as f:
+            pickle.dump(config_type, f)
+
+        for config in config_type:
+            composition = {'indices': defaultdict(list), 'atom': [], 'element': []}
+            for i, atom in enumerate(dataset[config][0]):
+                composition['indices'][atom.symbol].append(i)
+                composition['atom'].append(atom.symbol)
+            composition['element'] = sorted(set(composition['atom']))
+
+            cfg_dir = path.join(data_dir, config)
+            mkdir(cfg_dir)
+            write(path.join(cfg_dir, 'structure.xyz'), dataset[config], format='xyz', parallel=False)
+            with open(path.join(cfg_dir, 'composition.pickle'), 'wb') as f:
+                pickle.dump(dict(composition), f)
+        pprint('done')
+
+    stg.mpi['comm'].Barrier()
+
+
+def scatter_dataset(dataset, root=0, max_buf_len=256 * 1024 * 1024):
+    """Scatter the given dataset to the workers in the communicator.
+    
+    refer to chainermn.scatter_dataset()
+    change:
+        broadcast dataset by split size, NOT whole size, to the workers.
+        omit shuffling dataset
+        use raw mpi4py method to send/recv dataset
+    """
+    assert 0 <= root and root < stg.mpi['size']
+
+    if stg.mpi['rank'] == root:
+        mine = None
+        n_total_samples = len(dataset)
+        n_sub_samples = (n_total_samples + stg.mpi['size'] - 1) // stg.mpi['size']
+
+        for i in range(stg.mpi['size']):
+            b = n_total_samples * i // stg.mpi['size']
+            e = b + n_sub_samples
+
+            if i == root:
+                mine = dataset.take(slice(b, e, None))
+            else:
+                send = dataset.take(slice(b, e, None))
+                send_chunk(send, dest=i, max_buf_len=max_buf_len)
+        assert mine is not None
+        return mine
+
+    else:
+        recv = recv_chunk(source=root, max_buf_len=max_buf_len)
+        assert recv is not None
+        return recv
+
+
+INT_MAX = 2147483647
+
+
+def send_chunk(obj, dest, max_buf_len=256 * 1024 * 1024):
+    assert max_buf_len < INT_MAX
+    assert max_buf_len > 0
+    pickled_bytes = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+    total_bytes = len(pickled_bytes)
+    total_chunk_num = -(-total_bytes // max_buf_len)
+    stg.mpi['comm'].send((total_chunk_num, max_buf_len, total_bytes), dest=dest)
+
+    for i in range(total_chunk_num):
+        b = i * max_buf_len
+        e = min(b + max_buf_len, total_bytes)
+        buf = pickled_bytes[b:e]
+        stg.mpi['comm'].Send(buf, dest=dest)
+
+
+def recv_chunk(source, max_buf_len=256 * 1024 * 1024):
+    assert max_buf_len < INT_MAX
+    assert max_buf_len > 0
+    data = stg.mpi['comm'].recv(source=source)
+    assert data is not None
+    total_chunk_num, max_buf_len, total_bytes = data
+    pickled_bytes = bytearray()
+
+    for i in range(total_chunk_num):
+        b = i * max_buf_len
+        e = min(b + max_buf_len, total_bytes)
+        buf = bytearray(e - b)
+        stg.mpi['comm'].Recv(buf, source=source)
+        pickled_bytes[b:e] = buf
+
+    obj = pickle.loads(pickled_bytes)
+    return obj
