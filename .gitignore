@@ -18,7 +18,7 @@
 *.nnp
 
 # other file formats
-*.bash
+*.sh
 *.gif
 *.pdf
 *.dat
@@ -42,6 +42,10 @@ phonopy_settings.py
 !Pipfile.lock
 !condaenv.yaml
 !condaenv.*.yaml
+
+# test files
+!test.sh
+!test/POSCAR
 
 # others
 .idea/
