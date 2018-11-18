@@ -35,7 +35,7 @@ def main():
             if stg.args['mode'] == 'training':
                 preproc = PREPROC[stg.model['preproc']](stg.model['input_size'])
                 generator = DataGenerator(preproc)
-                dataset, elements = generator.holdout(ratio=0.9)
+                dataset, elements = generator.holdout(ratio=stg.file['ratio'])
                 masters, result = hdnnp.training(stg.model, dataset, elements, out_dir)
                 if stg.mpi['rank'] == 0:
                     preproc.save(path.join(out_dir, 'preproc.npz'))
@@ -65,7 +65,7 @@ def main():
                     preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
                     generator = DataGenerator(preproc)
                     for i, (dataset, elements) in enumerate(
-                            generator.cross_validation(ratio=0.9, kfold=stg.skopt['kfold'])):
+                            generator.cross_validation(ratio=stg.file['ratio'], kfold=stg.skopt['kfold'])):
                         _, result = hdnnp.training(model_hp, dataset, elements, out_dir, output=False)
                         results.append(result[stg.model['metrics']])
                     avg = sum(results) / stg.skopt['kfold']
@@ -93,7 +93,7 @@ def main():
                         model_hp[space.name] = value
                 preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
                 generator = DataGenerator(preproc)
-                dataset, elements = generator.holdout(ratio=0.9)
+                dataset, elements = generator.holdout(ratio=stg.file['ratio'])
                 masters, result = hdnnp.training(model_hp, dataset, elements, out_dir)
                 if stg.mpi['rank'] == 0:
                     with open(path.join(out_dir, 'skopt_result.csv'), 'w') as f:
@@ -111,16 +111,16 @@ def main():
                         'result': result,
                     }, default_flow_style=False))
 
-        except Exception:
+        except:
             if stg.mpi['rank'] == 0:
-                pprint(traceback.print_exc())
+                pprint(traceback.format_exc())
                 shutil.rmtree(out_dir)
         else:
             shutil.copy('./settings.py', path.join(out_dir, 'settings.py'))
 
     elif stg.args['mode'] in ['sym_func']:
         preproc = PREPROC[None](stg.model['input_size'])
-        for _ in DataGenerator(preproc).holdout(ratio=0.9):
+        for _ in DataGenerator(preproc).holdout(ratio=stg.file['ratio']):
             pass
 
     elif stg.args['mode'] in ['test', 'phonon', 'optimize']:

@@ -9,7 +9,7 @@ import numpy as np
 from chainer import Variable
 
 
-def pprint(data, root_only=True, flush=False, **options):
+def pprint(data, root_only=True, flush=True, **options):
     if stg.mpi['rank'] == 0 or not root_only:
         if isinstance(data, list) or isinstance(data, dict):
             pretty_print(data, **options)

@@ -26,6 +26,7 @@ file = dict(
     config=['CrystalGa2N2', 'CrystalGa16N16'],
     out_dir='output',
     test_dir='test',
+    ratio=0.9,
 )
 
 mpi = dict(
