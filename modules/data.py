@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# define variables
-import settings as stg
-import phonopy_settings as ph_stg
-
 # import python modules
 from os import path
 from re import match
@@ -22,6 +18,8 @@ from ase.neighborlist import neighbor_list
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
+from . import settings as stg
+from . import phonopy_settings as ph_stg
 from .util import pprint, mkdir
 
 

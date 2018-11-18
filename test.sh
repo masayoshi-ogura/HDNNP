@@ -4,8 +4,8 @@ set -euxp
 trap finally EXIT
 
 function finally {
-  cp ${tmp1} settings.py
-  cp ${tmp2} phonopy_settings.py
+  cp ${tmp1} modules/settings.py
+  cp ${tmp2} modules/phonopy_settings.py
   rm ${tmp1} ${tmp2}
 }
 
@@ -13,10 +13,10 @@ debug_path=./GaN/debug_test
 tmp1=$(mktemp)
 tmp2=$(mktemp)
 
-cp settings.py ${tmp1}
-cp phonopy_settings.py ${tmp2}
-cp settings.py.sample settings.py
-cp phonopy_settings.py.sample phonopy_settings.py
+cp modules/settings.py ${tmp1}
+cp modules/phonopy_settings.py ${tmp2}
+cp settings.py.sample modules/settings.py
+cp phonopy_settings.py.sample modules/phonopy_settings.py
 
 
 rm -rf ${debug_path}/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
@@ -46,5 +46,3 @@ python -W ignore hdnnpy test >/dev/null
 python -W ignore hdnnpy phonon >/dev/null
 
 python -W ignore hdnnpy optimize >/dev/null
-
-

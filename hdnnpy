@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import settings as stg
 
 import csv
 import yaml
@@ -15,6 +14,7 @@ from skopt.utils import use_named_args
 import numpy as np
 import chainer
 
+from modules import settings as stg
 from modules import hdnnp
 from modules.data import DataGenerator
 from modules.preproc import PREPROC
@@ -116,7 +116,7 @@ def main():
                 pprint(traceback.format_exc())
                 shutil.rmtree(out_dir)
         else:
-            shutil.copy('./settings.py', path.join(out_dir, 'settings.py'))
+            shutil.copy('./modules/settings.py', path.join(out_dir, 'settings.py'))
 
     elif stg.args['mode'] in ['sym_func']:
         preproc = PREPROC[None](stg.model['input_size'])
@@ -138,7 +138,7 @@ def main():
                 pprint('force:\n{}'.format(force.data))
             elif stg.args['mode'] == 'phonon':
                 hdnnp.phonon(sf_hp, model_hp, masters_path, poscar)
-                shutil.copy('./phonopy_settings.py', path.join(path.dirname(masters_path), 'phonopy_settings.py'))
+                shutil.copy('./modules/phonopy_settings.py', path.join(path.dirname(masters_path), 'phonopy_settings.py'))
             elif stg.args['mode'] == 'optimize':
                 e_scale, f_scale = hdnnp.optimize(sf_hp, model_hp, masters_path, poscar)
                 pprint('energy-optimized lattice parameter: {}'.format(e_scale))

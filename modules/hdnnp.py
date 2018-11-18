@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# define variables
-import settings as stg
-import phonopy_settings as ph_stg
-
 # import python modules
 from os import path
 import numpy as np
@@ -13,6 +9,8 @@ import chainer.training.extensions as ext
 import chainermn
 
 # import own modules
+from . import settings as stg
+from . import phonopy_settings as ph_stg
 from .data import AtomicStructureDataset
 from .preproc import PREPROC
 from .model import SingleNNP, HDNNP
