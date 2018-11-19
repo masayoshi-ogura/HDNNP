@@ -31,6 +31,17 @@ def flatten_dict(dic):
             else v for k, v in dic.items()}
 
 
+def set_hyperparameter(key, value):
+    value = value if isinstance(value, str) else value.item()
+    if key in ['node', 'activation']:
+        for layer in stg.model.layer[:-1]:
+            layer[key] = value
+    elif key in dir(stg.dataset):
+        setattr(stg.dataset, key, value)
+    elif key in dir(stg.model):
+        setattr(stg.model, key, value)
+
+
 def dump_result(file_path, result):
     args = {k:v for k,v in vars(stg.args).items() if not k.startswith('_')}
     file = {k:v for k,v in vars(stg.file).items() if not k.startswith('_')}

@@ -1,118 +1,218 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 import csv
 import shutil
 import traceback
 from os import path
 from skopt import gp_minimize
 from skopt.utils import use_named_args
+import matplotlib.pyplot as plt
 import numpy as np
 import chainer
+import chainer.training.extensions as ext
+import chainermn
 
 from modules import settings as stg
 from modules import hdnnp
 from modules.data import DataGenerator
-from modules.util import pprint, mkdir, dump_result, dump_lammps
+from modules.model import SingleNNP, HDNNP
+from modules.updater import HDUpdater
+from modules.util import pprint, mkdir, flatten_dict, dump_result, dump_lammps
+from modules.chainer_extensions import Evaluator
+from modules.chainer_extensions import set_log_scale
+from modules.chainer_extensions import scatter_plot
 
 
 def main():
     assert stg.args.mode in ['training', 'param_search', 'sym_func', 'test', 'phonon', 'optimize']
     mkdir(stg.file.out_dir)
 
-    if stg.args.mode in ['training', 'param_search']:
+    if stg.args.mode == 'training':
         try:
-
-            if stg.args.mode == 'training':
-                generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-                dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
-                masters, result = hdnnp.training(dataset, elements)
-                if stg.mpi.rank == 0:
-                    generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
-                    chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
-                    dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
-                    dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
-
-            elif stg.args.mode == 'param_search':
-                @use_named_args(stg.skopt.space)
-                def objective_func(**params):
-                    for key, value in params.items():
-                        value = value if isinstance(value, str) else value.item()
-                        if key in ['node', 'activation']:
-                            for layer in stg.model.layer[:-1]:
-                                layer[key] = value
-                        elif key in dir(stg.dataset):
-                            setattr(stg.dataset, key, value)
-                        elif key in dir(stg.model):
-                            setattr(stg.model, key, value)
-
-                    results = []
-                    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-                    for i, (dataset, elements) in enumerate(
-                            generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
-                        _, result = hdnnp.training(dataset, elements, output=False)
-                        results.append(result[stg.model.metrics])
-                    avg = sum(results) / stg.skopt.kfold
-                    pprint(params)
-                    pprint('result: {}\n'.format(avg))
-                    return avg
-
-                seed = np.random.get_state()[1][0]
-                seed = stg.mpi.comm.bcast(seed, root=0)
-                res = gp_minimize(objective_func, stg.skopt.space,
-                                  n_random_starts=stg.skopt.init_num,
-                                  n_calls=stg.skopt.max_num,
-                                  acq_func=stg.skopt.acq_func,
-                                  random_state=seed,
-                                  verbose=stg.args.verbose,
-                                  callback=stg.skopt.callback)
-
-                for space, value in zip(stg.skopt.space, res.x):
-                    value = value if isinstance(value, str) else value.item()
-                    if space.name in ['node', 'activation']:
-                        for layer in stg.model.layer[:-1]:
-                            layer[space.name] = value
-                    elif space.name in dir(stg.dataset):
-                        setattr(stg.dataset, space.name, value)
-                    elif space.name in dir(stg.model):
-                        setattr(stg.model, space.name, value)
-                generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-                dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
-                masters, result = hdnnp.training(dataset, elements)
-                if stg.mpi.rank == 0:
-                    with open(path.join(stg.file.out_dir, 'skopt_result.csv'), 'w') as f:
-                        writer = csv.writer(f, lineterminator='\n')
-                        writer.writerow([space.name for space in stg.skopt.space] + ['score'])
-                        writer.writerows([x + [fun] for x, fun in zip(res.x_iters, res.func_vals)])
-                    generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
-                    chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
-                    dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
-                    dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
-
-        except:
+            main_training()
+        except Exception:
             if stg.mpi.rank == 0:
                 traceback.print_exc()
-        else:
+        finally:
+            shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
+
+    elif stg.args.mode == 'param_search':
+        try:
+            # bayesian search of hyperparameters
+            seed = np.random.get_state()[1][0]
+            seed = stg.mpi.comm.bcast(seed, root=0)
+            res = gp_minimize(objective_func, stg.skopt.space,
+                              n_random_starts=stg.skopt.init_num,
+                              n_calls=stg.skopt.max_num,
+                              acq_func=stg.skopt.acq_func,
+                              random_state=seed,
+                              verbose=stg.args.verbose,
+                              callback=stg.skopt.callback)
+            if stg.mpi.rank == 0:
+                with open(path.join(stg.file.out_dir, 'skopt_result.csv'), 'w') as f:
+                    writer = csv.writer(f, lineterminator='\n')
+                    writer.writerow([space.name for space in stg.skopt.space] + ['score'])
+                    writer.writerows([x + [fun] for x, fun in zip(res.x_iters, res.func_vals)])
+
+            # main training with best hyperparameters
+            # best hyperparameters are stored in 'res.x'
+            for space, value in zip(stg.skopt.space, res.x):
+                set_hyperparameter(space.name, value)
+            main_training()
+        except Exception:
+            if stg.mpi.rank == 0:
+                traceback.print_exc()
+        finally:
             shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
 
     elif stg.args.mode in ['sym_func']:
         stg.dataset.preproc = None
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
-    elif stg.args.mode in ['test', 'phonon', 'optimize']:
-        if stg.args.mode == 'test':
-            _, energy, forces = hdnnp.predict()
-            pprint('energy:\n{}'.format(energy.data))
-            pprint('forces:\n{}'.format(forces.data))
-        elif stg.args.mode == 'phonon':
-            hdnnp.phonon()
-            shutil.copy('./phonopy_settings.py',
-                        path.join(stg.file.out_dir, 'phonopy_settings.py'))
-        elif stg.args.mode == 'optimize':
-            e_scale, f_scale = hdnnp.optimize()
-            pprint('energy-optimized lattice parameter: {}'.format(e_scale))
-            pprint('forces-optimized lattice parameter: {}'.format(f_scale))
+    elif stg.args.mode == 'test':
+        _, energy, forces = predict()
+        pprint('energy:\n{}'.format(energy.data))
+        pprint('forces:\n{}'.format(forces.data))
+
+    elif stg.args.mode == 'phonon':
+        pprint('drawing phonon band structure ... ', end='')
+        name = path.splitext(path.split(stg.args.masters)[1])[0]
+        dataset, _, forces = predict()
+        phonopy = dataset.phonopy
+        phonopy.set_forces(forces.data)
+        phonopy.produce_force_constants()
+
+        phonopy_plt = stg.phonopy.callback(phonopy)
+
+        phonopy_plt.savefig(path.join(stg.file.out_dir, 'ph_band_HDNNP_{}.png'.format(name)))
+        phonopy_plt.close()
+        pprint('done')
+
+        shutil.copy('./phonopy_settings.py', path.join(stg.file.out_dir, 'phonopy_settings.py'))
+
+    elif stg.args.mode == 'optimize':
+        name = path.splitext(path.split(stg.args.masters)[1])[0]
+        _, energy, forces = predict(save=False)
+        nsample = len(energy)
+        energy = energy.data.reshape(-1)
+        forces = np.sqrt((forces.data ** 2).mean(axis=(1, 2)))
+        x = np.linspace(0.9, 1.1, nsample)
+        plt.plot(x, energy, label='energy')
+        plt.plot(x, forces, label='forces')
+        plt.legend()
+        plt.savefig(path.join(stg.file.out_dir, 'optimization_{}.png'.format(name)))
+        pprint('energy-optimized lattice parameter: {}'.format(x[np.argmin(energy)]))
+        pprint('forces-optimized lattice parameter: {}'.format(x[np.argmin(forces)]))
+
+
+def main_training():
+    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+    dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
+    masters, result = training(dataset, elements)
+    if stg.mpi.rank == 0:
+        generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
+        chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
+        dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
+        dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
+
+
+@use_named_args(stg.skopt.space)
+def objective_func(**params):
+    for key, value in params.items():
+        set_hyperparameter(key, value)
+
+    results = []
+    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+    for i, (dataset, elements) in enumerate(
+            generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
+        _, result = training(dataset, elements, output=False)
+        results.append(result[stg.model.metrics])
+    avg = sum(results) / stg.skopt.kfold
+    pprint(params)
+    pprint('result: {}\n'.format(avg))
+    return avg
+
+
+def training(dataset, elements, output=True):
+    result = {'training_time': 0.0, 'observation': []}
+
+    # model and optimizer
+    masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
+    master_opt = chainer.optimizers.Adam(stg.model.init_lr)
+    master_opt = chainermn.create_multi_node_optimizer(master_opt, stg.mpi.chainer_comm)
+    master_opt.setup(masters)
+    master_opt.add_hook(chainer.optimizer_hooks.Lasso(stg.model.l1_norm))
+    master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(stg.model.l2_norm))
+
+    for train, test, composition in dataset:
+        train_iter = chainer.iterators.SerialIterator(train, stg.dataset.batch_size // stg.mpi.size,
+                                                      repeat=True, shuffle=True)
+        test_iter = chainer.iterators.SerialIterator(test, stg.dataset.batch_size // stg.mpi.size,
+                                                     repeat=False, shuffle=False)
+
+        hdnnp = HDNNP(composition)
+        hdnnp.sync_param_with(masters)
+        main_opt = chainer.Optimizer()
+        main_opt = chainermn.create_multi_node_optimizer(main_opt, stg.mpi.chainer_comm)
+        main_opt.setup(hdnnp)
+
+        # updater and trainer
+        updater = HDUpdater(iterator=train_iter, device=stg.mpi.gpu,
+                            optimizer={'main': main_opt, 'master': master_opt})
+        trainer = chainer.training.Trainer(updater, (stg.dataset.epoch, 'epoch'), out=stg.file.out_dir)
+
+        # extensions
+        trainer.extend(ext.ExponentialShift('alpha', 1 - stg.model.lr_decay,
+                                            target=stg.model.final_lr, optimizer=master_opt))
+        evaluator = Evaluator(iterator=test_iter, target=hdnnp, device=stg.mpi.gpu)
+        trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
+        config = train.config
+        if stg.mpi.rank == 0 and output:
+            trainer.extend(ext.LogReport(log_name='{}.log'.format(config)))
+            trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
+                                            'validation/main/RMSE', 'validation/main/d_RMSE',
+                                            'validation/main/tot_RMSE']))
+            trainer.extend(scatter_plot(hdnnp, test, config),
+                           trigger=chainer.training.triggers.MinValueTrigger(stg.model.metrics, (5, 'epoch')))
+            trainer.extend(ext.snapshot_object(masters, '{}_masters_snapshot.npz'.format(config)),
+                           trigger=(stg.dataset.epoch, 'epoch'))
+            if stg.args.verbose:
+                # trainer.extend(ext.observe_lr('master', 'learning rate'))
+                # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
+                #                               file_name='learning_rate.png',
+                #                               marker=None,
+                #                               postprocess=set_log_scale))
+                trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
+                                              file_name='{}_RMSE.png'.format(config), marker=None,
+                                              postprocess=set_log_scale))
+                trainer.extend(
+                    ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
+                    trigger=(100, 'epoch'))
+
+        try:
+            trainer.run()
+        except KeyboardInterrupt:
+            if stg.mpi.rank == 0:
+                pprint('stop {} training by Keyboard Interrupt!'.format(config))
+                chainer.serializers.save_npz(path.join(stg.file.out_dir, '{}_masters_snapshot.npz'.format(config)),
+                                             masters)
+        finally:
+            result['training_time'] += trainer.elapsed_time
+            result['observation'].append({'config': config, **flatten_dict(trainer.observation)})
+
+    return masters, result
+
+
+def predict(save=True):
+    generator = DataGenerator(stg.args.poscar, 'poscar', save=save)
+    dataset, elements = generator()
+    masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
+    chainer.serializers.load_npz(stg.args.masters, masters)
+    hdnnp = HDNNP(dataset.composition)
+    hdnnp.sync_param_with(masters)
+    energy, forces = hdnnp.predict(dataset.input, dataset.dinput)
+    return dataset, energy, forces
 
 
 if __name__ == '__main__':
