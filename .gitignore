@@ -34,6 +34,8 @@
 # setting files
 settings.py
 phonopy_settings.py
+!modules/settings.py
+!modules/phonopy_settings.py
 
 # environment files
 .venv/
@@ -44,8 +46,11 @@ phonopy_settings.py
 !condaenv.*.yaml
 
 # test files
-!test.sh
-!test/POSCAR
+!test/test.sh
+!test/settings.py
+!test/phonopy_settings.py
+!test/data/GaN.xyz
+!test/data/POSCAR
 
 # others
 .idea/
