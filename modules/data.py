@@ -2,7 +2,6 @@
 
 # import python modules
 from os import path
-from re import match
 from collections import defaultdict
 import pickle
 from itertools import product, combinations, combinations_with_replacement
@@ -47,12 +46,12 @@ def memorize(f):
 
 
 class AtomicStructureDataset(object):
-    def __init__(self, filename, format, save=True):
+    def __init__(self, filename, format):
         assert format in ['xyz', 'poscar']
         if format == 'xyz':
             self._load_xyz(filename)
         elif format == 'poscar':
-            self._load_poscar(filename, save)
+            self._load_poscar(filename)
 
     def __getitem__(self, index):
         batches = [self._Gs[index], self._dGs[index], self._Es[index], self._Fs[index]]
@@ -154,7 +153,7 @@ class AtomicStructureDataset(object):
         self._shuffle()  # shuffle dataset at once
         del self._atoms
 
-    def _load_poscar(self, poscar, save):
+    def _load_poscar(self, poscar):
         assert stg.args.mode in ['test', 'phonon', 'optimize']
 
         data_dir = path.dirname(poscar)
@@ -196,7 +195,7 @@ class AtomicStructureDataset(object):
 
         count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
         self._atoms = atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
-        self._make_input(data_dir, count, save=save)
+        self._make_input(data_dir, count, save=False)
         del self._atoms
 
     def _make_label(self, data_dir, count, save):
@@ -244,19 +243,26 @@ class AtomicStructureDataset(object):
             Gs = {}
             dGs = {}
             SF_file = path.join(data_dir, 'Symmetry_Function.npz')
-
-            if save and path.exists(SF_file):
+            try:
+                if not save:
+                    raise ValueError
                 ndarray = np.load(SF_file)
-                if 'nsample' in ndarray and ndarray['nsample'] == self._nsample:
-                    existing_keys = set([path.dirname(key) for key in list(ndarray.keys()) if key.endswith('G')])
-                    new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys(existing_keys)
-                else:
-                    pprint("# of samples (or atoms) between Symmetry_Function.npz and structure.xyz don't match.\n"
-                           "re-calculate from structure.xyz.")
-                    new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys()
-                stg.mpi.comm.bcast(new_keys, root=0)
-                if new_keys:
-                    pprint('making {} ... '.format(SF_file), end='')
+                assert ndarray['nsample'] == self._nsample
+                existing_keys = set([path.dirname(key) for key in list(ndarray.keys()) if key.endswith('G')])
+                new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys(existing_keys)
+            except ValueError:
+                pprint('calculate {} from scratch.'.format(SF_file))
+                new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys()
+            except FileNotFoundError:
+                pprint('{} is not found.\ncalculate {} from scratch.'.format(*[SF_file]*2))
+                new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys()
+            except AssertionError:
+                pprint('# of samples of {} and given data file do not match.\ncalculate {} from scratch.'
+                       .format(*[SF_file]*2))
+                new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys()
+
+            stg.mpi.comm.bcast(new_keys, root=0)
+            if new_keys:
                 for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):
                     G = np.empty((self._nsample,) + G_send.shape[1:])
                     dG = np.empty((self._nsample,) + dG_send.shape[1:])
@@ -264,43 +270,25 @@ class AtomicStructureDataset(object):
                     stg.mpi.comm.Gatherv(dG_send, (dG, (count * dG[0].size, None), MPI.DOUBLE), root=0)
                     Gs[path.join(key, 'G')] = G
                     dGs[path.join(key, 'dG')] = dG
-                for key in re_used_keys:
+            for key in re_used_keys:
+                G_key = path.join(key, 'G')
+                dG_key = path.join(key, 'dG')
+                Gs[G_key] = ndarray[G_key]
+                dGs[dG_key] = ndarray[dG_key]
+            self._Gs = np.concatenate([v for k, v in sorted(Gs.items())], axis=2).astype(np.float32)
+            self._dGs = np.concatenate([v for k, v in sorted(dGs.items())], axis=2).astype(np.float32)
+
+            if new_keys and save:
+                for key in no_used_keys:
                     G_key = path.join(key, 'G')
                     dG_key = path.join(key, 'dG')
                     Gs[G_key] = ndarray[G_key]
                     dGs[dG_key] = ndarray[dG_key]
-                if new_keys:
-                    pprint('done')
-                self._Gs = np.concatenate([v for k, v in sorted(Gs.items())], axis=2).astype(np.float32)
-                self._dGs = np.concatenate([v for k, v in sorted(dGs.items())], axis=2).astype(np.float32)
-                if new_keys:
-                    for key in no_used_keys:
-                        G_key = path.join(key, 'G')
-                        dG_key = path.join(key, 'dG')
-                        Gs[G_key] = ndarray[G_key]
-                        dGs[dG_key] = ndarray[dG_key]
-                    np.savez(SF_file, **{'nsample': self._nsample, **Gs, **dGs})
+                np.savez(SF_file, **{'nsample': self._nsample, **Gs, **dGs})
 
-            else:
-                pprint('1)save flag off, or 2){} not found.\n'
-                       'calculate symmetry functions from scratch in this time.'.format(SF_file))
-                keys, _, _ = self._check_uncalculated_keys()
-                stg.mpi.comm.bcast(keys, root=0)
-                pprint('making {} ... '.format(SF_file), end='')
-                for key, G_send, dG_send in self._calculate_symmetry_function(keys):
-                    G = np.empty((self._nsample,) + G_send.shape[1:])
-                    dG = np.empty((self._nsample,) + dG_send.shape[1:])
-                    stg.mpi.comm.Gatherv(G_send, (G, (count * G[0].size, None), MPI.DOUBLE), root=0)
-                    stg.mpi.comm.Gatherv(dG_send, (dG, (count * dG[0].size, None), MPI.DOUBLE), root=0)
-                    Gs[path.join(key, 'G')] = G
-                    dGs[path.join(key, 'dG')] = dG
-                pprint('done')
-                self._Gs = np.concatenate([v for k, v in sorted(Gs.items())], axis=2).astype(np.float32)
-                self._dGs = np.concatenate([v for k, v in sorted(dGs.items())], axis=2).astype(np.float32)
-                if save:
-                    np.savez(SF_file, **{'nsample': self._nsample, **Gs, **dGs})
-
-    def _check_uncalculated_keys(self, existing_keys=set()):
+    def _check_uncalculated_keys(self, existing_keys=None):
+        if existing_keys is None:
+            existing_keys = set()
         required_keys = set()
         for Rc in stg.dataset.Rc:
             key = path.join(*map(str, ['type1', Rc]))
@@ -414,12 +402,12 @@ class AtomicStructureDataset(object):
 
 
 class DataGenerator(object):
-    def __init__(self, data_file, format, **kwargs):
+    def __init__(self, data_file, format):
         self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         if format == 'xyz':
             self._construct_datasets(data_file)
         elif format == 'poscar':
-            dataset = AtomicStructureDataset(data_file, format, **kwargs)
+            dataset = AtomicStructureDataset(data_file, format)
             self._preproc.load(path.join(stg.file.out_dir, 'preproc.npz'))
             self._preproc.decompose(dataset)
             self._datasets = [dataset]
@@ -465,20 +453,22 @@ class DataGenerator(object):
 
         self._datasets = []
         elements = set()
-        for required_cnf in stg.dataset.config:
-            for config in filter(lambda cnf: match(required_cnf, cnf) or required_cnf == 'all', config_type):
-                pprint('Construct dataset of configuration type: {}'.format(config))
+        required_config = sorted(config_type) if 'all' in stg.dataset.config else stg.dataset.config
+        for config in required_config:
+            if config not in config_type:
+                continue
+            pprint('Construct dataset of configuration type: {}'.format(config))
 
-                parsed_xyz = path.join(data_dir, config, 'structure.xyz')
-                dataset = AtomicStructureDataset(parsed_xyz, 'xyz')
-                if stg.mpi.rank == 0:
-                    self._preproc.decompose(dataset)
-                stg.mpi.comm.Barrier()
+            parsed_xyz = path.join(data_dir, config, 'structure.xyz')
+            dataset = AtomicStructureDataset(parsed_xyz, 'xyz')
+            if stg.mpi.rank == 0:
+                self._preproc.decompose(dataset)
+            stg.mpi.comm.Barrier()
 
-                dataset = scatter_dataset(dataset)
-                self._datasets.append(dataset)
-                elements.update(dataset.composition['element'])
-                pprint('')
+            dataset = scatter_dataset(dataset)
+            self._datasets.append(dataset)
+            elements.update(dataset.composition['element'])
+            pprint('')
         self._elements = sorted(elements)
         stg.dataset.nsample = sum([d.nsample for d in self._datasets])
 

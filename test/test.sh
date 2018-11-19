@@ -4,6 +4,8 @@ set -euxp
 mpirun="mpirun -np 2"
 hdnnpy="hdnnpy"
 
+rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle,Symmetry_Function.npz} output/ __pycache__/
+
 rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
 ${hdnnpy} sym_func
 

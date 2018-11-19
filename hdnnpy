@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from modules import settings as stg
+
 import csv
 import shutil
 import traceback
@@ -13,12 +15,10 @@ import chainer
 import chainer.training.extensions as ext
 import chainermn
 
-from modules import settings as stg
-from modules import hdnnp
 from modules.data import DataGenerator
 from modules.model import SingleNNP, HDNNP
 from modules.updater import HDUpdater
-from modules.util import pprint, mkdir, flatten_dict, dump_result, dump_lammps
+from modules.util import pprint, mkdir, flatten_dict, set_hyperparameter, dump_result, dump_lammps
 from modules.chainer_extensions import Evaluator
 from modules.chainer_extensions import set_log_scale
 from modules.chainer_extensions import scatter_plot
@@ -93,7 +93,7 @@ def main():
 
     elif stg.args.mode == 'optimize':
         name = path.splitext(path.split(stg.args.masters)[1])[0]
-        _, energy, forces = predict(save=False)
+        _, energy, forces = predict()
         nsample = len(energy)
         energy = energy.data.reshape(-1)
         forces = np.sqrt((forces.data ** 2).mean(axis=(1, 2)))
@@ -127,7 +127,7 @@ def objective_func(**params):
     for i, (dataset, elements) in enumerate(
             generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
         _, result = training(dataset, elements, output=False)
-        results.append(result[stg.model.metrics])
+        results.append(result['observation'][-1][stg.model.metrics])
     avg = sum(results) / stg.skopt.kfold
     pprint(params)
     pprint('result: {}\n'.format(avg))
@@ -204,8 +204,8 @@ def training(dataset, elements, output=True):
     return masters, result
 
 
-def predict(save=True):
-    generator = DataGenerator(stg.args.poscar, 'poscar', save=save)
+def predict():
+    generator = DataGenerator(stg.args.poscar, 'poscar')
     dataset, elements = generator()
     masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
     chainer.serializers.load_npz(stg.args.masters, masters)
