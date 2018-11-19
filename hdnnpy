@@ -3,12 +3,9 @@
 
 
 import csv
-import yaml
 import shutil
 import traceback
 from os import path
-from glob import glob
-from datetime import datetime
 from skopt import gp_minimize
 from skopt.utils import use_named_args
 import numpy as np
@@ -17,117 +14,102 @@ import chainer
 from modules import settings as stg
 from modules import hdnnp
 from modules.data import DataGenerator
-from modules.preproc import PREPROC
-from modules.util import pprint, mkdir, write
+from modules.util import pprint, mkdir, dump_result, dump_lammps
 
 
 def main():
-    assert stg.args['mode'] in ['training', 'param_search', 'sym_func', 'test', 'phonon', 'optimize']
-    mkdir(stg.file['out_dir'])
+    assert stg.args.mode in ['training', 'param_search', 'sym_func', 'test', 'phonon', 'optimize']
+    mkdir(stg.file.out_dir)
 
-    if stg.args['mode'] in ['training', 'param_search']:
-        result_file = path.join(stg.file['out_dir'], 'result.yaml')
-
+    if stg.args.mode in ['training', 'param_search']:
         try:
-            if stg.args['mode'] == 'training':
-                preproc = PREPROC[stg.model['preproc']](stg.model['input_size'])
-                generator = DataGenerator(preproc)
-                dataset, elements = generator.holdout(ratio=stg.file['ratio'])
-                masters, result = hdnnp.training(stg.model, dataset, elements)
-                if stg.mpi['rank'] == 0:
-                    preproc.save(path.join(stg.file['out_dir'], 'preproc.npz'))
-                    chainer.serializers.save_npz(path.join(stg.file['out_dir'], 'masters.npz'), masters)
-                    hdnnp.dump(stg.model, path.join(stg.file['out_dir'], 'lammps.nnp'), preproc, masters)
-                    write(result_file, yaml.dump({
-                        'args': stg.args,
-                        'file': {'nsample': len(generator), **stg.file},
-                        'sym_func': stg.sym_func,
-                        'model': stg.model,
-                        'result': result,
-                    }, default_flow_style=False))
 
-            elif stg.args['mode'] == 'param_search':
-                @use_named_args(stg.skopt['space'])
+            if stg.args.mode == 'training':
+                generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+                dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
+                masters, result = hdnnp.training(dataset, elements)
+                if stg.mpi.rank == 0:
+                    generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
+                    dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
+                    dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
+
+            elif stg.args.mode == 'param_search':
+                @use_named_args(stg.skopt.space)
                 def objective_func(**params):
-                    model_hp = stg.model.copy()
                     for key, value in params.items():
                         value = value if isinstance(value, str) else value.item()
                         if key in ['node', 'activation']:
-                            for layer in model_hp['layer'][:-1]:
+                            for layer in stg.model.layer[:-1]:
                                 layer[key] = value
-                        else:
-                            model_hp[key] = value
+                        elif key in dir(stg.dataset):
+                            setattr(stg.dataset, key, value)
+                        elif key in dir(stg.model):
+                            setattr(stg.model, key, value)
 
                     results = []
-                    preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
-                    generator = DataGenerator(preproc)
+                    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
                     for i, (dataset, elements) in enumerate(
-                            generator.cross_validation(ratio=stg.file['ratio'], kfold=stg.skopt['kfold'])):
-                        _, result = hdnnp.training(model_hp, dataset, elements, output=False)
-                        results.append(result[stg.model['metrics']])
-                    avg = sum(results) / stg.skopt['kfold']
+                            generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
+                        _, result = hdnnp.training(dataset, elements, output=False)
+                        results.append(result[stg.model.metrics])
+                    avg = sum(results) / stg.skopt.kfold
                     pprint(params)
                     pprint('result: {}\n'.format(avg))
                     return avg
 
                 seed = np.random.get_state()[1][0]
-                seed = stg.mpi['comm'].bcast(seed, root=0)
-                res = gp_minimize(objective_func, stg.skopt['space'],
-                                  n_random_starts=stg.skopt['init_num'],
-                                  n_calls=stg.skopt['max_num'],
-                                  acq_func=stg.skopt['acq_func'],
+                seed = stg.mpi.comm.bcast(seed, root=0)
+                res = gp_minimize(objective_func, stg.skopt.space,
+                                  n_random_starts=stg.skopt.init_num,
+                                  n_calls=stg.skopt.max_num,
+                                  acq_func=stg.skopt.acq_func,
                                   random_state=seed,
-                                  verbose=stg.args['verbose'],
-                                  callback=stg.skopt['callback'])
+                                  verbose=stg.args.verbose,
+                                  callback=stg.skopt.callback)
 
-                model_hp = stg.model.copy()
-                for space, value in zip(stg.skopt['space'], res.x):
+                for space, value in zip(stg.skopt.space, res.x):
                     value = value if isinstance(value, str) else value.item()
                     if space.name in ['node', 'activation']:
-                        for layer in model_hp['layer'][:-1]:
+                        for layer in stg.model.layer[:-1]:
                             layer[space.name] = value
-                    else:
-                        model_hp[space.name] = value
-                preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
-                generator = DataGenerator(preproc)
-                dataset, elements = generator.holdout(ratio=stg.file['ratio'])
-                masters, result = hdnnp.training(model_hp, dataset, elements)
-                if stg.mpi['rank'] == 0:
-                    with open(path.join(stg.file['out_dir'], 'skopt_result.csv'), 'w') as f:
+                    elif space.name in dir(stg.dataset):
+                        setattr(stg.dataset, space.name, value)
+                    elif space.name in dir(stg.model):
+                        setattr(stg.model, space.name, value)
+                generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+                dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
+                masters, result = hdnnp.training(dataset, elements)
+                if stg.mpi.rank == 0:
+                    with open(path.join(stg.file.out_dir, 'skopt_result.csv'), 'w') as f:
                         writer = csv.writer(f, lineterminator='\n')
-                        writer.writerow([space.name for space in stg.skopt['space']] + ['score'])
+                        writer.writerow([space.name for space in stg.skopt.space] + ['score'])
                         writer.writerows([x + [fun] for x, fun in zip(res.x_iters, res.func_vals)])
-                    preproc.save(path.join(stg.file['out_dir'], 'preproc.npz'))
-                    chainer.serializers.save_npz(path.join(stg.file['out_dir'], 'masters.npz'), masters)
-                    hdnnp.dump(model_hp, path.join(stg.file['out_dir'], 'lammps.nnp'), preproc, masters)
-                    write(result_file, yaml.dump({
-                        'args': stg.args,
-                        'file': {'nsample': len(generator), **stg.file},
-                        'sym_func': stg.sym_func,
-                        'model': model_hp,
-                        'result': result,
-                    }, default_flow_style=False))
+                    generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
+                    dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
+                    dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
 
         except:
-            pprint(traceback.format_exc())
+            if stg.mpi.rank == 0:
+                traceback.print_exc()
         else:
-            shutil.copy('./settings.py', path.join(stg.file['out_dir'], 'settings.py'))
+            shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
 
-    elif stg.args['mode'] in ['sym_func']:
-        preproc = PREPROC[None](stg.model['input_size'])
-        for _ in DataGenerator(preproc).holdout(ratio=stg.file['ratio']):
-            pass
+    elif stg.args.mode in ['sym_func']:
+        stg.dataset.preproc = None
+        DataGenerator(stg.dataset.xyz_file, 'xyz')
 
-    elif stg.args['mode'] in ['test', 'phonon', 'optimize']:
-        if stg.args['mode'] == 'test':
+    elif stg.args.mode in ['test', 'phonon', 'optimize']:
+        if stg.args.mode == 'test':
             _, energy, force = hdnnp.predict()
             pprint('energy:\n{}'.format(energy.data))
             pprint('force:\n{}'.format(force.data))
-        elif stg.args['mode'] == 'phonon':
+        elif stg.args.mode == 'phonon':
             hdnnp.phonon()
             shutil.copy('./phonopy_settings.py',
-                        path.join(stg.file['out_dir'], 'phonopy_settings.py'))
-        elif stg.args['mode'] == 'optimize':
+                        path.join(stg.file.out_dir, 'phonopy_settings.py'))
+        elif stg.args.mode == 'optimize':
             e_scale, f_scale = hdnnp.optimize()
             pprint('energy-optimized lattice parameter: {}'.format(e_scale))
             pprint('force-optimized lattice parameter: {}'.format(f_scale))

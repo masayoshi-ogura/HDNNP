@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from phonopy.units import VaspToCm
 
 dimensions = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]

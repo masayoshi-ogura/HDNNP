@@ -38,19 +38,17 @@ class PCA(PreprocBase):
         return self._components
 
     def load(self, filename):
-        if path.exists(filename):
-            with np.load(filename) as ndarray:
-                elements = ndarray['elements']
-                self._mean = {element: ndarray['mean/{}'.format(element)] for element in elements}
-                self._components = {element: ndarray['components/{}'.format(element)] for element in elements}
-                self._elements += list(elements)
+        with np.load(filename) as ndarray:
+            elements = ndarray['elements']
+            self._mean = {element: ndarray['mean/{}'.format(element)] for element in elements}
+            self._components = {element: ndarray['components/{}'.format(element)] for element in elements}
+            self._elements += list(elements)
 
     def save(self, filename):
-        if not path.exists(filename):
-            mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.items()}
-            components_dict = {'components/{}'.format(k): v for k, v in self._components.items()}
-            dic = {'elements': self._elements, **mean_dict, **components_dict}
-            np.savez(filename, **dic)
+        mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.items()}
+        components_dict = {'components/{}'.format(k): v for k, v in self._components.items()}
+        dic = {'elements': self._elements, **mean_dict, **components_dict}
+        np.savez(filename, **dic)
 
     def decompose(self, dataset):
         for element in dataset.composition['element']:
