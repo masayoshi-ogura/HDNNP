@@ -23,24 +23,21 @@ from modules.util import pprint, mkdir, write
 
 def main():
     assert stg.args['mode'] in ['training', 'param_search', 'sym_func', 'test', 'phonon', 'optimize']
+    mkdir(stg.file['out_dir'])
 
     if stg.args['mode'] in ['training', 'param_search']:
-        datestr = datetime.now().strftime('%m%d-%H%M%S')
-        out_dir = path.join(stg.file['out_dir'], datestr)
-        out_dir = stg.mpi['comm'].bcast(out_dir, root=0)
-        result_file = path.join(out_dir, 'result.yaml')
-        mkdir(out_dir)
+        result_file = path.join(stg.file['out_dir'], 'result.yaml')
 
         try:
             if stg.args['mode'] == 'training':
                 preproc = PREPROC[stg.model['preproc']](stg.model['input_size'])
                 generator = DataGenerator(preproc)
                 dataset, elements = generator.holdout(ratio=stg.file['ratio'])
-                masters, result = hdnnp.training(stg.model, dataset, elements, out_dir)
+                masters, result = hdnnp.training(stg.model, dataset, elements)
                 if stg.mpi['rank'] == 0:
-                    preproc.save(path.join(out_dir, 'preproc.npz'))
-                    chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
-                    hdnnp.dump(stg.model, path.join(out_dir, 'lammps.nnp'), preproc, masters)
+                    preproc.save(path.join(stg.file['out_dir'], 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(stg.file['out_dir'], 'masters.npz'), masters)
+                    hdnnp.dump(stg.model, path.join(stg.file['out_dir'], 'lammps.nnp'), preproc, masters)
                     write(result_file, yaml.dump({
                         'args': stg.args,
                         'file': {'nsample': len(generator), **stg.file},
@@ -66,7 +63,7 @@ def main():
                     generator = DataGenerator(preproc)
                     for i, (dataset, elements) in enumerate(
                             generator.cross_validation(ratio=stg.file['ratio'], kfold=stg.skopt['kfold'])):
-                        _, result = hdnnp.training(model_hp, dataset, elements, out_dir, output=False)
+                        _, result = hdnnp.training(model_hp, dataset, elements, output=False)
                         results.append(result[stg.model['metrics']])
                     avg = sum(results) / stg.skopt['kfold']
                     pprint(params)
@@ -94,15 +91,15 @@ def main():
                 preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
                 generator = DataGenerator(preproc)
                 dataset, elements = generator.holdout(ratio=stg.file['ratio'])
-                masters, result = hdnnp.training(model_hp, dataset, elements, out_dir)
+                masters, result = hdnnp.training(model_hp, dataset, elements)
                 if stg.mpi['rank'] == 0:
-                    with open(path.join(out_dir, 'skopt_result.csv'), 'w') as f:
+                    with open(path.join(stg.file['out_dir'], 'skopt_result.csv'), 'w') as f:
                         writer = csv.writer(f, lineterminator='\n')
                         writer.writerow([space.name for space in stg.skopt['space']] + ['score'])
                         writer.writerows([x + [fun] for x, fun in zip(res.x_iters, res.func_vals)])
-                    preproc.save(path.join(out_dir, 'preproc.npz'))
-                    chainer.serializers.save_npz(path.join(out_dir, 'masters.npz'), masters)
-                    hdnnp.dump(model_hp, path.join(out_dir, 'lammps.nnp'), preproc, masters)
+                    preproc.save(path.join(stg.file['out_dir'], 'preproc.npz'))
+                    chainer.serializers.save_npz(path.join(stg.file['out_dir'], 'masters.npz'), masters)
+                    hdnnp.dump(model_hp, path.join(stg.file['out_dir'], 'lammps.nnp'), preproc, masters)
                     write(result_file, yaml.dump({
                         'args': stg.args,
                         'file': {'nsample': len(generator), **stg.file},
@@ -112,11 +109,9 @@ def main():
                     }, default_flow_style=False))
 
         except:
-            if stg.mpi['rank'] == 0:
-                pprint(traceback.format_exc())
-                shutil.rmtree(out_dir)
+            pprint(traceback.format_exc())
         else:
-            shutil.copy('./modules/settings.py', path.join(out_dir, 'settings.py'))
+            shutil.copy('./settings.py', path.join(stg.file['out_dir'], 'settings.py'))
 
     elif stg.args['mode'] in ['sym_func']:
         preproc = PREPROC[None](stg.model['input_size'])
@@ -124,25 +119,18 @@ def main():
             pass
 
     elif stg.args['mode'] in ['test', 'phonon', 'optimize']:
-        masters_paths = stg.args['masters'] if stg.args['masters'] \
-            else sorted(glob(path.join(stg.file['out_dir'], '*', 'masters.npz')))[-1:]
-        poscar = path.join(stg.file['test_dir'], 'POSCAR')
-        for masters_path in masters_paths:
-            with open(path.join(path.dirname(masters_path), 'result.yaml')) as f:
-                stg_yaml = yaml.load(f)
-                sf_hp = stg_yaml['sym_func']
-                model_hp = stg_yaml['model']
-            if stg.args['mode'] == 'test':
-                _, energy, force = hdnnp.predict(sf_hp, model_hp, masters_path, poscar)
-                pprint('energy:\n{}'.format(energy.data))
-                pprint('force:\n{}'.format(force.data))
-            elif stg.args['mode'] == 'phonon':
-                hdnnp.phonon(sf_hp, model_hp, masters_path, poscar)
-                shutil.copy('./modules/phonopy_settings.py', path.join(path.dirname(masters_path), 'phonopy_settings.py'))
-            elif stg.args['mode'] == 'optimize':
-                e_scale, f_scale = hdnnp.optimize(sf_hp, model_hp, masters_path, poscar)
-                pprint('energy-optimized lattice parameter: {}'.format(e_scale))
-                pprint('force-optimized lattice parameter: {}'.format(f_scale))
+        if stg.args['mode'] == 'test':
+            _, energy, force = hdnnp.predict()
+            pprint('energy:\n{}'.format(energy.data))
+            pprint('force:\n{}'.format(force.data))
+        elif stg.args['mode'] == 'phonon':
+            hdnnp.phonon()
+            shutil.copy('./phonopy_settings.py',
+                        path.join(stg.file['out_dir'], 'phonopy_settings.py'))
+        elif stg.args['mode'] == 'optimize':
+            e_scale, f_scale = hdnnp.optimize()
+            pprint('energy-optimized lattice parameter: {}'.format(e_scale))
+            pprint('force-optimized lattice parameter: {}'.format(f_scale))
 
 
 if __name__ == '__main__':

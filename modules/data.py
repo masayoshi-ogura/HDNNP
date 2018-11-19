@@ -19,7 +19,7 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from . import settings as stg
-from . import phonopy_settings as ph_stg
+import phonopy_settings as ph_stg
 from .util import pprint, mkdir
 
 
@@ -47,9 +47,8 @@ def memorize(f):
 
 
 class AtomicStructureDataset(object):
-    def __init__(self, hp, filename, file_format, save=True):
+    def __init__(self, filename, file_format, save=True):
         assert file_format in ['xyz', 'POSCAR']
-        self._hp = hp
         if file_format == 'xyz':
             self._load_xyz(filename)
         elif file_format == 'POSCAR':
@@ -306,13 +305,14 @@ class AtomicStructureDataset(object):
 
     def _check_uncalculated_keys(self, existing_keys=set()):
         required_keys = set()
-        for Rc in self._hp['Rc']:
+        for Rc in stg.sym_func['Rc']:
             key = path.join(*map(str, ['type1', Rc]))
             required_keys.add(key)
-        for Rc, eta, Rs in product(self._hp['Rc'], self._hp['eta'], self._hp['Rs']):
+        for Rc, eta, Rs in product(stg.sym_func['Rc'], stg.sym_func['eta'], stg.sym_func['Rs']):
             key = path.join(*map(str, ['type2', Rc, eta, Rs]))
             required_keys.add(key)
-        for Rc, eta, lambda_, zeta in product(self._hp['Rc'], self._hp['eta'], self._hp['lambda_'], self._hp['zeta']):
+        for Rc, eta, lambda_, zeta in product(stg.sym_func['Rc'], stg.sym_func['eta'],
+                                              stg.sym_func['lambda_'], stg.sym_func['zeta']):
             key = path.join(*map(str, ['type4', Rc, eta, lambda_, zeta]))
             required_keys.add(key)
         new_keys = sorted(required_keys - existing_keys)
@@ -468,7 +468,7 @@ class DataGenerator(object):
                 pprint('Construct dataset of configuration type: {}'.format(config))
 
                 parsed_xyz = path.join(data_dir, config, 'structure.xyz')
-                dataset = AtomicStructureDataset(stg.sym_func, parsed_xyz, 'xyz')
+                dataset = AtomicStructureDataset(parsed_xyz, 'xyz')
                 if stg.mpi['rank'] == 0:
                     self._preproc.decompose(dataset)
                 stg.mpi['comm'].Barrier()

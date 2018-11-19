@@ -28,14 +28,10 @@ def get_parser():
     ps_parser.set_defaults(verbose=False)
 
     # test mode
-    test_parser.add_argument('--masters', '-m', nargs='*', type=str,
-                             help='trained master models for phonon calculation.\n'
-                                  'default: "masters.npz" in the latest output directory')
-    phonon_parser.add_argument('--masters', '-m', nargs='*', type=str,
-                               help='trained master models for phonon calculation.\n'
-                                    'default: "masters.npz" in the latest output directory')
-    optimize_parser.add_argument('--masters', '-m', nargs='*', type=str,
-                                 help='trained master models for phonon calculation.\n'
-                                      'default: "masters.npz" in the latest output directory')
+    for p in [test_parser, phonon_parser, optimize_parser]:
+        p.add_argument('--poscar', '-p', required=True, type=str,
+                       help='POSCAR file used for postprocess calculation.')
+        p.add_argument('--masters', '-m', required=True, type=str,
+                       help='trained masters model used for postprocess calculation.')
 
     return parser.parse_args()

@@ -10,7 +10,7 @@ import chainermn
 
 # import own modules
 from . import settings as stg
-from . import phonopy_settings as ph_stg
+import phonopy_settings as ph_stg
 from .data import AtomicStructureDataset
 from .preproc import PREPROC
 from .model import SingleNNP, HDNNP
@@ -21,7 +21,7 @@ from .chainer_extensions import set_log_scale
 from .chainer_extensions import scatter_plot
 
 
-def training(model_hp, dataset, elements, out_dir, output=True):
+def training(model_hp, dataset, elements, output=True):
     trainer = None
     time = 0
 
@@ -48,7 +48,7 @@ def training(model_hp, dataset, elements, out_dir, output=True):
         # updater and trainer
         updater = HDUpdater(iterator=train_iter, device=stg.mpi['gpu'],
                             optimizer={'main': main_opt, 'master': master_opt})
-        trainer = chainer.training.Trainer(updater, (model_hp['epoch'], 'epoch'), out=out_dir)
+        trainer = chainer.training.Trainer(updater, (model_hp['epoch'], 'epoch'), out=stg.file['out_dir'])
 
         # extensions
         trainer.extend(ext.ExponentialShift('alpha', 1 - model_hp['lr_decay'],
@@ -83,7 +83,8 @@ def training(model_hp, dataset, elements, out_dir, output=True):
         except KeyboardInterrupt:
             if stg.mpi['rank'] == 0:
                 pprint('stop {} training by Keyboard Interrupt!'.format(config))
-                chainer.serializers.save_npz(path.join(out_dir, '{}_masters_snapshot.npz'.format(config)), masters)
+                chainer.serializers.save_npz(path.join(stg.file['out_dir'], '{}_masters_snapshot.npz'.format(config)),
+                                             masters)
         time += trainer.elapsed_time
 
     result = {'input': masters[0].l0.W.shape[1], 'elapsed_time': time}
@@ -91,24 +92,23 @@ def training(model_hp, dataset, elements, out_dir, output=True):
     return masters, result
 
 
-def predict(sf_hp, model_hp, masters_path, poscar, save=True):
-    dataset = AtomicStructureDataset(sf_hp, poscar, 'POSCAR', save=save)
-    preproc = PREPROC[model_hp['preproc']](model_hp['input_size'])
-    preproc.load(path.join(path.dirname(masters_path), 'preproc.npz'))
+def predict(save=True):
+    dataset = AtomicStructureDataset(stg.args['poscar'], 'POSCAR', save=save)
+    preproc = PREPROC[stg.model['preproc']](stg.model['input_size'])
+    preproc.load(path.join(stg.file['out_dir'], 'preproc.npz'))
     preproc.decompose(dataset)
-    masters = chainer.ChainList(*[SingleNNP(model_hp, element)
+    masters = chainer.ChainList(*[SingleNNP(stg.model, element)
                                   for element in dataset.composition['element']])
-    chainer.serializers.load_npz(masters_path, masters)
-    hdnnp = HDNNP(model_hp, dataset.composition)
+    chainer.serializers.load_npz(stg.args['masters'], masters)
+    hdnnp = HDNNP(stg.model, dataset.composition)
     hdnnp.sync_param_with(masters)
     energy, force = hdnnp.predict(dataset.input, dataset.dinput)
     return dataset, energy, force
 
 
-def optimize(sf_hp, model_hp, masters_path, poscar):
-    dirname, basename = path.split(masters_path)
-    root, _ = path.splitext(basename)
-    _, energy, force = predict(sf_hp, model_hp, masters_path, poscar, save=False)
+def optimize():
+    name = path.splitext(path.split(stg.args['masters'])[1])[0]
+    _, energy, force = predict(save=False)
     nsample = len(energy)
     energy = energy.data.reshape(-1)
     force = np.sqrt((force.data ** 2).mean(axis=(1, 2)))
@@ -116,16 +116,15 @@ def optimize(sf_hp, model_hp, masters_path, poscar):
     plt.plot(x, energy, label='energy')
     plt.plot(x, force, label='force')
     plt.legend()
-    plt.savefig(path.join(dirname, 'optimization_{}.png'.format(root)))
+    plt.savefig(path.join(stg.file['out_dir'], 'optimization_{}.png'.format(name)))
     plt.close()
     return x[np.argmin(energy)], x[np.argmin(force)]
 
 
-def phonon(sf_hp, model_hp, masters_path, poscar):
+def phonon():
     pprint('drawing phonon band structure ... ', end='')
-    dirname, basename = path.split(masters_path)
-    root, _ = path.splitext(basename)
-    dataset, _, force = predict(sf_hp, model_hp, masters_path, poscar)
+    name = path.splitext(path.split(stg.args['masters'])[1])[0]
+    dataset, _, force = predict()
     sets_of_forces = force.data
     phonopy = dataset.phonopy
     phonopy.set_forces(sets_of_forces)
@@ -138,7 +137,7 @@ def phonon(sf_hp, model_hp, masters_path, poscar):
     phonopy.set_band_structure(bands, is_band_connection=True)
     phonopy_plt = phonopy.plot_band_structure_and_dos(labels=ph_stg.labels)
     ph_stg.callback(phonopy_plt.gcf().axes[0])
-    phonopy_plt.savefig(path.join(dirname, 'ph_band_HDNNP_{}.png'.format(root)))
+    phonopy_plt.savefig(path.join(stg.file['out_dir'], 'ph_band_HDNNP_{}.png'.format(name)))
     phonopy_plt.close()
     pprint('done')
 
