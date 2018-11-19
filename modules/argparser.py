@@ -11,9 +11,8 @@ def get_parser():
     training_parser = subparsers.add_parser('training', help='see `training -h`')
     ps_parser = subparsers.add_parser('param_search', help='see `param_search -h`')
     sf_parser = subparsers.add_parser('sym_func', help='see `sym_func -h`')
-    test_parser = subparsers.add_parser('test', help='see `test -h`')
+    prediction_parser = subparsers.add_parser('prediction', help='see `prediction -h`')
     phonon_parser = subparsers.add_parser('phonon', help='see `phonon -h`')
-    optimize_parser = subparsers.add_parser('optimize', help='see `optimize -h`')
 
     # training mode
     training_parser.add_argument('--verbose', '-v', action='store_true',
@@ -28,7 +27,7 @@ def get_parser():
     ps_parser.set_defaults(verbose=False)
 
     # test mode
-    for p in [test_parser, phonon_parser, optimize_parser]:
+    for p in [prediction_parser, phonon_parser]:
         p.add_argument('--poscar', '-p', required=True, type=str,
                        help='POSCAR file used for postprocess calculation.')
         p.add_argument('--masters', '-m', required=True, type=str,

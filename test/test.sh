@@ -2,7 +2,7 @@
 set -euxp
 
 mpirun="mpirun -np 2"
-hdnnpy="hdnnpy"
+hdnnpy="python -W ignore ../hdnnpy"
 
 rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle,Symmetry_Function.npz} output/ __pycache__/
 
@@ -28,8 +28,6 @@ ${hdnnpy} training --verbose
 
 ${mpirun} ${hdnnpy} training --verbose
 
-${hdnnpy} test --poscar data/POSCAR --masters output/masters.npz
+${hdnnpy} prediction --poscar data/POSCAR --masters output/masters.npz
 
 ${hdnnpy} phonon --poscar data/POSCAR --masters output/masters.npz
-
-${hdnnpy} optimize --poscar data/POSCAR --masters output/masters.npz

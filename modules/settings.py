@@ -40,7 +40,7 @@ class defaults:
 
 
 def import_user_settings(args):
-    if args.mode in ['test', 'phonon', 'optimize']:
+    if args.mode in ['prediction', 'phonon']:
         sys.path.insert(0, os.path.dirname(args.masters))
     else:
         sys.path.insert(0, os.getcwd())

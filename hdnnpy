@@ -9,7 +9,6 @@ import traceback
 from os import path
 from skopt import gp_minimize
 from skopt.utils import use_named_args
-import matplotlib.pyplot as plt
 import numpy as np
 import chainer
 import chainer.training.extensions as ext
@@ -25,7 +24,7 @@ from modules.chainer_extensions import scatter_plot
 
 
 def main():
-    assert stg.args.mode in ['training', 'param_search', 'sym_func', 'test', 'phonon', 'optimize']
+    assert stg.args.mode in ['training', 'param_search', 'sym_func', 'prediction', 'phonon']
     mkdir(stg.file.out_dir)
 
     if stg.args.mode == 'training':
@@ -70,7 +69,7 @@ def main():
         stg.dataset.preproc = None
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
-    elif stg.args.mode == 'test':
+    elif stg.args.mode == 'prediction':
         _, energy, forces = predict()
         pprint('energy:\n{}'.format(energy.data))
         pprint('forces:\n{}'.format(forces.data))
@@ -90,20 +89,6 @@ def main():
         pprint('done')
 
         shutil.copy('./phonopy_settings.py', path.join(stg.file.out_dir, 'phonopy_settings.py'))
-
-    elif stg.args.mode == 'optimize':
-        name = path.splitext(path.split(stg.args.masters)[1])[0]
-        _, energy, forces = predict()
-        nsample = len(energy)
-        energy = energy.data.reshape(-1)
-        forces = np.sqrt((forces.data ** 2).mean(axis=(1, 2)))
-        x = np.linspace(0.9, 1.1, nsample)
-        plt.plot(x, energy, label='energy')
-        plt.plot(x, forces, label='forces')
-        plt.legend()
-        plt.savefig(path.join(stg.file.out_dir, 'optimization_{}.png'.format(name)))
-        pprint('energy-optimized lattice parameter: {}'.format(x[np.argmin(energy)]))
-        pprint('forces-optimized lattice parameter: {}'.format(x[np.argmin(forces)]))
 
 
 def main_training():

@@ -154,13 +154,13 @@ class AtomicStructureDataset(object):
         del self._atoms
 
     def _load_poscar(self, poscar):
-        assert stg.args.mode in ['test', 'phonon', 'optimize']
+        assert stg.args.mode in ['prediction', 'phonon']
 
         data_dir = path.dirname(poscar)
         self._config = path.basename(data_dir)
         unitcell = read(poscar, format='vasp')
         atoms = []
-        if stg.args.mode == 'test':
+        if stg.args.mode == 'prediction':
             atoms.append(unitcell)
         elif stg.args.mode == 'phonon':
             unitcell = PhonopyAtoms(cell=unitcell.cell,
@@ -176,11 +176,6 @@ class AtomicStructureDataset(object):
                            cell=phonopy_at.get_cell(),
                            pbc=True)
                 atoms.append(at)
-        elif stg.args.mode == 'optimize':
-            for k in np.linspace(0.9, 1.1, 201):
-                supercell = unitcell.copy()
-                supercell.set_cell(unitcell.cell * k, scale_atoms=True)
-                atoms.append(supercell)
 
         symbols = atoms[0].get_chemical_symbols()
         self._composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
