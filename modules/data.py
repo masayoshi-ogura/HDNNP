@@ -167,13 +167,10 @@ class AtomicStructureDataset(object):
             unitcell = PhonopyAtoms(cell=unitcell.cell,
                                     positions=unitcell.positions,
                                     symbols=unitcell.get_chemical_symbols())
-            phonon = Phonopy(unitcell,
-                             stg.phonopy.dimensions,
-                             factor=stg.phonopy.units,
-                             symprec=stg.phonopy.symprec)
-            phonon.generate_displacements(distance=stg.phonopy.distance)
-            supercells = phonon.get_supercells_with_displacements()
-            self._phonopy = phonon
+            phonopy = Phonopy(unitcell, stg.phonopy.dimensions, **stg.phonopy.options)
+            phonopy.generate_displacements(distance=stg.phonopy.distance)
+            supercells = phonopy.get_supercells_with_displacements()
+            self._phonopy = phonopy
             for phonopy_at in supercells:
                 at = Atoms(symbols=phonopy_at.get_chemical_symbols(),
                            positions=phonopy_at.get_positions(),

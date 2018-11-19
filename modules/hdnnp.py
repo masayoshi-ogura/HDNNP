@@ -97,42 +97,35 @@ def predict(save=True):
     chainer.serializers.load_npz(stg.args.masters, masters)
     hdnnp = HDNNP(dataset.composition)
     hdnnp.sync_param_with(masters)
-    energy, force = hdnnp.predict(dataset.input, dataset.dinput)
-    return dataset, energy, force
+    energy, forces = hdnnp.predict(dataset.input, dataset.dinput)
+    return dataset, energy, forces
 
 
 def optimize():
     name = path.splitext(path.split(stg.args.masters)[1])[0]
-    _, energy, force = predict(save=False)
+    _, energy, forces = predict(save=False)
     nsample = len(energy)
     energy = energy.data.reshape(-1)
-    force = np.sqrt((force.data ** 2).mean(axis=(1, 2)))
+    forces = np.sqrt((forces.data ** 2).mean(axis=(1, 2)))
     x = np.linspace(0.9, 1.1, nsample)
     plt.plot(x, energy, label='energy')
-    plt.plot(x, force, label='force')
+    plt.plot(x, forces, label='forces')
     plt.legend()
     plt.savefig(path.join(stg.file.out_dir, 'optimization_{}.png'.format(name)))
     plt.close()
-    return x[np.argmin(energy)], x[np.argmin(force)]
+    return x[np.argmin(energy)], x[np.argmin(forces)]
 
 
 def phonon():
     pprint('drawing phonon band structure ... ', end='')
     name = path.splitext(path.split(stg.args.masters)[1])[0]
-    dataset, _, force = predict()
-    sets_of_forces = force.data
+    dataset, _, forces = predict()
     phonopy = dataset.phonopy
-    phonopy.set_forces(sets_of_forces)
+    phonopy.set_forces(forces.data)
     phonopy.produce_force_constants()
 
-    bands = [np.concatenate([np.linspace(si, ei, stg.phonopy.points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
-             for s, e in zip(stg.phonopy.point_symmetry[:-1], stg.phonopy.point_symmetry[1:])]
-    phonopy.set_mesh(stg.phonopy.mesh)
-    phonopy.set_total_DOS()
-    phonopy.set_band_structure(bands, is_band_connection=True)
-    phonopy_plt = phonopy.plot_band_structure_and_dos(labels=stg.phonopy.labels)
-    if 'callback' in dir(stg.phonopy):
-        stg.phonopy.callback(phonopy_plt.gcf().axes[0])
+    phonopy_plt = stg.phonopy.callback(phonopy)
+
     phonopy_plt.savefig(path.join(stg.file.out_dir, 'ph_band_HDNNP_{}.png'.format(name)))
     phonopy_plt.close()
     pprint('done')

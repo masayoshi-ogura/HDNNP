@@ -116,16 +116,10 @@ def assert_settings(args, stg):
 
 
 def assert_phonopy_settings(stg):
-    assert all(key in dir(stg) for key in ['dimensions', 'units', 'symprec', 'distance', 'mesh'])
-    assert all(key in dir(stg) for key in ['point_symmetry', 'labels', 'points'])
+    assert all(key in dir(stg) for key in ['dimensions', 'options', 'distance', 'callback'])
     assert len(stg.dimensions) == 3 and all(len(d) == 3 for d in stg.dimensions)
-    assert stg.units is not None
-    assert stg.symprec > 0.0
+    assert isinstance(stg.options, dict)
     assert stg.distance > 0.0
-    assert len(stg.mesh) == 3
-    assert all(len(coordinate) == 3 for coordinate in stg.point_symmetry)
-    assert stg.labels is None or len(stg.labels) == len(stg.point_symmetry)
-    assert stg.points > 0
 
 
 args = get_parser()

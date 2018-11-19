@@ -102,9 +102,9 @@ def main():
 
     elif stg.args.mode in ['test', 'phonon', 'optimize']:
         if stg.args.mode == 'test':
-            _, energy, force = hdnnp.predict()
+            _, energy, forces = hdnnp.predict()
             pprint('energy:\n{}'.format(energy.data))
-            pprint('force:\n{}'.format(force.data))
+            pprint('forces:\n{}'.format(forces.data))
         elif stg.args.mode == 'phonon':
             hdnnp.phonon()
             shutil.copy('./phonopy_settings.py',
@@ -112,7 +112,7 @@ def main():
         elif stg.args.mode == 'optimize':
             e_scale, f_scale = hdnnp.optimize()
             pprint('energy-optimized lattice parameter: {}'.format(e_scale))
-            pprint('force-optimized lattice parameter: {}'.format(f_scale))
+            pprint('forces-optimized lattice parameter: {}'.format(f_scale))
 
 
 if __name__ == '__main__':
