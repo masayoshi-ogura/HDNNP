@@ -19,7 +19,6 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from . import settings as stg
-import phonopy_settings as ph_stg
 from .preproc import PREPROC
 from .util import pprint, mkdir
 
@@ -169,10 +168,10 @@ class AtomicStructureDataset(object):
                                     positions=unitcell.positions,
                                     symbols=unitcell.get_chemical_symbols())
             phonon = Phonopy(unitcell,
-                             ph_stg.dimensions,
-                             factor=ph_stg.units,
-                             symprec=ph_stg.symprec)
-            phonon.generate_displacements(distance=ph_stg.distance)
+                             stg.phonopy.dimensions,
+                             factor=stg.phonopy.units,
+                             symprec=stg.phonopy.symprec)
+            phonon.generate_displacements(distance=stg.phonopy.distance)
             supercells = phonon.get_supercells_with_displacements()
             self._phonopy = phonon
             for phonopy_at in supercells:

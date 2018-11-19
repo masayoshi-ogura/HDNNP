@@ -10,9 +10,9 @@ from modules.skopt_callbacks import SamePointStopper
 mpl.use('Agg')
 mpl.rc('font', size=20)
 
-stg.file.out_dir = 'test/output'
+stg.file.out_dir = 'output'
 
-stg.dataset.xyz_file = 'test/data/GaN.xyz'
+stg.dataset.xyz_file = 'data/GaN.xyz'
 # stg.dataset.config = ['all']
 stg.dataset.Rc = [5.0]
 stg.dataset.eta = [0.01, 0.1, 1.0]

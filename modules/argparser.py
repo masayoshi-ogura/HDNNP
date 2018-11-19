@@ -9,8 +9,8 @@ def get_parser():
     subparsers = parser.add_subparsers(dest='mode')
 
     training_parser = subparsers.add_parser('training', help='see `training -h`')
-    ps_parser = subparsers.add_parser('param_search', help='see `training -h`')
-    sf_parser = subparsers.add_parser('sym_func', help='see `sf -h`')
+    ps_parser = subparsers.add_parser('param_search', help='see `param_search -h`')
+    sf_parser = subparsers.add_parser('sym_func', help='see `sym_func -h`')
     test_parser = subparsers.add_parser('test', help='see `test -h`')
     phonon_parser = subparsers.add_parser('phonon', help='see `phonon -h`')
     optimize_parser = subparsers.add_parser('optimize', help='see `optimize -h`')

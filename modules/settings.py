@@ -16,16 +16,6 @@ from chainermn.communicators.mpi_communicator_base import MpiCommunicatorBase
 from .argparser import get_parser
 
 
-def import_user_settings(args):
-    if args.mode in ['test', 'phonon', 'optimize']:
-        sys.path.insert(0, os.path.dirname(args.masters))
-    if not os.path.exists(os.path.join(sys.path[0], 'settings.py')):
-        raise FileNotFoundError('`settings.py` is not found in {}'
-                                .format(os.path.abspath(sys.path[0])))
-    from settings import stg
-    return stg
-
-
 class defaults:
     class file:
         out_dir='output'
@@ -47,6 +37,25 @@ class defaults:
         metrics='validation/main/tot_RMSE'
     class skopt:
         pass
+
+
+def import_user_settings(args):
+    if args.mode in ['test', 'phonon', 'optimize']:
+        sys.path.insert(0, os.path.dirname(args.masters))
+    else:
+        sys.path.insert(0, os.getcwd())
+
+    if not os.path.exists(os.path.join(sys.path[0], 'settings.py')):
+        raise FileNotFoundError('`settings.py` is not found in {}'
+                                .format(os.path.abspath(sys.path[0])))
+    from settings import stg
+    return stg
+
+
+def import_phonopy_settings():
+    sys.path.insert(0, os.getcwd())
+    import phonopy_settings
+    return phonopy_settings
 
 
 def assert_settings(args, stg):
@@ -106,10 +115,26 @@ def assert_settings(args, stg):
         assert stg.skopt.acq_func in ['LCB', 'EI', 'PI', 'gp_hedge', 'Elps', 'Plps']
 
 
+def assert_phonopy_settings(stg):
+    assert all(key in dir(stg) for key in ['dimensions', 'units', 'symprec', 'distance', 'mesh'])
+    assert all(key in dir(stg) for key in ['point_symmetry', 'labels', 'points'])
+    assert len(stg.dimensions) == 3 and all(len(d) == 3 for d in stg.dimensions)
+    assert stg.units is not None
+    assert stg.symprec > 0.0
+    assert stg.distance > 0.0
+    assert len(stg.mesh) == 3
+    assert all(len(coordinate) == 3 for coordinate in stg.point_symmetry)
+    assert stg.labels is None or len(stg.labels) == len(stg.point_symmetry)
+    assert stg.points > 0
+
+
 args = get_parser()
 stg = import_user_settings(args)
-
 assert_settings(args, stg)
+
+if args.mode == 'phonon':
+    phonopy = import_phonopy_settings()
+    assert_phonopy_settings(phonopy)
 
 file = stg.file
 mpi = stg.mpi

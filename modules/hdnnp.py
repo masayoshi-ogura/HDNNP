@@ -10,7 +10,6 @@ import chainermn
 
 # import own modules
 from . import settings as stg
-import phonopy_settings as ph_stg
 from .data import DataGenerator
 from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
@@ -126,13 +125,14 @@ def phonon():
     phonopy.set_forces(sets_of_forces)
     phonopy.produce_force_constants()
 
-    bands = [np.concatenate([np.linspace(si, ei, ph_stg.points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
-             for s, e in zip(ph_stg.point_symmetry[:-1], ph_stg.point_symmetry[1:])]
-    phonopy.set_mesh(ph_stg.mesh)
+    bands = [np.concatenate([np.linspace(si, ei, stg.phonopy.points).reshape(-1, 1) for si, ei in zip(s, e)], axis=1)
+             for s, e in zip(stg.phonopy.point_symmetry[:-1], stg.phonopy.point_symmetry[1:])]
+    phonopy.set_mesh(stg.phonopy.mesh)
     phonopy.set_total_DOS()
     phonopy.set_band_structure(bands, is_band_connection=True)
-    phonopy_plt = phonopy.plot_band_structure_and_dos(labels=ph_stg.labels)
-    ph_stg.callback(phonopy_plt.gcf().axes[0])
+    phonopy_plt = phonopy.plot_band_structure_and_dos(labels=stg.phonopy.labels)
+    if 'callback' in dir(stg.phonopy):
+        stg.phonopy.callback(phonopy_plt.gcf().axes[0])
     phonopy_plt.savefig(path.join(stg.file.out_dir, 'ph_band_HDNNP_{}.png'.format(name)))
     phonopy_plt.close()
     pprint('done')
