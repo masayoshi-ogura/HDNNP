@@ -216,7 +216,7 @@ def assert_settings(stg):
 
     # phonopy
     if stg.args.mode == 'phonon':
-        assert all(key in dir(stg) for key in ['dimensions', 'options', 'distance', 'callback'])
-        assert len(stg.dimensions) == 3 and all(len(d) == 3 for d in stg.dimensions)
-        assert isinstance(stg.options, dict)
-        assert stg.distance > 0.0
+        assert all(key in dir(stg.phonopy) for key in ['dimensions', 'options', 'distance', 'callback'])
+        assert len(stg.phonopy.dimensions) == 3 and all(len(d) == 3 for d in stg.phonopy.dimensions)
+        assert isinstance(stg.phonopy.options, dict)
+        assert stg.phonopy.distance > 0.0

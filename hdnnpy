@@ -6,6 +6,7 @@ from modules import settings as stg
 import shutil
 import pickle
 import os
+import sys
 from os import path
 from skopt import gp_minimize
 from skopt.utils import use_named_args
@@ -101,11 +102,14 @@ def objective_func(**params):
     assert_settings(stg)
 
     results = []
-    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-    for i, (dataset, elements) in enumerate(
-            generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
-        _, result = training(dataset, elements)
-        results.append(result['observation'][-1][stg.model.metrics])
+    with open(os.devnull, 'w') as devnull:
+        sys.stdout = devnull
+        generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+        for i, (dataset, elements) in enumerate(
+                generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
+            _, result = training(dataset, elements)
+            results.append(result['observation'][-1][stg.model.metrics])
+        sys.stdout = sys.__stdout__
     return sum(results) / stg.skopt.kfold
 
 

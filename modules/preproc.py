@@ -53,6 +53,7 @@ class PCA(PreprocBase):
     def decompose(self, dataset):
         for element in dataset.composition['element']:
             if element in self._elements:
+                pprint('Use already calculated PCA parameters for: {}'.format(element))
                 continue
 
             nfeature = dataset.input.shape[-1]
@@ -62,8 +63,8 @@ class PCA(PreprocBase):
             self._mean[element] = pca.mean_.astype(np.float32)
             self._components[element] = pca.components_.T.astype(np.float32)
             self._elements.append(element)
-            pprint('Initialize PCA parameters of element: {}\n'
-                   '\tdecompose SF from {} to {}.\n\tcumulative contribution rate: {}'
+            pprint('Initialize PCA parameters for: {}\n'
+                   '\tdecompose symmetry functions: {} => {}\n\tcumulative contribution rate = {}'
                    .format(element, nfeature, self.n_components, np.sum(pca.explained_variance_ratio_)))
 
         mean = np.array([self._mean[element]  # (atom, feature)
