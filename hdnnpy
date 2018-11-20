@@ -14,6 +14,7 @@ from skopt import gp_minimize
 from skopt.utils import use_named_args
 import numpy as np
 import chainer
+from chainer.training.triggers import EarlyStoppingTrigger
 import chainer.training.extensions as ext
 import chainermn
 
@@ -21,7 +22,7 @@ from modules.data import DataGenerator
 from modules.model import SingleNNP, HDNNP
 from modules.updater import HDUpdater
 from modules.util import pprint, mkdir, flatten_dict, set_hyperparameter
-from modules.util import ChainerSafelyTerminate, dump_result, dump_lammps
+from modules.util import ChainerSafelyTerminate, dump_lammps, dump_result
 from modules.chainer_extensions import Evaluator
 from modules.chainer_extensions import set_log_scale
 from modules.chainer_extensions import scatter_plot
@@ -79,15 +80,14 @@ def main():
         pprint('forces:\n{}'.format(forces.data))
 
     elif stg.args.mode == 'phonon':
-        pprint('drawing phonon band structure ... ', end='')
         name = path.splitext(path.split(stg.args.masters)[1])[0]
         dataset, _, forces = predict()
         phonopy = dataset.phonopy
         phonopy.set_forces(forces.data)
         phonopy.produce_force_constants()
 
+        pprint('drawing phonon band structure ... ', end='')
         phonopy_plt = stg.phonopy.callback(phonopy)
-
         phonopy_plt.savefig(path.join(stg.file.out_dir, 'ph_band_HDNNP_{}.png'.format(name)))
         phonopy_plt.close()
         pprint('done')
@@ -102,8 +102,8 @@ def main_training():
     if stg.mpi.rank == 0:
         generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
         chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
-        dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
         dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
+        dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
 
 
 @use_named_args(stg.skopt.space)
@@ -136,64 +136,60 @@ def training(dataset, elements, output=True):
     for train, test, composition in dataset:
         config = train.config
 
+        # iterators
         train_iter = chainer.iterators.SerialIterator(train, stg.dataset.batch_size // stg.mpi.size,
                                                       repeat=True, shuffle=True)
         test_iter = chainer.iterators.SerialIterator(test, stg.dataset.batch_size // stg.mpi.size,
                                                      repeat=False, shuffle=False)
 
+        # model
         hdnnp = HDNNP(composition)
         hdnnp.sync_param_with(masters)
         main_opt = chainer.Optimizer()
         main_opt = chainermn.create_multi_node_optimizer(main_opt, stg.mpi.chainer_comm)
         main_opt.setup(hdnnp)
 
+        # triggers
+        interval = (stg.model.interval, 'epoch')
+        stop_trigger = EarlyStoppingTrigger(check_trigger=interval, monitor=stg.model.metrics,
+                                            patients=stg.model.patients, mode='min', verbose=True,
+                                            max_trigger=(stg.model.epoch, 'epoch'))
+
         # updater and trainer
-        updater = HDUpdater(iterator=train_iter, device=stg.mpi.gpu,
-                            optimizer={'main': main_opt, 'master': master_opt})
-        trainer = chainer.training.Trainer(updater, (stg.dataset.epoch, 'epoch'),
-                                           out=path.join(stg.file.out_dir, config))
+        updater = HDUpdater(train_iter, optimizer={'main': main_opt, 'master': master_opt})
+        trainer = chainer.training.Trainer(updater, stop_trigger, path.join(stg.file.out_dir, config))
 
         # extensions
         trainer.extend(ext.ExponentialShift('alpha', 1 - stg.model.lr_decay,
                                             target=stg.model.final_lr, optimizer=master_opt))
-        evaluator = Evaluator(iterator=test_iter, target=hdnnp, device=stg.mpi.gpu)
+        evaluator = Evaluator(iterator=test_iter, target=hdnnp)
         trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
         if stg.mpi.rank == 0 and output:
             trainer.extend(ext.LogReport(log_name='training.log'))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                             'validation/main/RMSE', 'validation/main/d_RMSE',
                                             'validation/main/tot_RMSE']))
-            trainer.extend(scatter_plot(hdnnp, test),
-                           trigger=(5, 'epoch'))
-            trainer.extend(ext.snapshot_object(masters, 'masters_snapshot.npz'),
-                           trigger=(stg.dataset.epoch, 'epoch'))
+            trainer.extend(scatter_plot(hdnnp, test), trigger=interval)
             if stg.args.verbose:
-                # trainer.extend(ext.observe_lr('master', 'learning rate'))
-                # trainer.extend(ext.PlotReport(['learning rate'], 'epoch',
-                #                               file_name='learning_rate.png',
-                #                               marker=None,
-                #                               postprocess=set_log_scale))
                 trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
-                                              file_name='RMSE.png', marker=None,
-                                              postprocess=set_log_scale))
-                trainer.extend(
-                    ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'),
-                    trigger=(100, 'epoch'))
+                                              file_name='RMSE.png', marker=None, postprocess=set_log_scale))
 
         if stg.args.mode == 'training' and stg.args.resume:
             if config != path.split(stg.args.resume)[1]:
                 continue
             pprint('Resume training loop.\n\tconfig_type: {}'.format(config))
-            chainer.serializers.load_npz(path.join(stg.args.resume, 'trainer_snapshot.npz'), trainer)
-            with open(path.join(stg.args.resume, 'interim_result.pickle'), 'rb') as f:
+            trainer_snapshot = path.join(stg.args.resume, 'trainer_snapshot.npz')
+            interim_result = path.join(stg.args.resume, 'interim_result.pickle')
+            chainer.serializers.load_npz(trainer_snapshot, trainer)
+            with open(interim_result, 'rb') as f:
                 result = pickle.load(f)
+            # clean up
             stg.args.resume = None
+            os.remove(trainer_snapshot)
+            os.remove(interim_result)
 
         with ChainerSafelyTerminate(config, trainer, result):
             trainer.run()
-
-        result['training_time'] += trainer.elapsed_time
-        result['observation'].append({'config': config, **flatten_dict(trainer.observation)})
 
     return masters, result
 

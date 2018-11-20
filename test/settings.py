@@ -23,9 +23,11 @@ stg.dataset.zeta = [1, 2, 4]
 stg.dataset.preproc = 'pca'
 stg.dataset.nfeature = 20
 # stg.dataset.ratio = 0.9
-stg.dataset.epoch = 10
 stg.dataset.batch_size = 5
 
+stg.model.epoch = 10
+# stg.model.interval = 10
+# stg.model.patients = 5
 # stg.model.init_lr = 1.0e-3
 # stg.model.final_lr = 1.0e-6
 # stg.model.lr_decay = 0.0e-6
