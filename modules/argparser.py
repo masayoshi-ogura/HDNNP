@@ -14,6 +14,9 @@ def get_parser():
     prediction_parser = subparsers.add_parser('prediction', help='see `prediction -h`')
     phonon_parser = subparsers.add_parser('phonon', help='see `phonon -h`')
 
+    parser.add_argument('--debug', '-d', action='store_true', default=False,
+                        help='if this flag is set, MPI subprocesses also print their stdout')
+
     # training mode
     training_parser.add_argument('--verbose', '-v', action='store_true', default=False,
                                  help='this flag may increase processing time.')

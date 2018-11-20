@@ -5,9 +5,7 @@ from modules import settings as stg
 
 import csv
 import shutil
-import traceback
 import pickle
-import sys
 import os
 from os import path
 from skopt import gp_minimize
@@ -35,9 +33,6 @@ def main():
     if stg.args.mode == 'training':
         try:
             main_training()
-        except Exception:
-            if stg.mpi.rank == 0:
-                traceback.print_exc()
         finally:
             shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
 
@@ -64,13 +59,10 @@ def main():
             for space, value in zip(stg.skopt.space, res.x):
                 set_hyperparameter(space.name, value)
             main_training()
-        except Exception:
-            if stg.mpi.rank == 0:
-                traceback.print_exc()
         finally:
             shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
 
-    elif stg.args.mode in ['sym_func']:
+    elif stg.args.mode == 'sym_func':
         stg.dataset.preproc = None
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
@@ -111,14 +103,11 @@ def objective_func(**params):
     for key, value in params.items():
         set_hyperparameter(key, value)
     results = []
-    with open(os.devnull, 'w') as devnull:
-        sys.stdout = devnull
-        generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-        for i, (dataset, elements) in enumerate(
-                generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
-            _, result = training(dataset, elements, output=False)
-            results.append(result['observation'][-1][stg.model.metrics])
-        sys.stdout = sys.__stdout__
+    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+    for i, (dataset, elements) in enumerate(
+            generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
+        _, result = training(dataset, elements)
+        results.append(result['observation'][-1][stg.model.metrics])
     return sum(results) / stg.skopt.kfold
 
 
@@ -152,7 +141,7 @@ def training(dataset, elements, output=True):
         # triggers
         interval = (stg.model.interval, 'epoch')
         stop_trigger = EarlyStoppingTrigger(check_trigger=interval, monitor=stg.model.metrics,
-                                            patients=stg.model.patients, mode='min', verbose=True,
+                                            patients=stg.model.patients, mode='min', verbose=output,
                                             max_trigger=(stg.model.epoch, 'epoch'))
 
         # updater and trainer

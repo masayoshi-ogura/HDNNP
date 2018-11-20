@@ -13,14 +13,13 @@ from chainer import Variable
 from . import settings as stg
 
 
-def pprint(data, root_only=True, flush=True, **options):
-    if stg.mpi.rank == 0 or not root_only:
-        if isinstance(data, list) or isinstance(data, dict):
-            pretty_print(data, **options)
-        else:
-            print(data, **options)
-        if flush:
-            sys.stdout.flush()
+def pprint(data, flush=True, **options):
+    if isinstance(data, list) or isinstance(data, dict):
+        pretty_print(data, **options)
+    else:
+        print(data, **options)
+    if flush:
+        sys.stdout.flush()
 
 
 def mkdir(path):
