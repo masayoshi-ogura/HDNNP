@@ -26,10 +26,6 @@ def get_parser():
                                       'the given directory must contain '
                                       '`trainer_snapshot.npz`, `interim_result.pickle`.')
 
-    # param_search mode
-    ps_parser.add_argument('--verbose', '-v', action='store_true', default=False,
-                           help='this flag may increase processing time.')
-
     # test mode
     for p in [prediction_parser, phonon_parser]:
         p.add_argument('--poscar', '-p', required=True, type=str,

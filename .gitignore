@@ -33,6 +33,7 @@
 
 # setting files
 settings.py
+best_settings.py
 phonopy_settings.py
 !modules/settings.py
 !modules/phonopy_settings.py

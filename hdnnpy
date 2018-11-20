@@ -3,7 +3,6 @@
 
 from modules import settings as stg
 
-import csv
 import shutil
 import pickle
 import os
@@ -19,46 +18,47 @@ import chainermn
 from modules.data import DataGenerator
 from modules.model import SingleNNP, HDNNP
 from modules.updater import HDUpdater
-from modules.util import pprint, mkdir, flatten_dict, set_hyperparameter
-from modules.util import ChainerSafelyTerminate, dump_lammps, dump_result
+from modules.util import pprint, mkdir, flatten_dict
+from modules.util import ChainerSafelyTerminate
+from modules.util import dump_lammps, dump_training_result
+from modules.util import dump_skopt_result, dump_settings
+from modules.util import assert_settings
 from modules.chainer_extensions import Evaluator
 from modules.chainer_extensions import set_log_scale
 from modules.chainer_extensions import scatter_plot
 
 
 def main():
-    assert stg.args.mode in ['training', 'param_search', 'sym_func', 'prediction', 'phonon']
+    assert_settings(stg)
     mkdir(stg.file.out_dir)
 
     if stg.args.mode == 'training':
         try:
-            main_training()
+            generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+            dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
+            masters, result = training(dataset, elements)
+            if stg.mpi.rank == 0:
+                generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
+                chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
+                dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
+                dump_training_result(path.join(stg.file.out_dir, 'result.yaml'), result)
         finally:
             shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
 
     elif stg.args.mode == 'param_search':
         try:
-            # bayesian search of hyperparameters
             seed = np.random.get_state()[1][0]
             seed = stg.mpi.comm.bcast(seed, root=0)
-            res = gp_minimize(objective_func, stg.skopt.space,
-                              n_random_starts=stg.skopt.init_num,
-                              n_calls=stg.skopt.max_num,
-                              acq_func=stg.skopt.acq_func,
-                              random_state=seed,
-                              verbose=True,
-                              callback=stg.skopt.callback)
+            result = gp_minimize(objective_func, stg.skopt.space,
+                                 n_random_starts=stg.skopt.init_num,
+                                 n_calls=stg.skopt.max_num,
+                                 acq_func=stg.skopt.acq_func,
+                                 random_state=seed,
+                                 verbose=True,
+                                 callback=stg.skopt.callback)
             if stg.mpi.rank == 0:
-                with open(path.join(stg.file.out_dir, 'skopt_result.csv'), 'w') as f:
-                    writer = csv.writer(f, lineterminator='\n')
-                    writer.writerow([space.name for space in stg.skopt.space] + ['score'])
-                    writer.writerows([x + [fun] for x, fun in zip(res.x_iters, res.func_vals)])
-
-            # main training with best hyperparameters
-            # best hyperparameters are stored in 'res.x'
-            for space, value in zip(stg.skopt.space, res.x):
-                set_hyperparameter(space.name, value)
-            main_training()
+                dump_skopt_result(path.join(stg.file.out_dir, 'skopt_result.csv'), result)
+                dump_settings(path.join(stg.file.out_dir, 'best_settings.py'))
         finally:
             shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
 
@@ -87,21 +87,19 @@ def main():
         shutil.copy('./phonopy_settings.py', path.join(stg.file.out_dir, 'phonopy_settings.py'))
 
 
-def main_training():
-    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-    dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
-    masters, result = training(dataset, elements)
-    if stg.mpi.rank == 0:
-        generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
-        chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
-        dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
-        dump_result(path.join(stg.file.out_dir, 'result.yaml'), result)
-
-
 @use_named_args(stg.skopt.space)
 def objective_func(**params):
     for key, value in params.items():
-        set_hyperparameter(key, value)
+        value = value if isinstance(value, str) else value.item()
+        if key in ['node', 'activation']:
+            for layer in stg.model.layer[:-1]:
+                layer[key] = value
+        elif key in dir(stg.dataset):
+            setattr(stg.dataset, key, value)
+        elif key in dir(stg.model):
+            setattr(stg.model, key, value)
+    assert_settings(stg)
+
     results = []
     generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
     for i, (dataset, elements) in enumerate(
@@ -111,7 +109,7 @@ def objective_func(**params):
     return sum(results) / stg.skopt.kfold
 
 
-def training(dataset, elements, output=True):
+def training(dataset, elements):
     result = {'training_time': 0.0, 'observation': []}
 
     # model and optimizer
@@ -141,7 +139,8 @@ def training(dataset, elements, output=True):
         # triggers
         interval = (stg.model.interval, 'epoch')
         stop_trigger = EarlyStoppingTrigger(check_trigger=interval, monitor=stg.model.metrics,
-                                            patients=stg.model.patients, mode='min', verbose=output,
+                                            patients=stg.model.patients, mode='min',
+                                            verbose=stg.args.mode == 'training',
                                             max_trigger=(stg.model.epoch, 'epoch'))
 
         # updater and trainer
@@ -153,7 +152,7 @@ def training(dataset, elements, output=True):
                                             target=stg.model.final_lr, optimizer=master_opt))
         evaluator = Evaluator(iterator=test_iter, target=hdnnp)
         trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
-        if stg.mpi.rank == 0 and output:
+        if stg.args.mode == 'training' and stg.mpi.rank == 0:
             trainer.extend(ext.LogReport(log_name='training.log'))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                             'validation/main/RMSE', 'validation/main/d_RMSE',
@@ -163,6 +162,7 @@ def training(dataset, elements, output=True):
                 trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
                                               file_name='RMSE.png', marker=None, postprocess=set_log_scale))
 
+        # load trainer snapshot and resume training
         if stg.args.mode == 'training' and stg.args.resume:
             if config != path.split(stg.args.resume)[1]:
                 continue
@@ -172,10 +172,12 @@ def training(dataset, elements, output=True):
             chainer.serializers.load_npz(trainer_snapshot, trainer)
             with open(interim_result, 'rb') as f:
                 result = pickle.load(f)
-            # clean up
+            # remove snapshot
+            stg.mpi.comm.Barrier()
+            if stg.mpi.rank == 0:
+                os.remove(trainer_snapshot)
+                os.remove(interim_result)
             stg.args.resume = None
-            os.remove(trainer_snapshot)
-            os.remove(interim_result)
 
         with ChainerSafelyTerminate(config, trainer, result):
             trainer.run()

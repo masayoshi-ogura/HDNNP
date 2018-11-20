@@ -5,10 +5,12 @@ import os
 import sys
 import signal
 import pickle
+import csv
 import yaml
 import numpy as np
 import chainer
 from chainer import Variable
+from chainermn.communicators.mpi_communicator_base import MpiCommunicatorBase
 
 from . import settings as stg
 
@@ -33,17 +35,6 @@ def flatten_dict(dic):
             else v for k, v in dic.items()}
 
 
-def set_hyperparameter(key, value):
-    value = value if isinstance(value, str) else value.item()
-    if key in ['node', 'activation']:
-        for layer in stg.model.layer[:-1]:
-            layer[key] = value
-    elif key in dir(stg.dataset):
-        setattr(stg.dataset, key, value)
-    elif key in dir(stg.model):
-        setattr(stg.model, key, value)
-
-
 # signal handler of SIGINT and SIGTERM
 class ChainerSafelyTerminate(object):
     def __init__(self, config, trainer, result):
@@ -53,23 +44,26 @@ class ChainerSafelyTerminate(object):
         self.signum = None
 
     def __enter__(self):
-        stg.mpi.comm.Barrier()
         self.old_sigint_handler = signal.signal(signal.SIGINT, self._snapshot)
         self.old_sigterm_handler = signal.signal(signal.SIGTERM, self._snapshot)
+        stg.mpi.comm.Barrier()
 
     def __exit__(self, type, value, traceback):
         signal.signal(signal.SIGINT, self.old_sigint_handler)
         signal.signal(signal.SIGTERM, self.old_sigterm_handler)
         if not self.signum:
-            chainer.serializers.save_npz(os.path.join(self.trainer.out, 'masters.npz'),
-                                         self.trainer.updater.get_optimizer('master').target)
-            ### comment out: output lammps.nnp at end of training for each config
-            # preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-            # preproc.load(path.join(stg.file.out_dir, 'preproc.npz'))
-            # dump_lammps(os.path.join(self.trainer.out, 'lammps.nnp'), preproc,
-            #                          self.trainer.updater.get_optimizer('master').target)
             self.result['training_time'] += self.trainer.elapsed_time
             self.result['observation'].append({'config': self.config, **flatten_dict(self.trainer.observation)})
+            if stg.args.mode == 'training' and stg.mpi.rank == 0:
+                chainer.serializers.save_npz(os.path.join(self.trainer.out, 'masters.npz'),
+                                             self.trainer.updater.get_optimizer('master').target)
+                ### comment out: output lammps.nnp at end of training for each config
+                # preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
+                # preproc.load(path.join(stg.file.out_dir, 'preproc.npz'))
+                # dump_lammps(os.path.join(self.trainer.out, 'lammps.nnp'), preproc,
+                #                          self.trainer.updater.get_optimizer('master').target)
+            if stg.args.mode == 'param_search' and stg.mpi.rank == 0:
+                os.rmdir(self.trainer.out)
 
     def _snapshot(self, signum, frame):
         self.signum = signal.Signals(signum)
@@ -125,7 +119,7 @@ def dump_lammps(file_path, preproc, masters):
                 f.write('{}\n\n'.format(' '.join(map(str, b))))
 
 
-def dump_result(file_path, result):
+def dump_training_result(file_path, result):
     args = {k:v for k,v in vars(stg.args).items() if not k.startswith('_')}
     file = {k:v for k,v in vars(stg.file).items() if not k.startswith('_')}
     dataset = {k:v for k,v in vars(stg.dataset).items() if not k.startswith('_')}
@@ -139,3 +133,90 @@ def dump_result(file_path, result):
             'model': model,
             'result': result,
         }, f, default_flow_style=False)
+
+
+def dump_skopt_result(file_path, result):
+    with open(file_path, 'w') as f:
+        writer = csv.writer(f, lineterminator='\n')
+        writer.writerow([space.name for space in stg.skopt.space] + ['score'])
+        writer.writerows([x + [fun] for x, fun in zip(result.x_iters, result.func_vals)])
+
+
+def dump_settings(file_path):
+    with open(file_path, 'w') as f:
+        f.write('# -*- coding: utf-8 -*-\n'
+                'from modules.settings import defaults as stg\n\n')
+        for k, v in vars(stg.dataset).items():
+            if k.startswith('_'):
+                continue
+            f.write('stg.dataset.{} = {}\n'.format(k, v))
+        for k, v in vars(stg.model).items():
+            if k.startswith('_'):
+                continue
+            f.write('stg.model.{} = {}\n'.format(k, v))
+
+
+def assert_settings(stg):
+    # file
+    assert all(key in dir(stg.file) for key in ['out_dir'])
+    assert stg.file.out_dir is not None
+
+    # mpi
+    assert all(key in dir(stg.mpi) for key in ['comm', 'rank', 'size', 'chainer_comm'])
+    assert stg.mpi.comm is not None
+    assert 0 <= stg.mpi.rank < stg.mpi.size
+    assert stg.mpi.size > 0
+    assert isinstance(stg.mpi.chainer_comm, MpiCommunicatorBase)
+
+    # dataset
+    assert all(key in dir(stg.dataset) for key in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta'])
+    assert all(key in dir(stg.dataset) for key in ['xyz_file', 'config', 'preproc', 'ratio'])
+    assert all(key in dir(stg.dataset) for key in ['nfeature', 'batch_size'])
+    assert len(stg.dataset.Rc) > 0
+    assert len(stg.dataset.eta) > 0
+    assert len(stg.dataset.Rs) > 0
+    assert len(stg.dataset.lambda_) > 0
+    assert len(stg.dataset.zeta) > 0
+    assert stg.dataset.xyz_file is not None
+    assert len(stg.dataset.config) > 0
+    assert stg.dataset.preproc in [None, 'pca']
+    assert 0.0 <= stg.dataset.ratio <= 1.0
+    assert stg.dataset.nfeature > 0
+    assert stg.dataset.batch_size >= stg.mpi.size
+
+    # model
+    assert all(key in dir(stg.model) for key in ['epoch', 'interval', 'patients'])
+    assert all(key in dir(stg.model) for key in ['init_lr', 'final_lr', 'lr_decay', 'mixing_beta'])
+    assert all(key in dir(stg.model) for key in ['l1_norm', 'l2_norm', 'layer', 'metrics'])
+    assert stg.model.epoch > 0
+    assert stg.model.interval > 0
+    assert stg.model.patients > 0
+    assert 0.0 <= stg.model.init_lr <= 1.0
+    assert 0.0 <= stg.model.final_lr <= stg.model.init_lr
+    assert 0.0 <= stg.model.lr_decay <= 1.0
+    assert 0.0 <= stg.model.mixing_beta <= 1.0
+    assert 0.0 <= stg.model.l1_norm <= 1.0
+    assert 0.0 <= stg.model.l2_norm <= 1.0
+    assert len(stg.model.layer) > 0
+    assert stg.model.metrics is not None
+
+    # skopt
+    if stg.args.mode == 'param_search':
+        assert all(key in dir(stg.skopt) for key in ['kfold', 'init_num', 'max_num'])
+        assert all(key in dir(stg.skopt) for key in ['space', 'acq_func', 'callback'])
+        assert stg.skopt.kfold > 0
+        assert stg.skopt.init_num > 0
+        assert stg.skopt.max_num > stg.skopt.init_num
+        assert len(stg.skopt.space) > 0
+        assert all(space.name in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta', 'preproc', 'nfeature',
+                                  'epoch', 'batch_size', 'init_lr', 'final_lr', 'lr_decay',
+                                  'l1_norm', 'l2_norm', 'mixing_beta', 'node', 'activation']
+                   for space in stg.skopt.space)
+        assert stg.skopt.acq_func in ['LCB', 'EI', 'PI', 'gp_hedge', 'Elps', 'Plps']
+
+    # phonopy
+    if stg.args.mode == 'phonon':
+        assert all(key in dir(stg) for key in ['dimensions', 'options', 'distance', 'callback'])
+        assert len(stg.dimensions) == 3 and all(len(d) == 3 for d in stg.dimensions)
+        assert isinstance(stg.options, dict)
+        assert stg.distance > 0.0
