@@ -6,6 +6,9 @@ from modules import settings as stg
 import csv
 import shutil
 import traceback
+import pickle
+import sys
+import os
 from os import path
 from skopt import gp_minimize
 from skopt.utils import use_named_args
@@ -17,7 +20,8 @@ import chainermn
 from modules.data import DataGenerator
 from modules.model import SingleNNP, HDNNP
 from modules.updater import HDUpdater
-from modules.util import pprint, mkdir, flatten_dict, set_hyperparameter, dump_result, dump_lammps
+from modules.util import pprint, mkdir, flatten_dict, set_hyperparameter
+from modules.util import ChainerSafelyTerminate, dump_result, dump_lammps
 from modules.chainer_extensions import Evaluator
 from modules.chainer_extensions import set_log_scale
 from modules.chainer_extensions import scatter_plot
@@ -46,7 +50,7 @@ def main():
                               n_calls=stg.skopt.max_num,
                               acq_func=stg.skopt.acq_func,
                               random_state=seed,
-                              verbose=stg.args.verbose,
+                              verbose=True,
                               callback=stg.skopt.callback)
             if stg.mpi.rank == 0:
                 with open(path.join(stg.file.out_dir, 'skopt_result.csv'), 'w') as f:
@@ -106,17 +110,16 @@ def main_training():
 def objective_func(**params):
     for key, value in params.items():
         set_hyperparameter(key, value)
-
     results = []
-    generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-    for i, (dataset, elements) in enumerate(
-            generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
-        _, result = training(dataset, elements, output=False)
-        results.append(result['observation'][-1][stg.model.metrics])
-    avg = sum(results) / stg.skopt.kfold
-    pprint(params)
-    pprint('result: {}\n'.format(avg))
-    return avg
+    with open(os.devnull, 'w') as devnull:
+        sys.stdout = devnull
+        generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+        for i, (dataset, elements) in enumerate(
+                generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
+            _, result = training(dataset, elements, output=False)
+            results.append(result['observation'][-1][stg.model.metrics])
+        sys.stdout = sys.__stdout__
+    return sum(results) / stg.skopt.kfold
 
 
 def training(dataset, elements, output=True):
@@ -131,6 +134,8 @@ def training(dataset, elements, output=True):
     master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(stg.model.l2_norm))
 
     for train, test, composition in dataset:
+        config = train.config
+
         train_iter = chainer.iterators.SerialIterator(train, stg.dataset.batch_size // stg.mpi.size,
                                                       repeat=True, shuffle=True)
         test_iter = chainer.iterators.SerialIterator(test, stg.dataset.batch_size // stg.mpi.size,
@@ -145,22 +150,22 @@ def training(dataset, elements, output=True):
         # updater and trainer
         updater = HDUpdater(iterator=train_iter, device=stg.mpi.gpu,
                             optimizer={'main': main_opt, 'master': master_opt})
-        trainer = chainer.training.Trainer(updater, (stg.dataset.epoch, 'epoch'), out=stg.file.out_dir)
+        trainer = chainer.training.Trainer(updater, (stg.dataset.epoch, 'epoch'),
+                                           out=path.join(stg.file.out_dir, config))
 
         # extensions
         trainer.extend(ext.ExponentialShift('alpha', 1 - stg.model.lr_decay,
                                             target=stg.model.final_lr, optimizer=master_opt))
         evaluator = Evaluator(iterator=test_iter, target=hdnnp, device=stg.mpi.gpu)
         trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
-        config = train.config
         if stg.mpi.rank == 0 and output:
-            trainer.extend(ext.LogReport(log_name='{}.log'.format(config)))
+            trainer.extend(ext.LogReport(log_name='training.log'))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                             'validation/main/RMSE', 'validation/main/d_RMSE',
                                             'validation/main/tot_RMSE']))
-            trainer.extend(scatter_plot(hdnnp, test, config),
-                           trigger=chainer.training.triggers.MinValueTrigger(stg.model.metrics, (5, 'epoch')))
-            trainer.extend(ext.snapshot_object(masters, '{}_masters_snapshot.npz'.format(config)),
+            trainer.extend(scatter_plot(hdnnp, test),
+                           trigger=(5, 'epoch'))
+            trainer.extend(ext.snapshot_object(masters, 'masters_snapshot.npz'),
                            trigger=(stg.dataset.epoch, 'epoch'))
             if stg.args.verbose:
                 # trainer.extend(ext.observe_lr('master', 'learning rate'))
@@ -169,22 +174,26 @@ def training(dataset, elements, output=True):
                 #                               marker=None,
                 #                               postprocess=set_log_scale))
                 trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
-                                              file_name='{}_RMSE.png'.format(config), marker=None,
+                                              file_name='RMSE.png', marker=None,
                                               postprocess=set_log_scale))
                 trainer.extend(
-                    ext.snapshot_object(masters, config + '_masters_snapshot_epoch_{.updater.epoch}.npz'),
+                    ext.snapshot_object(masters, 'masters_snapshot_epoch_{.updater.epoch}.npz'),
                     trigger=(100, 'epoch'))
 
-        try:
+        if stg.args.mode == 'training' and stg.args.resume:
+            if config != path.split(stg.args.resume)[1]:
+                continue
+            pprint('Resume training loop.\n\tconfig_type: {}'.format(config))
+            chainer.serializers.load_npz(path.join(stg.args.resume, 'trainer_snapshot.npz'), trainer)
+            with open(path.join(stg.args.resume, 'interim_result.pickle'), 'rb') as f:
+                result = pickle.load(f)
+            stg.args.resume = None
+
+        with ChainerSafelyTerminate(config, trainer, result):
             trainer.run()
-        except KeyboardInterrupt:
-            if stg.mpi.rank == 0:
-                pprint('stop {} training by Keyboard Interrupt!'.format(config))
-                chainer.serializers.save_npz(path.join(stg.file.out_dir, '{}_masters_snapshot.npz'.format(config)),
-                                             masters)
-        finally:
-            result['training_time'] += trainer.elapsed_time
-            result['observation'].append({'config': config, **flatten_dict(trainer.observation)})
+
+        result['training_time'] += trainer.elapsed_time
+        result['observation'].append({'config': config, **flatten_dict(trainer.observation)})
 
     return masters, result
 

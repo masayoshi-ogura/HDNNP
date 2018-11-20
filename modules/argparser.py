@@ -15,16 +15,17 @@ def get_parser():
     phonon_parser = subparsers.add_parser('phonon', help='see `phonon -h`')
 
     # training mode
-    training_parser.add_argument('--verbose', '-v', action='store_true',
-                                 help='trainer extensions "PlotReport snapshot_object" is set.\n'
-                                      'this flag increases processing time.')
-    training_parser.set_defaults(verbose=False)
+    training_parser.add_argument('--verbose', '-v', action='store_true', default=False,
+                                 help='this flag may increase processing time.')
+    training_parser.add_argument('--resume', '-r', type=str,
+                                 help='resume training from given config directory.\n'
+                                      'do not add "/" at the end of path.'
+                                      'the given directory must contain '
+                                      '`trainer_snapshot.npz`, `interim_result.pickle`.')
 
-    # parameter search mode
-    ps_parser.add_argument('--verbose', '-v', action='store_true',
-                           help='trainer extensions "PlotReport snapshot_object" is set.\n'
-                                'this flag increases processing time.')
-    ps_parser.set_defaults(verbose=False)
+    # param_search mode
+    ps_parser.add_argument('--verbose', '-v', action='store_true', default=False,
+                           help='this flag may increase processing time.')
 
     # test mode
     for p in [prediction_parser, phonon_parser]:
