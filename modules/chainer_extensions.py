@@ -41,7 +41,7 @@ class Evaluator(evaluator.Evaluator):
         return summary.compute_mean()
 
 
-def scatter_plot(model, dataset, config):
+def scatter_plot(model, dataset):
     @chainer.training.make_extension()
     def make_image(trainer):
         def artist(pred, true, title, unit):
@@ -61,8 +61,8 @@ def scatter_plot(model, dataset, config):
         G, dG, E_true, F_true = chainer.dataset.concat_examples(dataset)
         E_pred, F_pred, _ = model(G, dG, E_true, F_true)
 
-        artist(E_pred.data, E_true, '{}_Energy'.format(config), 'eV')
-        artist(F_pred.data, F_true, '{}_Force'.format(config), 'eV/$\AA$')
+        artist(E_pred.data, E_true, 'Energy', 'eV')
+        artist(F_pred.data, F_true, 'Force', 'eV/$\AA$')
         plt.close('all')
 
     return make_image

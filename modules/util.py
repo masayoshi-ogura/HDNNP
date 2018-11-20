@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from pprint import pprint as pretty_print
+import os
+import sys
+import signal
+import pickle
 import yaml
-from os import makedirs
-from sys import stdout
 import numpy as np
+import chainer
 from chainer import Variable
 
 from . import settings as stg
@@ -17,12 +20,12 @@ def pprint(data, root_only=True, flush=True, **options):
         else:
             print(data, **options)
         if flush:
-            stdout.flush()
+            sys.stdout.flush()
 
 
 def mkdir(path):
     if stg.mpi.rank == 0:
-        makedirs(path, exist_ok=True)
+        os.makedirs(path, exist_ok=True)
 
 
 def flatten_dict(dic):
@@ -42,20 +45,44 @@ def set_hyperparameter(key, value):
         setattr(stg.model, key, value)
 
 
-def dump_result(file_path, result):
-    args = {k:v for k,v in vars(stg.args).items() if not k.startswith('_')}
-    file = {k:v for k,v in vars(stg.file).items() if not k.startswith('_')}
-    dataset = {k:v for k,v in vars(stg.dataset).items() if not k.startswith('_')}
-    model = {k:v for k,v in vars(stg.model).items() if not k.startswith('_')}
+# signal handler of SIGINT and SIGTERM
+class ChainerSafelyTerminate(object):
+    def __init__(self, config, trainer, result):
+        self.config = config
+        self.trainer = trainer
+        self.result = result
+        self.signum = None
 
-    with open(file_path, 'w') as f:
-        yaml.dump({
-            'args': args,
-            'file': file,
-            'dataset': dataset,
-            'model': model,
-            'result': result,
-        }, f, default_flow_style=False)
+    def __enter__(self):
+        stg.mpi.comm.Barrier()
+        self.old_sigint_handler = signal.signal(signal.SIGINT, self._snapshot)
+        self.old_sigterm_handler = signal.signal(signal.SIGTERM, self._snapshot)
+
+    def __exit__(self, type, value, traceback):
+        signal.signal(signal.SIGINT, self.old_sigint_handler)
+        signal.signal(signal.SIGTERM, self.old_sigterm_handler)
+        if not self.signum:
+            chainer.serializers.save_npz(os.path.join(self.trainer.out, 'masters.npz'),
+                                         self.trainer.updater.get_optimizer('master').target)
+            ### comment out: output lammps.nnp at end of training for each config
+            # preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
+            # preproc.load(path.join(stg.file.out_dir, 'preproc.npz'))
+            # dump_lammps(os.path.join(self.trainer.out, 'lammps.nnp'), preproc,
+            #                          self.trainer.updater.get_optimizer('master').target)
+            self.result['training_time'] += self.trainer.elapsed_time
+            self.result['observation'].append({'config': self.config, **flatten_dict(self.trainer.observation)})
+
+    def _snapshot(self, signum, frame):
+        self.signum = signal.Signals(signum)
+        if stg.args.mode == 'training' and stg.mpi.rank == 0:
+            pprint('Stop {} training by signal: {}!\n'
+                   'Take trainer snapshot at epoch: {}'
+                   .format(self.config, self.signum.name, self.trainer.updater.epoch))
+            chainer.serializers.save_npz(os.path.join(self.trainer.out, 'trainer_snapshot.npz'), self.trainer)
+            with open(os.path.join(self.trainer.out, 'interim_result.pickle'), 'wb') as f:
+                pickle.dump(self.result, f)
+        # must raise any Exception to stop trainer.run()
+        raise InterruptedError('Chainer training loop is interrupted by {}'.format(self.signum.name))
 
 
 def dump_lammps(file_path, preproc, masters):
@@ -97,3 +124,19 @@ def dump_lammps(file_path, preproc, masters):
                     f.write('{}\n'.format(' '.join(map(str, row))))
                 f.write('# bias\n')
                 f.write('{}\n\n'.format(' '.join(map(str, b))))
+
+
+def dump_result(file_path, result):
+    args = {k:v for k,v in vars(stg.args).items() if not k.startswith('_')}
+    file = {k:v for k,v in vars(stg.file).items() if not k.startswith('_')}
+    dataset = {k:v for k,v in vars(stg.dataset).items() if not k.startswith('_')}
+    model = {k:v for k,v in vars(stg.model).items() if not k.startswith('_')}
+
+    with open(file_path, 'w') as f:
+        yaml.dump({
+            'args': args,
+            'file': file,
+            'dataset': dataset,
+            'model': model,
+            'result': result,
+        }, f, default_flow_style=False)

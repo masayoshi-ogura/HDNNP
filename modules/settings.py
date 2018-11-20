@@ -7,7 +7,7 @@ by 'settings.py' on your working directory.
 Please see 'test/settings.py' as a example.
 """
 
-import os
+from os import path, getcwd
 import sys
 from mpi4py import MPI
 import chainermn
@@ -18,42 +18,45 @@ from .argparser import get_parser
 
 class defaults:
     class file:
-        out_dir='output'
+        out_dir = 'output'
     class mpi:
-        comm=MPI.COMM_WORLD
-        rank=MPI.COMM_WORLD.Get_rank()
-        size=MPI.COMM_WORLD.Get_size()
-        gpu=-1
-        chainer_comm=chainermn.create_communicator('naive', MPI.COMM_WORLD)
+        comm = MPI.COMM_WORLD
+        rank = MPI.COMM_WORLD.Get_rank()
+        size = MPI.COMM_WORLD.Get_size()
+        chainer_comm = chainermn.create_communicator('naive', MPI.COMM_WORLD)
     class dataset:
-        config=['all']
-        ratio=0.9
+        config = ['all']
+        ratio = 0.9
     class model:
-        init_lr=1.0e-3
-        final_lr=1.0e-6
-        lr_decay=0.0e-6
-        l1_norm=0.0e-4
-        l2_norm=0.0e-4
-        metrics='validation/main/tot_RMSE'
+        interval = 10
+        patients = 5
+        init_lr = 1.0e-3
+        final_lr = 1.0e-6
+        lr_decay = 0.0e-6
+        l1_norm = 0.0e-4
+        l2_norm = 0.0e-4
+        metrics = 'validation/main/tot_RMSE'
     class skopt:
         pass
 
 
 def import_user_settings(args):
-    if args.mode in ['prediction', 'phonon']:
-        sys.path.insert(0, os.path.dirname(args.masters))
+    if args.mode == 'training' and args.resume:
+        sys.path.insert(0, path.dirname(args.resume))
+    elif args.mode in ['prediction', 'phonon']:
+        sys.path.insert(0, path.dirname(args.masters))
     else:
-        sys.path.insert(0, os.getcwd())
+        sys.path.insert(0, getcwd())
 
-    if not os.path.exists(os.path.join(sys.path[0], 'settings.py')):
+    if not path.exists(path.join(sys.path[0], 'settings.py')):
         raise FileNotFoundError('`settings.py` is not found in {}'
-                                .format(os.path.abspath(sys.path[0])))
+                                .format(path.abspath(sys.path[0])))
     from settings import stg
     return stg
 
 
 def import_phonopy_settings():
-    sys.path.insert(0, os.getcwd())
+    sys.path.insert(0, getcwd())
     import phonopy_settings
     return phonopy_settings
 
@@ -64,17 +67,16 @@ def assert_settings(args, stg):
     assert stg.file.out_dir is not None
 
     # mpi
-    assert all(key in dir(stg.mpi) for key in ['comm', 'rank', 'size', 'gpu', 'chainer_comm'])
+    assert all(key in dir(stg.mpi) for key in ['comm', 'rank', 'size', 'chainer_comm'])
     assert stg.mpi.comm is not None
     assert 0 <= stg.mpi.rank < stg.mpi.size
     assert stg.mpi.size > 0
-    assert stg.mpi.gpu is not None
     assert isinstance(stg.mpi.chainer_comm, MpiCommunicatorBase)
 
     # dataset
     assert all(key in dir(stg.dataset) for key in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta'])
     assert all(key in dir(stg.dataset) for key in ['xyz_file', 'config', 'preproc', 'ratio'])
-    assert all(key in dir(stg.dataset) for key in ['nfeature', 'epoch', 'batch_size'])
+    assert all(key in dir(stg.dataset) for key in ['nfeature', 'batch_size'])
     assert len(stg.dataset.Rc) > 0
     assert len(stg.dataset.eta) > 0
     assert len(stg.dataset.Rs) > 0
@@ -85,12 +87,15 @@ def assert_settings(args, stg):
     assert stg.dataset.preproc in [None, 'pca']
     assert 0.0 <= stg.dataset.ratio <= 1.0
     assert stg.dataset.nfeature > 0
-    assert stg.dataset.epoch > 0
     assert stg.dataset.batch_size >= stg.mpi.size
 
     # model
+    assert all(key in dir(stg.model) for key in ['epoch', 'interval', 'patients'])
     assert all(key in dir(stg.model) for key in ['init_lr', 'final_lr', 'lr_decay', 'mixing_beta'])
     assert all(key in dir(stg.model) for key in ['l1_norm', 'l2_norm', 'layer', 'metrics'])
+    assert stg.model.epoch > 0
+    assert stg.model.interval > 0
+    assert stg.model.patients > 0
     assert 0.0 <= stg.model.init_lr <= 1.0
     assert 0.0 <= stg.model.final_lr <= stg.model.init_lr
     assert 0.0 <= stg.model.lr_decay <= 1.0
