@@ -1,5 +1,5 @@
 #!/bin/sh
-set -ux
+set -eux
 
 timeout="gtimeout 5"
 mpirun="mpirun -np 2"
@@ -29,10 +29,14 @@ ${hdnnpy} training --verbose
 
 ${mpirun} ${hdnnpy} training --verbose
 
+set +e
 (${timeout} ${hdnnpy} training --verbose)
+set -e
 ${hdnnpy} training --verbose --resume output/CrystalGa16N16
 
+set +e
 (${timeout} ${mpirun} ${hdnnpy} training --verbose)
+set -e
 ${mpirun} ${hdnnpy} training --verbose --resume output/CrystalGa16N16
 
 ${hdnnpy} prediction --poscar data/POSCAR --masters output/masters.npz

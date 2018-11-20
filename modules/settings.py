@@ -7,7 +7,8 @@ by 'settings.py' on your working directory.
 Please see 'test/settings.py' as a example.
 """
 
-from os import path, getcwd
+from os import path
+import os
 import sys
 from mpi4py import MPI
 import chainermn
@@ -46,7 +47,7 @@ def import_user_settings(args):
     elif args.mode in ['prediction', 'phonon']:
         sys.path.insert(0, path.dirname(args.masters))
     else:
-        sys.path.insert(0, getcwd())
+        sys.path.insert(0, os.getcwd())
 
     if not path.exists(path.join(sys.path[0], 'settings.py')):
         raise FileNotFoundError('`settings.py` is not found in {}'
@@ -56,7 +57,7 @@ def import_user_settings(args):
 
 
 def import_phonopy_settings():
-    sys.path.insert(0, getcwd())
+    sys.path.insert(0, os.getcwd())
     import phonopy_settings
     return phonopy_settings
 
@@ -130,6 +131,9 @@ def assert_phonopy_settings(stg):
 args = get_parser()
 stg = import_user_settings(args)
 assert_settings(args, stg)
+
+if not args.debug and stg.mpi.rank != 0:
+    sys.stdout = open(os.devnull, 'w')
 
 if args.mode == 'phonon':
     phonopy = import_phonopy_settings()
