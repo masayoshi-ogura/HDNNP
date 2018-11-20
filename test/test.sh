@@ -1,33 +1,23 @@
 #!/bin/sh
 set -eux
 
+clean="rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle,Symmetry_Function.npz} output/ __pycache__/"
 timeout="gtimeout 5"
 mpirun="mpirun -np 2"
 hdnnpy="python -W ignore ../hdnnpy"
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle,Symmetry_Function.npz} output/ __pycache__/
+${clean}; ${hdnnpy} training --verbose
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
-${hdnnpy} sym_func
+${clean}; ${mpirun} ${hdnnpy} training --verbose
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
-${mpirun} ${hdnnpy} sym_func
+${clean}; ${hdnnpy} param_search
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
-${hdnnpy} training --verbose
+${clean}; ${mpirun} ${hdnnpy} param_search
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
-${mpirun} ${hdnnpy} training --verbose
+${clean}; ${hdnnpy} sym_func
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
-${hdnnpy} param_search --verbose
+${clean}; ${mpirun} ${hdnnpy} sym_func
 
-rm -rf data/{CrystalGa16N16,CrystalGa2N2,config_type.pickle}
-${mpirun} ${hdnnpy} param_search --verbose
-
-${hdnnpy} training --verbose
-
-${mpirun} ${hdnnpy} training --verbose
 
 set +e
 (${timeout} ${hdnnpy} training --verbose)
@@ -38,6 +28,7 @@ set +e
 (${timeout} ${mpirun} ${hdnnpy} training --verbose)
 set -e
 ${mpirun} ${hdnnpy} training --verbose --resume output/CrystalGa16N16
+
 
 ${hdnnpy} prediction --poscar data/POSCAR --masters output/masters.npz
 
