@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+from pathlib import Path
 
 
 def get_parser():
@@ -20,17 +21,16 @@ def get_parser():
     # training mode
     training_parser.add_argument('--verbose', '-v', action='store_true', default=False,
                                  help='this flag may increase processing time.')
-    training_parser.add_argument('--resume', '-r', type=str,
+    training_parser.add_argument('--resume', '-r', type=Path,
                                  help='resume training from given config directory.\n'
-                                      'do not add "/" at the end of path.'
                                       'the given directory must contain '
                                       '`trainer_snapshot.npz`, `interim_result.pickle`.')
 
     # test mode
     for p in [prediction_parser, phonon_parser]:
-        p.add_argument('--poscar', '-p', required=True, type=str,
+        p.add_argument('--poscar', '-p', required=True, type=Path,
                        help='POSCAR file used for postprocess calculation.')
-        p.add_argument('--masters', '-m', required=True, type=str,
+        p.add_argument('--masters', '-m', required=True, type=Path,
                        help='trained masters model used for postprocess calculation.')
 
     return parser.parse_args()

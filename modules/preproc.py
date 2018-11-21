@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from os import path
 import numpy as np
 from sklearn import decomposition
 
@@ -37,18 +36,17 @@ class PCA(PreprocBase):
     def components(self):
         return self._components
 
-    def load(self, filename):
-        with np.load(filename) as ndarray:
-            elements = ndarray['elements']
-            self._mean = {element: ndarray['mean/{}'.format(element)] for element in elements}
-            self._components = {element: ndarray['components/{}'.format(element)] for element in elements}
-            self._elements += list(elements)
+    def load(self, file_path):
+        ndarray = np.load(file_path)
+        elements = ndarray['elements']
+        self._mean = {element: ndarray['mean/{}'.format(element)] for element in elements}
+        self._components = {element: ndarray['components/{}'.format(element)] for element in elements}
+        self._elements += list(elements)
 
-    def save(self, filename):
+    def save(self, file_path):
         mean_dict = {'mean/{}'.format(k): v for k, v in self._mean.items()}
         components_dict = {'components/{}'.format(k): v for k, v in self._components.items()}
-        dic = {'elements': self._elements, **mean_dict, **components_dict}
-        np.savez(filename, **dic)
+        np.savez(file_path, elements=self._elements, **mean_dict, **components_dict)
 
     def decompose(self, dataset):
         for element in dataset.composition['element']:

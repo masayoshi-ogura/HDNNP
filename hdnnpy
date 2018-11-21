@@ -7,7 +7,7 @@ import shutil
 import pickle
 import os
 import sys
-from os import path
+from pathlib import Path
 from skopt import gp_minimize
 from skopt.utils import use_named_args
 import numpy as np
@@ -39,12 +39,12 @@ def main():
             dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
             masters, result = training(dataset, elements)
             if stg.mpi.rank == 0:
-                generator.preproc.save(path.join(stg.file.out_dir, 'preproc.npz'))
-                chainer.serializers.save_npz(path.join(stg.file.out_dir, 'masters.npz'), masters)
-                dump_lammps(path.join(stg.file.out_dir, 'lammps.nnp'), generator.preproc, masters)
-                dump_training_result(path.join(stg.file.out_dir, 'result.yaml'), result)
+                generator.preproc.save(stg.file.out_dir/'preproc.npz')
+                chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
+                dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
+                dump_training_result(stg.file.out_dir/'result.yaml', result)
         finally:
-            shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
+            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
     elif stg.args.mode == 'param_search':
         try:
@@ -58,10 +58,10 @@ def main():
                                  verbose=True,
                                  callback=stg.skopt.callback)
             if stg.mpi.rank == 0:
-                dump_skopt_result(path.join(stg.file.out_dir, 'skopt_result.csv'), result)
-                dump_settings(path.join(stg.file.out_dir, 'best_settings.py'))
+                dump_skopt_result(stg.file.out_dir/'skopt_result.csv', result)
+                dump_settings(stg.file.out_dir/'best_settings.py')
         finally:
-            shutil.copy('./settings.py', path.join(stg.file.out_dir, 'settings.py'))
+            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
     elif stg.args.mode == 'sym_func':
         stg.dataset.preproc = None
@@ -73,7 +73,6 @@ def main():
         pprint('forces:\n{}'.format(forces.data))
 
     elif stg.args.mode == 'phonon':
-        name = path.splitext(path.split(stg.args.masters)[1])[0]
         dataset, _, forces = predict()
         phonopy = dataset.phonopy
         phonopy.set_forces(forces.data)
@@ -81,11 +80,11 @@ def main():
 
         pprint('drawing phonon band structure ... ', end='')
         phonopy_plt = stg.phonopy.callback(phonopy)
-        phonopy_plt.savefig(path.join(stg.file.out_dir, 'ph_band_HDNNP_{}.png'.format(name)))
+        phonopy_plt.savefig(stg.args.masters.with_name('phonon_band.png'))
         phonopy_plt.close()
         pprint('done')
 
-        shutil.copy('./phonopy_settings.py', path.join(stg.file.out_dir, 'phonopy_settings.py'))
+        shutil.copy('phonopy_settings.py', stg.file.out_dir/'phonopy_settings.py')
 
 
 @use_named_args(stg.skopt.space)
@@ -102,7 +101,7 @@ def objective_func(**params):
     assert_settings(stg)
 
     results = []
-    with open(os.devnull, 'w') as devnull:
+    with Path(os.devnull).open('w') as devnull:
         sys.stdout = devnull
         generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
         for i, (dataset, elements) in enumerate(
@@ -149,7 +148,7 @@ def training(dataset, elements):
 
         # updater and trainer
         updater = HDUpdater(train_iter, optimizer={'main': main_opt, 'master': master_opt})
-        trainer = chainer.training.Trainer(updater, stop_trigger, path.join(stg.file.out_dir, config))
+        trainer = chainer.training.Trainer(updater, stop_trigger, stg.file.out_dir/config)
 
         # extensions
         trainer.extend(ext.ExponentialShift('alpha', 1 - stg.model.lr_decay,
@@ -168,19 +167,18 @@ def training(dataset, elements):
 
         # load trainer snapshot and resume training
         if stg.args.mode == 'training' and stg.args.resume:
-            if config != path.split(stg.args.resume)[1]:
+            if config != stg.args.resume.name:
                 continue
             pprint('Resume training loop.\n\tconfig_type: {}'.format(config))
-            trainer_snapshot = path.join(stg.args.resume, 'trainer_snapshot.npz')
-            interim_result = path.join(stg.args.resume, 'interim_result.pickle')
+            trainer_snapshot = stg.args.resume/'trainer_snapshot.npz'
+            interim_result = stg.args.resume/'interim_result.pickle'
             chainer.serializers.load_npz(trainer_snapshot, trainer)
-            with open(interim_result, 'rb') as f:
-                result = pickle.load(f)
+            result = pickle.loads(interim_result.read_bytes())
             # remove snapshot
             stg.mpi.comm.Barrier()
             if stg.mpi.rank == 0:
-                os.remove(trainer_snapshot)
-                os.remove(interim_result)
+                trainer_snapshot.unlink()
+                interim_result.unlink()
             stg.args.resume = None
 
         with ChainerSafelyTerminate(config, trainer, result):
