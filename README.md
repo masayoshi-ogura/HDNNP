@@ -59,7 +59,12 @@ And these is a bug that if you install anaconda by `pyenv`, `pipenv` will fail t
 
 Same as by anaconda, but you need to install python rather than installing anaconda. This bug will be fixed in near future release.
 
+For macOS users, you need to install `mpich` before installing dependencies.
+
 ```shell
+# Only for macOS users
+$ brew install mpich
+
 # Install dependencies
 $ pipenv install
 
@@ -75,7 +80,7 @@ $ pipenv shell
 
 For generating `.xyz` chemical format which is a starndard format for discribing molecule geometry, use `vasp2xyz.py`.
 
-Run this command and you will get a `xyz` file.
+Run this command and you will get a `xyz` file.
 
 ```shell
 ./vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]
@@ -85,7 +90,7 @@ Here are these args.
 
 - `[CONFIG]`: To specify each output
 - `[OUTCAR]`: Your path to OUTCAR
-- `[XYZFILE]: Your output
+- `[XYZFILE]`: Your output
 
 ## Reference
 
