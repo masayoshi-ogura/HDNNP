@@ -148,7 +148,7 @@ def dump_skopt_result(file_path, result):
 def dump_settings(file_path):
     with file_path.open('w') as f:
         f.write('# -*- coding: utf-8 -*-\n'
-                'from modules.settings import defaults as stg\n\n')
+                'from hdnnpy.settings import defaults as stg\n\n')
         for k, v in vars(stg.dataset).items():
             if k.startswith('_'):
                 continue

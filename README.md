@@ -69,6 +69,6 @@ $ conda activate HDNNP
 - `PIPENV_VENV_IN_PROJECT=1`
 この環境変数を設定すると、pipenvで作成されるpythonの仮想環境がこのディレクトリの直下に作成される(`/path/to/HDNNP/.venv/`)
 
-- `PATH=/path/to/HDNNP:${PATH}`
+- `PATH=/path/to/HDNNP/scripts:${PATH}`
 - `PYTHONPATH=/path/to/HDNNP:${PYTHONPATH}`
 `hdnnpy`をこのディレクトリの直下*****以外**で実行する場合、この環境変数を設定してください。

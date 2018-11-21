@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# import python modules
 from pathlib import Path
 from collections import defaultdict
 import pickle

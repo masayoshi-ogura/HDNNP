@@ -4,8 +4,8 @@ import matplotlib as mpl
 from skopt.space import Real
 from skopt.callbacks import DeltaYStopper
 
-from modules.settings import defaults as stg
-from modules.skopt_callbacks import SamePointStopper
+from hdnnpy.settings import defaults as stg
+from hdnnpy.skopt_callbacks import SamePointStopper
 
 mpl.use('Agg')
 mpl.rc('font', size=20)
