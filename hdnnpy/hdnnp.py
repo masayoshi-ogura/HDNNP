@@ -1,7 +1,6 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from modules import settings as stg
+from . import settings as stg
 
 import shutil
 import pickle
@@ -16,17 +15,17 @@ from chainer.training.triggers import EarlyStoppingTrigger
 import chainer.training.extensions as ext
 import chainermn
 
-from modules.data import DataGenerator
-from modules.model import SingleNNP, HDNNP
-from modules.updater import HDUpdater
-from modules.util import pprint, mkdir, flatten_dict
-from modules.util import ChainerSafelyTerminate
-from modules.util import dump_lammps, dump_training_result
-from modules.util import dump_skopt_result, dump_settings
-from modules.util import assert_settings
-from modules.chainer_extensions import Evaluator
-from modules.chainer_extensions import set_log_scale
-from modules.chainer_extensions import scatter_plot
+from .data import DataGenerator
+from .model import SingleNNP, HDNNP
+from .updater import HDUpdater
+from .util import pprint, mkdir, flatten_dict
+from .util import ChainerSafelyTerminate
+from .util import dump_lammps, dump_training_result
+from .util import dump_skopt_result, dump_settings
+from .util import assert_settings
+from .chainer_extensions import Evaluator
+from .chainer_extensions import set_log_scale
+from .chainer_extensions import scatter_plot
 
 
 def main():

@@ -35,16 +35,20 @@
 settings.py
 best_settings.py
 phonopy_settings.py
-!modules/settings.py
-!modules/phonopy_settings.py
+!hdnnpy/settings.py
 
-# environment files
+# python environment files
 .venv/
 .python-version
 !Pipfile
 !Pipfile.lock
 !condaenv.yaml
 !condaenv.*.yaml
+
+# created by `pip install --editable .`
+hdnnpy.egg-info/
+build/
+dist/
 
 # test files
 !test/test.sh
