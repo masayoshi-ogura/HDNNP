@@ -394,15 +394,10 @@ class AtomicStructureDataset(object):
 
 class DataGenerator(object):
     def __init__(self, data_file, format):
-        self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         if format == 'xyz':
-            self._construct_datasets(data_file)
+            self._construct_training_datasets(data_file)
         elif format == 'poscar':
-            dataset = AtomicStructureDataset(data_file, format)
-            self._preproc.load(stg.file.out_dir/'preproc.npz')
-            self._preproc.decompose(dataset)
-            self._datasets = [dataset]
-            self._elements = dataset.composition['element']
+            self._construct_test_datasets(data_file)
 
     def __call__(self):
         return self._datasets[0], self._elements
@@ -434,15 +429,22 @@ class DataGenerator(object):
                 split.append((train, test, dataset.composition))
             yield split, self._elements
 
-    def _construct_datasets(self, original_xyz):
+    def _construct_training_datasets(self, original_xyz):
         cfg_pickle = original_xyz.with_name('config_type.pickle')
         if not cfg_pickle.exists():
             parse_xyzfile(original_xyz)
         config_type = pickle.loads(cfg_pickle.read_bytes())
+        required_config = sorted(config_type) if 'all' in stg.dataset.config else stg.dataset.config
+
+        if stg.mpi.rank == 0:
+            self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
+        else:
+            self._preproc = PREPROC[None]()
+        if stg.args.mode == 'training' and stg.args.resume:
+            self._preproc.load(stg.file.out_dir/'preproc.npz')
 
         self._datasets = []
         elements = set()
-        required_config = sorted(config_type) if 'all' in stg.dataset.config else stg.dataset.config
         for config in required_config:
             if config not in config_type:
                 continue
@@ -450,16 +452,25 @@ class DataGenerator(object):
 
             parsed_xyz = original_xyz.with_name(config)/'structure.xyz'
             dataset = AtomicStructureDataset(parsed_xyz, 'xyz')
-            if stg.mpi.rank == 0:
-                self._preproc.decompose(dataset)
+            self._preproc.decompose(dataset)
             stg.mpi.comm.Barrier()
 
             dataset = scatter_dataset(dataset)
             self._datasets.append(dataset)
             elements.update(dataset.composition['element'])
             pprint('')
+
+        self._preproc.save(stg.file.out_dir/'preproc.npz')
         self._elements = sorted(elements)
         stg.dataset.nsample = sum([d.nsample for d in self._datasets])
+
+    def _construct_test_datasets(self, poscar):
+        self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
+        self._preproc.load(stg.file.out_dir/'preproc.npz')
+        dataset = AtomicStructureDataset(poscar, format)
+        self._preproc.decompose(dataset)
+        self._datasets = [dataset]
+        self._elements = dataset.composition['element']
 
 def parse_xyzfile(xyz_file):
     if stg.mpi.rank == 0:

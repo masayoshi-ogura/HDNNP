@@ -6,6 +6,7 @@ import signal
 import pickle
 import csv
 import yaml
+from pathlib import Path
 import numpy as np
 import chainer
 from chainer import Variable
@@ -118,10 +119,14 @@ def dump_lammps(file_path, preproc, masters):
 
 
 def dump_training_result(file_path, result):
-    args = {k:v for k,v in vars(stg.args).items() if not k.startswith('_')}
-    file = {k:v for k,v in vars(stg.file).items() if not k.startswith('_')}
-    dataset = {k:v for k,v in vars(stg.dataset).items() if not k.startswith('_')}
-    model = {k:v for k,v in vars(stg.model).items() if not k.startswith('_')}
+    args = {k:v if not isinstance(v, Path) else str(v)
+            for k,v in vars(stg.args).items() if not k.startswith('_')}
+    file = {k:v if not isinstance(v, Path) else str(v)
+            for k,v in vars(stg.file).items() if not k.startswith('_')}
+    dataset = {k:v if not isinstance(v, Path) else str(v)
+               for k,v in vars(stg.dataset).items() if not k.startswith('_')}
+    model = {k:v if not isinstance(v, Path) else str(v)
+             for k,v in vars(stg.model).items() if not k.startswith('_')}
 
     with file_path.open('w') as f:
         yaml.dump({

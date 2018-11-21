@@ -39,7 +39,6 @@ def main():
             dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
             masters, result = training(dataset, elements)
             if stg.mpi.rank == 0:
-                generator.preproc.save(stg.file.out_dir/'preproc.npz')
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
                 dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
                 dump_training_result(stg.file.out_dir/'result.yaml', result)
