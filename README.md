@@ -10,7 +10,7 @@ Install this project by `git`.
 ```shell
 git clone git@github.com:KeisukeYamashita/HDNNP.git
 
-# or if usign ssh
+# or if using ssh
 
 git clone git@github.com:KeisukeYamashita/HDNNP.git
 ```
@@ -83,7 +83,7 @@ For generating `.xyz` chemical format which is a starndard format for discribing
 Run this command and you will get a `xyz` file.
 
 ```shell
-./vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]
+./lib/vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]
 ```
 
 Here are these args.
