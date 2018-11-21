@@ -4,7 +4,7 @@ set -eux
 clean="rm -rf data/CrystalGa16N16 data/CrystalGa2N2 data/config_type.pickle data/Symmetry_Function.npz output/ __pycache__/"
 timeout="gtimeout 5"
 mpirun="mpirun -np 2"
-hdnnpy="python -W ignore ../scripts/hdnnpy"
+hdnnpy="hdnnpy"
 
 ${clean}; ${hdnnpy} training --verbose
 

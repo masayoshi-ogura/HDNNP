@@ -1,11 +1,11 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "9adaa6e3384474b57ebd9f36e9a599e5b07bea52b6f9b0fb1df1ec3f17d3f2a3"
+            "sha256": "34ae829726b0c09f4dbfef4a779a4bfc8231a2cc438bd017c5527ea3aab56c90"
         },
         "pipfile-spec": 6,
         "requires": {
-            "python_version": "3.6"
+            "python_version": "3.6.7"
         },
         "sources": [
             {
@@ -94,6 +94,10 @@
                 "sha256:e626c65a8587921ebc7fb8d31a49addfdd0b9a9aa96315ea484c09803337b955"
             ],
             "version": "==2.8.0"
+        },
+        "hdnnpy": {
+            "editable": true,
+            "path": "."
         },
         "itsdangerous": {
             "hashes": [
@@ -247,10 +251,10 @@
         },
         "phonopy": {
             "hashes": [
-                "sha256:72f06728c98b9a7ab3db2d6fa2ae5d029029fbcff4e8fcfbc29f1e2620a0f905"
+                "sha256:d61a36555aa1727f0657a03a4d00c5c2e74ed58ea19d8bdae806180afa823b5c"
             ],
             "index": "pypi",
-            "version": "==1.13.2.107"
+            "version": "==1.14.0"
         },
         "protobuf": {
             "hashes": [
@@ -574,10 +578,10 @@
         },
         "notebook": {
             "hashes": [
-                "sha256:b85e4de3d54cf4f14fe1d0515a980ccb49ddd4cdd21250cc0d4fb6374d50b1a7",
-                "sha256:ddb713d15a3205d7d3beab11f7fa9e3b10dbe0a2fff034a7db22ec8a2bc47a8b"
+                "sha256:661341909008d1e7bfa1541904006f9789fa3de1cbec8379d2879819454cc04b",
+                "sha256:91705b109fc785198faed892489cddb233265564d5e2dad5e4f7974af05ee8dd"
             ],
-            "version": "==5.7.0"
+            "version": "==5.7.2"
         },
         "pandocfilters": {
             "hashes": [
