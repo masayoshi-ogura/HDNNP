@@ -6,8 +6,9 @@ import ase.io
 
 args = sys.argv
 
-if len(args) is not 3:
-    sys.stdout.write("args should have 3 but has %d" % len(args))
+# argv[0] contains all args
+if len(args) is not 3 + 1:
+    sys.stdout.write("args should have 3 but has %d" % len(args - 1))
     sys.exit(1)
 
 config = args[1]
