@@ -47,10 +47,10 @@ def import_user_settings(args):
         search_path = str(args.masters.parent.absolute())
     else:
         search_path = os.getcwd()
-    if not Path(search_path, 'settings.py').exists():
-        raise FileNotFoundError('`settings.py` is not found in {}'.format(search_path))
+    if not Path(search_path, 'config.py').exists():
+        raise FileNotFoundError('`config.py` is not found in {}'.format(search_path))
     sys.path.insert(0, search_path)
-    from settings import stg
+    from config import stg
 
     # convert path string to pathlib.Path object
     stg.file.out_dir = Path(stg.file.out_dir)
@@ -65,8 +65,8 @@ def import_phonopy_settings():
 
 
 args = get_parser()
-
 stg = import_user_settings(args)
+
 if args.mode == 'phonon':
     phonopy = import_phonopy_settings()
 

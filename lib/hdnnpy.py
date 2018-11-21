@@ -43,8 +43,14 @@ def main():
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
                 dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
                 dump_training_result(stg.file.out_dir/'result.yaml', result)
+        except:
+            print("error occured while training")
         finally:
-            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
+            shutil.copy('config.py', stg.file.out_dir/'settings.py')
+    elif stg.args.mode == 'predict':
+        _, energy, forces = predict()
+        pprint('energy:\n{}'.format(energy.data))
+        pprint('forces:\n{}'.format(forces.data))
 
     elif stg.args.mode == 'param_search':
         try:
@@ -61,7 +67,7 @@ def main():
                 dump_skopt_result(stg.file.out_dir/'skopt_result.csv', result)
                 dump_settings(stg.file.out_dir/'best_settings.py')
         finally:
-            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
+            shutil.copy('config.py', stg.file.out_dir/'settings.py')
 
     elif stg.args.mode == 'sym_func':
         stg.dataset.preproc = None
