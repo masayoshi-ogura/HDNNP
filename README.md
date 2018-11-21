@@ -70,6 +70,23 @@ $ pipenv shell
 (HDNNP) $ exit
 ```
 
+## Usage
+### Generating XYZ file
+
+For generating `.xyz` chemical format which is a starndard format for discribing molecule geometry, use `vasp2xyz.py`.
+
+Run this command and you will get a `xyz` file.
+
+```shell
+./vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]
+```
+
+Here are these args.
+
+- `[CONFIG]`: To specify each output
+- `[OUTCAR]`: Your path to OUTCAR
+- `[XYZFILE]: Your output
+
 ## Reference
 
 - Jörg Behler. First Principle Neural Network Potentials for Reactive Simulations of Large Molecular and Condensed System, 2007
