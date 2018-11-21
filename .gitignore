@@ -56,3 +56,6 @@ phonopy_settings.py
 # others
 .idea/
 .ipynb_checkpoints/
+
+# Editor config
+.vscode/

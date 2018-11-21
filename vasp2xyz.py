@@ -5,6 +5,11 @@ import sys
 import ase.io
 
 args = sys.argv
+
+if len(args) is not 3:
+    sys.stdout.write("args should have 3 but has %d" % len(args))
+    sys.exit(1)
+
 config = args[1]
 input = args[2]
 output = args[3]

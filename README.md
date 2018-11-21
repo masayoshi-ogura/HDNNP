@@ -1,59 +1,39 @@
-# environment construction
+# High Dimentinal Neural Network Potential(HDNNP)
 
-pipenvによる環境構築と、anacondaによる環境構築が選択できる。
+This is a implementation of High Dimentinal Neural Network Potential(HDNNP) designed to reproduce Density Function Theory(DFT) calculation *effectivly* with high *flexibility*, *reactivety*.
+Also, this project is based on [ogura-lab/HDNNP](https://github.com/ogura-lab/HDNNP).
 
-基本的にはanacondaによるインストールの方が実行速度が速い。
-ただし、個々のモジュールを適切にビルドした場合はそちらの方が速くなる可能性はある。
+## Install
 
-どちらの場合も、pyenvによるバージョン管理と組み合わせるのが賢い。
+Install this project by `git`.
 
-pyenv,pipenv,anacondaのインストールについては省略する。
+```shell
+git clone git@github.com:KeisukeYamashita/HDNNP.git
 
-注意1：
-2018/11/16時点で、
-Anaconda Cloud上に
+# or if usign ssh
 
-- ChainerMN
-- Chainer v5 (v5からChainerMNがマージされた)
-
-が存在しないため、
-anacondaを使う場合でもpipを使用してChainerMNをインストールする必要がある。
-環境が壊れる可能性を承知した上で使用してください。
-参考：http://onoz000.hatenablog.com/entry/2018/02/11/142347
-
-注意2：
-2018/11/16時点で、
-pyenvを使ってanacondaをインストールしてある場合、pipenvによるインストールは失敗するという情報がある。
-このバグの修正版は将来的にリリースされるらしい。
-参考：https://github.com/pypa/pipenv/issues/3044
-
-## pipenv
-
-```
-$ git clone https://github.com/ogura-edu/HDNNP.git
-$ cd HDNNP/
-$ pyenv install <VERSION>  # VERSION >= 3.6
-$ pyenv local <VERSION>
-$ pipenv install
-
-# activate
-$ pipenv shell
-
-# deactivate
-(HDNNP) $ exit
+git clone git@github.com:KeisukeYamashita/HDNNP.git
 ```
 
-## anaconda
+This project used [Pipenv](https://github.com/pypa/pipenv) for development workflow. If you don`t have it, run this command to install.
 
-`conda env create --file condaenv.yaml`の実行が終了すると、
-各々の環境に合わせてactivationの仕方がいくつか提示されるので好きなものを選ぶ。
-以下の例では`~/.bashrc`に1文追記する方法を選択している。
 
+**macOS**
 ```
-$ git clone https://github.com/ogura-edu/HDNNP.git
-$ cd HDNNP/
-$ pyenv install <anacondaVERSION>
-$ pyenv local <anacondaVERSION>
+brew install pipenv
+```
+
+## Setup
+### By Anaconda(Prefered)
+
+Using anaconda is prefered because it is basically faster than Pipenv.
+
+Install anaconda and activate your VM.
+
+```shell
+$ ANACONDA_VERSION = [YOUR_ANACODA_VERSION]
+$ pyenv install $ANACONDA_VERSION
+$ pyenv local $ANACONDA_VERSION
 $ conda env create --file condaenv.yaml
 $ echo ". ${HOME}/.pyenv/versions/<anacondaVERSION>/etc/profile.d/conda.sh" > ~/.bashrc
 
@@ -64,11 +44,32 @@ $ conda activate HDNNP
 (HDNNP) $ conda deactivate
 ```
 
-## environment variable
+**NOTE** 
 
-- `PIPENV_VENV_IN_PROJECT=1`
-この環境変数を設定すると、pipenvで作成されるpythonの仮想環境がこのディレクトリの直下に作成される(`/path/to/HDNNP/.venv/`)
+There is no
 
-- `PATH=/path/to/HDNNP:${PATH}`
-- `PYTHONPATH=/path/to/HDNNP:${PYTHONPATH}`
-`hdnnpy`をこのディレクトリの直下*****以外**で実行する場合、この環境変数を設定してください。
+- ChainerMN
+- Chainer v5
+
+on the Anaconda Cloud, so you still have to install these packages by `pip`.
+
+And these is a bug that if you install anaconda by `pyenv`, `pipenv` will fail to start.
+
+### By Pipenv
+
+Same as by anaconda, but you need to install python rather than installing anaconda. This bug will be fixed in near future release.
+
+```shell
+# Install dependencies
+$ pipenv install
+
+# activate your VM
+$ pipenv shell
+
+# deactivate
+(HDNNP) $ exit
+```
+
+## Reference
+
+- Jörg Behler. First Principle Neural Network Potentials for Reactive Simulations of Large Molecular and Condensed System, 2007
