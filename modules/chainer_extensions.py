@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from os import path
 from copy import copy
 import numpy as np
 import matplotlib.pyplot as plt
@@ -56,7 +55,7 @@ def scatter_plot(model, dataset):
             plt.text(0.5, 0.9,
                      '{} @epoch={}'.format(title, trainer.updater.epoch),
                      ha='center', transform=plt.gcf().transFigure)
-            fig.savefig(path.join(trainer.out, '{}.png'.format(title)))
+            fig.savefig(trainer.out/'{}.png'.format(title))
 
         G, dG, E_true, F_true = chainer.dataset.concat_examples(dataset)
         E_pred, F_pred, _ = model(G, dG, E_true, F_true)

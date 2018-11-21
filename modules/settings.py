@@ -7,7 +7,7 @@ by 'settings.py' on your working directory.
 Please see 'test/settings.py' as a example.
 """
 
-from os import path
+from pathlib import Path
 import os
 import sys
 from mpi4py import MPI
@@ -42,16 +42,19 @@ class defaults:
 
 def import_user_settings(args):
     if args.mode == 'training' and args.resume:
-        sys.path.insert(0, path.dirname(args.resume))
+        search_path = str(args.resume.parent.absolute())
     elif args.mode in ['prediction', 'phonon']:
-        sys.path.insert(0, path.dirname(args.masters))
+        search_path = str(args.masters.parent.absolute())
     else:
-        sys.path.insert(0, os.getcwd())
-
-    if not path.exists(path.join(sys.path[0], 'settings.py')):
-        raise FileNotFoundError('`settings.py` is not found in {}'
-                                .format(path.abspath(sys.path[0])))
+        search_path = os.getcwd()
+    if not Path(search_path, 'settings.py').exists():
+        raise FileNotFoundError('`settings.py` is not found in {}'.format(search_path))
+    sys.path.insert(0, search_path)
     from settings import stg
+
+    # convert path string to pathlib.Path object
+    stg.file.out_dir = Path(stg.file.out_dir)
+    stg.dataset.xyz_file = Path(stg.dataset.xyz_file)
     return stg
 
 
@@ -68,7 +71,7 @@ if args.mode == 'phonon':
     phonopy = import_phonopy_settings()
 
 if not args.debug and stg.mpi.rank != 0:
-    sys.stdout = open(os.devnull, 'w')
+    sys.stdout = Path(os.devnull).open('w')
 
 file = stg.file
 mpi = stg.mpi

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from pprint import pprint as pretty_print
-import os
 import sys
 import signal
 import pickle
@@ -26,7 +25,7 @@ def pprint(data, flush=True, **options):
 
 def mkdir(path):
     if stg.mpi.rank == 0:
-        os.makedirs(path, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True)
 
 
 def flatten_dict(dic):
@@ -55,15 +54,15 @@ class ChainerSafelyTerminate(object):
             self.result['training_time'] += self.trainer.elapsed_time
             self.result['observation'].append({'config': self.config, **flatten_dict(self.trainer.observation)})
             if stg.args.mode == 'training' and stg.mpi.rank == 0:
-                chainer.serializers.save_npz(os.path.join(self.trainer.out, 'masters.npz'),
+                chainer.serializers.save_npz(self.trainer.out/'masters.npz',
                                              self.trainer.updater.get_optimizer('master').target)
                 ### comment out: output lammps.nnp at end of training for each config
                 # preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-                # preproc.load(path.join(stg.file.out_dir, 'preproc.npz'))
-                # dump_lammps(os.path.join(self.trainer.out, 'lammps.nnp'), preproc,
-                #                          self.trainer.updater.get_optimizer('master').target)
+                # preproc.load(stg.file.out_dir/'preproc.npz')
+                # dump_lammps(self.trainer.out/'lammps.nnp', preproc,
+                #             self.trainer.updater.get_optimizer('master').target)
             if stg.args.mode == 'param_search' and stg.mpi.rank == 0:
-                os.rmdir(self.trainer.out)
+                self.trainer.out.rmdir()
 
     def _snapshot(self, signum, frame):
         self.signum = signal.Signals(signum)
@@ -71,9 +70,8 @@ class ChainerSafelyTerminate(object):
             pprint('Stop {} training by signal: {}!\n'
                    'Take trainer snapshot at epoch: {}'
                    .format(self.config, self.signum.name, self.trainer.updater.epoch))
-            chainer.serializers.save_npz(os.path.join(self.trainer.out, 'trainer_snapshot.npz'), self.trainer)
-            with open(os.path.join(self.trainer.out, 'interim_result.pickle'), 'wb') as f:
-                pickle.dump(self.result, f)
+            chainer.serializers.save_npz(self.trainer.out/'trainer_snapshot.npz', self.trainer)
+            (self.trainer.out/'interim_result.pickle').write_bytes(pickle.dumps(self.result))
         # must raise any Exception to stop trainer.run()
         raise InterruptedError('Chainer training loop is interrupted by {}'.format(self.signum.name))
 
@@ -81,7 +79,7 @@ class ChainerSafelyTerminate(object):
 def dump_lammps(file_path, preproc, masters):
     nelements = len(masters)
     depth = len(masters[0])
-    with open(file_path, 'w') as f:
+    with file_path.open('w') as f:
         f.write('# title\nneural network potential trained by HDNNP\n\n')
         f.write('# symmetry function parameters\n{}\n{}\n{}\n{}\n{}\n\n'
                 .format(' '.join(map(str, stg.dataset.Rc)),
@@ -125,7 +123,7 @@ def dump_training_result(file_path, result):
     dataset = {k:v for k,v in vars(stg.dataset).items() if not k.startswith('_')}
     model = {k:v for k,v in vars(stg.model).items() if not k.startswith('_')}
 
-    with open(file_path, 'w') as f:
+    with file_path.open('w') as f:
         yaml.dump({
             'args': args,
             'file': file,
@@ -136,14 +134,14 @@ def dump_training_result(file_path, result):
 
 
 def dump_skopt_result(file_path, result):
-    with open(file_path, 'w') as f:
+    with file_path.open('w') as f:
         writer = csv.writer(f, lineterminator='\n')
         writer.writerow([space.name for space in stg.skopt.space] + ['score'])
         writer.writerows([x + [fun] for x, fun in zip(result.x_iters, result.func_vals)])
 
 
 def dump_settings(file_path):
-    with open(file_path, 'w') as f:
+    with file_path.open('w') as f:
         f.write('# -*- coding: utf-8 -*-\n'
                 'from modules.settings import defaults as stg\n\n')
         for k, v in vars(stg.dataset).items():

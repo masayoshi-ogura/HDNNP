@@ -1,18 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from os import path
+from pathlib import Path
 import sys
-import glob
-from ase.io import read
-from ase.io import write
+import ase.io
 
 args = sys.argv
 step = int(args[1])
 in_dir = args[2]
 output = args[3]
 
-files = glob.glob(path.join(in_dir, '*.xyz'))
-for f in files:
-    images = read(f, index='::{}'.format(step), format='xyz')
-    write(output, images, format='xyz', append=True)
+for f in Path(in_dir).glob('*.xyz'):
+    images = ase.io.read(f, index='::{}'.format(step), format='xyz')
+    ase.io.write(output, images, format='xyz', append=True)
