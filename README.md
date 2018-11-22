@@ -68,6 +68,9 @@ $ pipenv install
 # activate your VM
 $ pipenv shell
 
+# For example...
+(HDNNP) $ hdnnpy training
+
 # deactivate
 (HDNNP) $ exit
 ```
@@ -93,7 +96,6 @@ $ conda activate HDNNP
 
 # For example...
 (HDNNP) $ hdnnpy training
-
 
 # deactivate
 (HDNNP) $ conda deactivate
