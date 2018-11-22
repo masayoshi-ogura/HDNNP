@@ -36,6 +36,7 @@ class Logger(object):
         Args:
             name (str, optional): string name of this logger
         """
+        self._logger = None
         self._logger_name = name
         self._log_level = self.DEFAULT_LOG_LEVEL
         self._format = Formatter('%(levelname)s %(asctime)s %(module)s in line %(lineno)d: %(message)s')
@@ -43,7 +44,6 @@ class Logger(object):
           'handler': StreamHandler(),
           'level': self.DEFAULT_LOG_LEVEL  
         }]
-        return self
 
     def set_log_level(self, level):
         """Function to set log level
