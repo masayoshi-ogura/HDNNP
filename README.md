@@ -16,7 +16,7 @@ git clone git@github.com:ogura-edu/HDNNP.git
 git clone git@github.com:ogura-edu/HDNNP.git
 ```
 
-This project uses [Pipenv](https://github.com/pypa/pipenv) for development workflow. If you don`t have it, run this command to install.
+This project uses [Pipenv](https://github.com/pypa/pipenv) for development workflow. If you don't have it, run this command to install.
 
 
 **macOS**
