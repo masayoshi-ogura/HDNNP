@@ -60,3 +60,6 @@ dist/
 # others
 .idea/
 .ipynb_checkpoints/
+
+# Editor config
+.vscode/
