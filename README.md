@@ -29,7 +29,7 @@ brew install pipenv
 
 Same as by anaconda, but you need to install python rather than installing anaconda. This bug will be fixed in near future release.
 
-Set environmental variable `PIPENV_VENV_IN_PROJECT` to `1` to create your VW into this project dir(`/path/to/HDNNP/.venv`).
+Set environmental variable `PIPENV_VENV_IN_PROJECT` to `1` to create your VM into this project dir(`/path/to/HDNNP/.venv`).
 
 ```shell
 export PIPENV_VENV_IN_PROJECT = 1
