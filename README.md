@@ -1,67 +1,92 @@
-# environment construction
+# High Dimensional Neural Network Potential(HDNNP)
 
-基本的にpythonのバージョン管理はpyenvを使うこと。  
-必要なコマンド(pyenv,pipenv,conda)のインストールについては省略する。
+> This is a implementation of High Dimensional Neural Network Potential(HDNNP) designed to reproduce Density Function Theory(DFT) calculation *effectively* with high *flexibility*, *reactivity*.
 
-注意1：  
-2018/11/16時点で、Anaconda Cloud上に
+There is equivalent doc in Japanese [README.ja.md](https://github.com/ogura-edu/HDNNP/blob/master/README.ja.md).
 
-- ChainerMN
-- Chainer v5 (v5からChainerMNがマージされた)
+## Install
 
-が存在しないため、anacondaを使う場合でもpipを使用してChainerMNをインストールする必要がある。  
-環境が壊れる可能性を承知した上で使用すること。  
-参考：http://onoz000.hatenablog.com/entry/2018/02/11/142347
+Install this project by `git`.
 
-注意2：  
-2018/11/16時点で、pyenvを使ってanacondaをインストールしてある場合、pipenvによるインストールは失敗するという情報がある。  
-このバグの修正版は将来的にリリースされるらしい。  
-参考：https://github.com/pypa/pipenv/issues/3044
-
-## pipenv (recommended)
-
-簡単かつ確実なインストール方法。
-
-環境変数`PIPENV_VENV_IN_PROJECT`を1に設定すると、  
-pipenvで作成されるpythonの仮想環境がこのプロジェクトの直下に作成される。(`/path/to/HDNNP/.venv/`)  
-以下のコマンドを実行するか、`~/.bashrc`に追記してプロセスを再起動することで変更が適用される。
-```
-export PIPENV_VENV_IN_PROJECT=1
-```
-
-```
+```shell
 $ git clone https://github.com/ogura-edu/HDNNP.git
-$ cd HDNNP/
-$ pyenv install 3.6.7
-$ pyenv local 3.6.7
+
+# or if using ssh
+
+$ git clone git@github.com:ogura-edu/HDNNP.git
+```
+
+This project uses [Pipenv](https://github.com/pypa/pipenv) for development workflow. If you don't have it, run this command to install.
+
+
+**macOS**
+
+```shell
+$ brew install pipenv
+```
+
+**other**
+
+```shell
+# please run after installing python 
+$ pip install pipenv
+```
+
+## Setup
+### By Pipenv(Prefered)
+
+Same as by anaconda, but you need to install python rather than installing anaconda. 
+
+This bug will be fixed in near future release(ref: [pythonfinder + pyenv + anaconda issue](https://github.com/pypa/pipenv/issues/3044)).
+
+Set environmental variable `PIPENV_VENV_IN_PROJECT` to `1` to create your VM into this project dir(`/path/to/HDNNP/.venv`).
+
+```shell
+export PIPENV_VENV_IN_PROJECT = 1
+```
+
+For macOS users, you need to install `mpich` before installing dependencies.
+
+```shell
+# Only for macOS users. 
+#
+# NOTE: Installing both mpich and openmpi will conflict
+#
+$ brew install mpich
+
+# or
+
+$ brew install openmpi
+```
+
+Setup your enviroments.
+
+```shell
+# Install dependencies
 $ pipenv install
 
-# activate
+# activate your VM
 $ pipenv shell
 
+# For example...
 (HDNNP) $ hdnnpy training
 
 # deactivate
 (HDNNP) $ exit
 ```
 
-## anaconda
+### By Anaconda
 
-最適化されたバイナリを取得できるので、実行速度が速い。  
-しかし、上記の理由からpipと混在した形になることや、  
-マシンによってはインストールがうまくいかないことがあるため注意すること。
+Using anaconda is prefered because it is basically faster than Pipenv.
 
-`conda env create --file condaenv.yaml`の実行が終了すると、  
-各々の環境に合わせてactivationの仕方がいくつか提示されるので好きなものを選ぶ。  
-以下の例では`~/.bashrc`に1文追記する方法を選択している。
+Install anaconda and activate your VM.
 
-```
-$ git clone https://github.com/ogura-edu/HDNNP.git
-$ cd HDNNP/
-$ pyenv install anaconda-x.x.x
-$ pyenv local anaconda-x.x.x
+```shell
+$ ANACONDA_VERSION = [YOUR_ANACODA_VERSION]
+$ pyenv install $ANACONDA_VERSION
+$ pyenv local $ANACONDA_VERSION
 $ conda env create -n HDNNP --file condaenv.yaml
-$ echo ". ${HOME}/.pyenv/versions/anaconda-x.x.x/etc/profile.d/conda.sh" > ~/.bashrc
+$ echo ". ${HOME}/.pyenv/versions/<anacondaVERSION>/etc/profile.d/conda.sh" > ~/.bashrc
 
 # activate
 $ conda activate HDNNP
@@ -69,28 +94,24 @@ $ conda activate HDNNP
 # install this program using pip
 (HDNNP) $ pip install --editable .
 
+# For example...
 (HDNNP) $ hdnnpy training
 
 # deactivate
 (HDNNP) $ conda deactivate
 ```
 
-## pip install only
+**NOTE** 
 
-`Pipfile`または`condaenv.yaml`に記述されている依存関係を元に、  
-パッケージを個別に`pip install`することももちろん可能。  
-この場合は`virtualenv`を使って自分で仮想環境を管理することを推奨する。
-```
-$ git clone https://github.com/ogura-edu/HDNNP.git
-$ cd HDNNP/
-$ pip install PKG1 PKG2 ...
-$ pip install -e .
-```
+There is no
 
-または、慣れた人であれば依存関係を`setup.py`に書き加えるだけで済む。
-```
-$ git clone https://github.com/ogura-edu/HDNNP.git
-$ cd HDNNP/
-$ vim setup.py  #=> setup()の引数にinstall_requiresを追加
-$ pip install -e .
-```
+- ChainerMN
+- Chainer v5
+
+on the Anaconda Cloud, so you still have to install these packages by `pip`.
+
+And these is a bug that if you install anaconda by `pyenv`, `pipenv` will fail to start(ref: [pythonfinder + pyenv + anaconda issue](https://github.com/pypa/pipenv/issues/3044)).
+
+## Reference
+
+- Jörg Behler. First Principle Neural Network Potentials for Reactive Simulations of Large Molecular and Condensed System, 2007
