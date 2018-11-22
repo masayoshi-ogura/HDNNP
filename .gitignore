@@ -41,17 +41,6 @@ phonopy_settings.py
 # environment files
 .venv/
 .python-version
-!Pipfile
-!Pipfile.lock
-!condaenv.yaml
-!condaenv.*.yaml
-
-# test files
-!test/test.sh
-!test/settings.py
-!test/phonopy_settings.py
-!test/data/GaN.xyz
-!test/data/POSCAR
 
 # others
 .idea/

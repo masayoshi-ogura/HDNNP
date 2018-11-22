@@ -4,7 +4,7 @@
 This script defines the default settings for this program.
 Some settings must be set, and all settings can be overwritten
 by 'settings.py' on your working directory.
-Please see 'test/settings.py' as a example.
+Please see 'examples/config/config.py' as a example.
 """
 
 from pathlib import Path
