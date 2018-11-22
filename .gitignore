@@ -58,8 +58,8 @@ dist/
 !test/data/POSCAR
 
 # others
-.idea/
 .ipynb_checkpoints/
 
 # Editor config
+.idea/
 .vscode/
