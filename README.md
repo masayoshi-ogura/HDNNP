@@ -1,6 +1,6 @@
 # High Dimensional Neural Network Potential(HDNNP)
 
-> This is a implementation of High Dimensional Neural Network Potential(HDNNP) designed to reproduce Density Function Theory(DFT) calculation *effectivly* with high *flexibility*, *reactivity*.
+> This is a implementation of High Dimensional Neural Network Potential(HDNNP) designed to reproduce Density Function Theory(DFT) calculation *effectively* with high *flexibility*, *reactivity*.
 
 There is equivalent doc in Japanese [README.ja.md](https://github.com/ogura-edu/HDNNP/blob/master/README.ja.md).
 
