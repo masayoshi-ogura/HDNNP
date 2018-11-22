@@ -38,7 +38,7 @@ class Logger(object):
         """
         self._logger_name = name
         self._log_level = self.DEFAULT_LOG_LEVEL
-        self._format = Formatter('%(levelname)s %(asctime)s %(module)s line %(lineno)d: %(message)s')
+        self._format = Formatter('%(levelname)s %(asctime)s %(module)s in line %(lineno)d: %(message)s')
         self._handlers = [{
           'handler': StreamHandler(),
           'level': self.DEFAULT_LOG_LEVEL  
