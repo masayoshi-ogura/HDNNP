@@ -46,7 +46,7 @@ def main():
         except:
             print("error occured while training")
         finally:
-            shutil.copy('config.py', stg.file.out_dir/'settings.py')
+            shutil.copy('configs.py', stg.file.out_dir/'configs.py')
     elif stg.args.mode == 'predict':
         _, energy, forces = predict()
         pprint('energy:\n{}'.format(energy.data))
@@ -67,7 +67,7 @@ def main():
                 dump_skopt_result(stg.file.out_dir/'skopt_result.csv', result)
                 dump_settings(stg.file.out_dir/'best_settings.py')
         finally:
-            shutil.copy('config.py', stg.file.out_dir/'settings.py')
+            shutil.copy('configs.py', stg.file.out_dir/'configs.py')
 
     elif stg.args.mode == 'sym_func':
         stg.dataset.preproc = None
@@ -90,7 +90,7 @@ def main():
         phonopy_plt.close()
         pprint('done')
 
-        shutil.copy('phonopy_settings.py', stg.file.out_dir/'phonopy_settings.py')
+        shutil.copy('phonopy_configs.py', stg.file.out_dir/'phonopy_configs.py')
 
 
 @use_named_args(stg.skopt.space)
