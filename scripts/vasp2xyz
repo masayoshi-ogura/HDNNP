@@ -8,7 +8,10 @@ args = sys.argv
 
 # argv[0] contains all args
 if len(args) is not 3 + 1:
-    sys.stdout.write("Error: args should have 3 but has {}\n\nThe format should be \n\n $ vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]\n\n".format(len(args)-1))
+    sys.stdout.write("Error: args should have 3 but has {}\n\n\
+                      The format should be \n\n \
+                      $ vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]\n\n"
+                        .format(len(args)-1))
     sys.exit(1)
 
 config = args[1]
