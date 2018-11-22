@@ -50,12 +50,12 @@ hdnnpy.egg-info/
 build/
 dist/
 
-# test files
-!test/test.sh
-!test/settings.py
-!test/phonopy_settings.py
-!test/data/GaN.xyz
-!test/data/POSCAR
+# example files
+!examples/test.sh
+!examples/settings.py
+!examples/phonopy_settings.py
+!examples/data/GaN.xyz
+!examples/data/POSCAR
 
 # others
 .ipynb_checkpoints/
