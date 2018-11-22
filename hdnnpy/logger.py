@@ -14,7 +14,8 @@ class Logger(object):
 
     def set_level(self, level):
         self._log_level = level
-        self._stream_log_level = level    
+        for h in self._handlers:
+            h['level'] = level
 
     def set_format(self, format_str):
         self._format = Formatter(format_str)
