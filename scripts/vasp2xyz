@@ -15,7 +15,6 @@ The format should be
 
 $ vasp2xyz [PREFIX] [OUTCAR] [XYZFILE]\
 """.format(len(args)-1))
-                        .format(len(args)-1))
     sys.exit(1)
 
 prefix = args[1]
