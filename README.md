@@ -9,25 +9,35 @@ There is equivalent doc in Japanese [README.ja.md](https://github.com/ogura-edu/
 Install this project by `git`.
 
 ```shell
-git clone git@github.com:ogura-edu/HDNNP.git
+$ git clone https://github.com/ogura-edu/HDNNP.git
 
 # or if using ssh
 
-git clone git@github.com:ogura-edu/HDNNP.git
+$ git clone git@github.com:ogura-edu/HDNNP.git
 ```
 
 This project uses [Pipenv](https://github.com/pypa/pipenv) for development workflow. If you don't have it, run this command to install.
 
 
 **macOS**
+
+```shell
+$ brew install pipenv
 ```
-brew install pipenv
+
+**other**
+
+```shell
+# please run after installing python 
+$ pip install pipenv
 ```
 
 ## Setup
 ### By Pipenv(Prefered)
 
-Same as by anaconda, but you need to install python rather than installing anaconda. This bug will be fixed in near future release.
+Same as by anaconda, but you need to install python rather than installing anaconda. 
+
+This bug will be fixed in near future release(ref: [pythonfinder + pyenv + anaconda issue](https://github.com/pypa/pipenv/issues/3044)).
 
 Set environmental variable `PIPENV_VENV_IN_PROJECT` to `1` to create your VM into this project dir(`/path/to/HDNNP/.venv`).
 
@@ -38,9 +48,20 @@ export PIPENV_VENV_IN_PROJECT = 1
 For macOS users, you need to install `mpich` before installing dependencies.
 
 ```shell
-# Only for macOS users
+# Only for macOS users. 
+#
+# NOTE: Installing both mpich and openmpi will conflict
+#
 $ brew install mpich
 
+# or
+
+$ brew install openmpi
+```
+
+Setup your enviroments.
+
+```shell
 # Install dependencies
 $ pipenv install
 
@@ -50,7 +71,6 @@ $ pipenv shell
 # deactivate
 (HDNNP) $ exit
 ```
-
 
 ### By Anaconda
 
@@ -88,24 +108,7 @@ There is no
 
 on the Anaconda Cloud, so you still have to install these packages by `pip`.
 
-And these is a bug that if you install anaconda by `pyenv`, `pipenv` will fail to start.
-
-## Usage
-### Generating XYZ file
-
-For generating `.xyz` chemical format which is a starndard format for discribing molecule geometry, use `vasp2xyz.py`.
-
-Run this command and you will get a `xyz` file.
-
-```shell
-./scripts/vasp2xyz [CONFIG] [OUTCAR] [XYZFILE]
-```
-
-Here are these args.
-
-- `[CONFIG]`: To specify each output
-- `[OUTCAR]`: Your path to OUTCAR
-- `[XYZFILE]`: Your output
+And these is a bug that if you install anaconda by `pyenv`, `pipenv` will fail to start(ref: [pythonfinder + pyenv + anaconda issue](https://github.com/pypa/pipenv/issues/3044)).
 
 ## Reference
 
