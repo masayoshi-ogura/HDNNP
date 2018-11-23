@@ -32,13 +32,20 @@ class Logger(object):
 
     @classmethod
     def set_default_log_level(cls, level):
+        """Class function to set default log level
+
+        since `DEFAULT_LOG_LEVEL` is a class property, is will change all log level is you change
+
+        Args:
+            level (str): level of the logger for default. All instances will change.
+        """
         cls.DEFAULT_LOG_LEVEL = level
 
     def __init__(self, name="default"):
         """Fucntion of initializer `__init__`
 
         Args:
-            name (str, optional): string name of this logger
+            name (str, optional): name of this logger
         """
         self.__logger = None
         self.__logger_name = name
