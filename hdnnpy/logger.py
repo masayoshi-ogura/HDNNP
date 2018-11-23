@@ -36,14 +36,30 @@ class Logger(object):
         Args:
             name (str, optional): string name of this logger
         """
-        self._logger = None
-        self._logger_name = name
-        self._log_level = self.DEFAULT_LOG_LEVEL
-        self._format = Formatter('%(levelname)s %(asctime)s %(module)s in line %(lineno)d: %(message)s')
-        self._handlers = [{
+        self.__logger = None
+        self.__logger_name = name
+        self.__log_level = self.DEFAULT_LOG_LEVEL
+        self.__format = Formatter('%(levelname)s %(asctime)s %(module)s in line %(lineno)d: %(message)s')
+        self.__handlers = [{
           'handler': StreamHandler(),
           'level': self.DEFAULT_LOG_LEVEL  
         }]
+    
+    def get_logger_name(self):
+        """Fuction for getter of log_name
+
+        Returns:
+            logger_name (str): name of the logger
+        """
+        return self.__logger_name
+
+    def get_log_level(self):
+        """Fuction for getter of log_level
+
+        Returns:
+            logger_level (int): level of the logger
+        """
+        return self.__log_level
 
     def set_log_level(self, level):
         """Function to set log level
@@ -58,10 +74,18 @@ class Logger(object):
             self (object): Object myself
         """
 
-        self._log_level = level
-        for h in self._handlers:
+        self.__log_level = level
+        for h in self.__handlers:
             h['level'] = level
         return self
+
+    def get_format(self):
+        """Fuction for getter of format property
+
+        Returns:
+            format (obj): Formatter object
+        """
+        return self.__format
 
     def set_format(self, format_str):
         """Function to set log format
@@ -78,9 +102,17 @@ class Logger(object):
             self (object): Object myself
         """
 
-        self._format = Formatter(format_str)
+        self.__format = Formatter(format_str)
         return self
     
+    def get_handlers(self):
+        """Fuction for getter of handlers property
+
+        Returns:
+            handlers (:obj; `obj`, `int): Dictonary of handlers and its log level
+        """
+        return self.__handlers
+
     def add_handler(self, handler):
         """Fuction to add handler of logger
 
@@ -90,10 +122,10 @@ class Logger(object):
             handler (dict): a dict of `handler` and log `level`
 
         Returns:
-            self (:obj;`:obj`, `int`): Object myself
+            self: Object myself
         """
 
-        self._handlers.append(handler)
+        self.__handlers.append(handler)
         return self
 
     def build(self):
@@ -108,12 +140,12 @@ class Logger(object):
             log (obj): logger object in logging
         """
 
-        log = logging.getLogger(self._logger_name)
-        log.setLevel(self._log_level)
+        log = logging.getLogger(self.__logger_name)
+        log.setLevel(self.__log_level)
 
-        for h in self._handlers:
+        for h in self.__handlers:
             h['handler'].setLevel(h['level'])
-            h['handler'].setFormatter(self._format)
+            h['handler'].setFormatter(self.__format)
             log.addHandler(h['handler'])
 
         return log
