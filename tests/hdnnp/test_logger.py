@@ -8,9 +8,15 @@ class TestLogger(TestCase):
     
     def setUp(self):
         self.log = Logger()
+    
+    def test_default_log_level(self):
+        self.log.set_default_log_level(logging.DEBUG)
+        new_logger = Logger()
+        self.assertEqual(new_logger.DEFAULT_LOG_LEVEL, logging.DEBUG)
+        self.assertEqual(self.log.DEFAULT_LOG_LEVEL, new_logger.DEFAULT_LOG_LEVEL)
+        self.log.set_default_log_level(logging.INFO)
 
     def test_init(self):
-        log = self.log.build()
         self.assertIsInstance(self.log, Logger, "init should return Logger object")
         self.assertEqual(self.log.get_logger_name(), "default")
         self.assertEqual(self.log.get_log_level(), logging.INFO)

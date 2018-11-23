@@ -30,6 +30,10 @@ class Logger(object):
     DEFAULT_LOG_LEVEL = logging.INFO
     """int: default log level of the logger"""
 
+    @classmethod
+    def set_default_log_level(cls, level):
+        cls.DEFAULT_LOG_LEVEL = level
+
     def __init__(self, name="default"):
         """Fucntion of initializer `__init__`
 
