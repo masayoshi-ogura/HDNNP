@@ -60,3 +60,4 @@ dist/
 # others
 .idea/
 .ipynb_checkpoints/
+.vscode/

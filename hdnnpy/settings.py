@@ -63,10 +63,9 @@ def import_phonopy_settings():
     import phonopy_settings
     return phonopy_settings
 
-
 args = get_parser()
-
 stg = import_user_settings(args)
+
 if args.mode == 'phonon':
     phonopy = import_phonopy_settings()
 
