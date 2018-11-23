@@ -4,6 +4,11 @@
 This module implements `Logger` class for logging in other modules.
 It uses builder pattern for implementing instance configuration.
 
+Note:
+    The default log level is `WARNING`.
+    Which means that `INFO` or `DEBUG` level will not show unless `DEFAULT_LOG_LEVEL`
+    is changed by class method `set_default_log_level`.
+
 Example:
     From another module import and just build for usage.    
     Atomic implementation is this.
@@ -23,11 +28,14 @@ Example:
 .. _PEP 484:
         https://www.python.org/dev/peps/pep-0484/
 """
+
 import logging
+from enum import IntEnum
 from logging import StreamHandler, Formatter
 
+
 class Logger(object):
-    DEFAULT_LOG_LEVEL = logging.INFO
+    DEFAULT_LOG_LEVEL = logging.WARNING
     """int: default log level of the logger"""
 
     @classmethod
@@ -39,6 +47,7 @@ class Logger(object):
         Args:
             level (str): level of the logger for default. All instances will change.
         """
+
         cls.DEFAULT_LOG_LEVEL = level
 
     def __init__(self, name="default"):
@@ -47,6 +56,7 @@ class Logger(object):
         Args:
             name (str, optional): name of this logger
         """
+
         self.__logger = None
         self.__logger_name = name
         self.__log_level = self.DEFAULT_LOG_LEVEL
@@ -62,6 +72,7 @@ class Logger(object):
         Returns:
             logger_name (str): name of the logger
         """
+
         return self.__logger_name
 
     def get_log_level(self):
@@ -70,6 +81,7 @@ class Logger(object):
         Returns:
             logger_level (int): level of the logger
         """
+
         return self.__log_level
 
     def set_log_level(self, level):
@@ -86,8 +98,10 @@ class Logger(object):
         """
 
         self.__log_level = level
+        
         for h in self.__handlers:
             h['level'] = level
+
         return self
 
     def get_format(self):
@@ -96,6 +110,7 @@ class Logger(object):
         Returns:
             format (obj): Formatter object
         """
+
         return self.__format
 
     def set_format(self, format_str):
@@ -114,6 +129,7 @@ class Logger(object):
         """
 
         self.__format = Formatter(format_str)
+        
         return self
     
     def get_handlers(self):
@@ -122,6 +138,7 @@ class Logger(object):
         Returns:
             handlers (:obj; `obj`, `int): Dictonary of handlers and its log level
         """
+
         return self.__handlers
 
     def add_handler(self, handler):
@@ -137,6 +154,7 @@ class Logger(object):
         """
 
         self.__handlers.append(handler)
+        
         return self
 
     def build(self):
@@ -160,3 +178,68 @@ class Logger(object):
             log.addHandler(h['handler'])
 
         return log
+
+class IncrementalLoggerLevel(IntEnum):
+    """IntEnum class for count <-> String: log level"""
+    CRITICAL = -2
+    ERROR = -1
+    WARNING = 0
+    INFO = 1
+    DEBUG = 2
+
+    @classmethod
+    def convert_logger_level(self, count):
+        """Static method for converting count of argparse into logging level
+
+        Simple Example Usage:
+            Let`s say you can get count of verbose flag in argparse. For instance,
+            `-v` is `1` and `--v` is `0`.
+
+            You can convert to logging level.
+
+            ```python
+            count = 2 # Number of `v`s. `2` is `DEBUG` level
+            level = Logger.convert_logger_level_from_count(count)
+            print(level) 
+            #=> 10
+            ```
+
+            `10` is debug level.
+
+            Here is the debug level.
+
+            | level | number |
+            |:----|:----|
+            | CRITICAL | 50 |
+            | ERROR | 40 |
+            | WARNING | 30 |
+            | INFO | 20 |
+            | DEBUG | 10 |
+            | NOTSET | 0 |
+
+            See details about logging level in this link.
+
+            - English: https://docs.python.org/3.6/howto/logging.html#logging-levels
+            - Japanese: https://docs.python.jp/3/howto/logging.html#logging-levels
+
+        Args:
+            count (int): count of something such as `-v` or `-vv` count
+
+        Return:
+            logging_level (int): logging level from logging package
+        """
+
+        logger_count = self(count)
+
+        if logger_count == self.CRITICAL:
+            return logging.CRITICAL
+        elif logger_count == self.ERROR:
+            return logging.ERROR
+        elif logger_count == self.WARNING:
+            return logging.WARNING
+        elif logger_count == self.INFO:
+            return logging.INFO
+        elif logger_count == self.DEBUG:
+            return logging.DEBUG
+        else:
+            return logging.NOTSET

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from unittest import TestCase
-from hdnnpy.logger import Logger
+from hdnnpy.logger import Logger, IncrementalLoggerLevel
 from logging import Formatter
 
 class TestLogger(TestCase):
@@ -34,3 +34,17 @@ class TestLogger(TestCase):
     def test_build(self):
         log = self.log.build()
         self.assertTrue(not isinstance(log, Logger))
+
+class TestIncrementalLoggerLevel(TestCase):
+    def test_convert_logger_level(self):
+        count = len([])
+        level = IncrementalLoggerLevel.convert_logger_level(count)
+        self.assertEqual(level, logging.WARNING)
+
+        count = len(["-v"])
+        level = IncrementalLoggerLevel.convert_logger_level(count)
+        self.assertEqual(level, logging.INFO)
+
+        count = len(["-v","-v"]) # -vv
+        level = IncrementalLoggerLevel.convert_logger_level(count)
+        self.assertEqual(level, logging.DEBUG)
