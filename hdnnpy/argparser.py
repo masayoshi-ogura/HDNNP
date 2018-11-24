@@ -21,8 +21,8 @@ def parse():
     vasp2xyz_parser = subparsers.add_parser('vasp2xyz', help='converts vasp OUTCAR into a xyz file extention')
     training_parser = subparsers.add_parser('training', help='train the network')
     prediction_parser = subparsers.add_parser('prediction', help='make prediction from trained network')
-    ps_parser = subparsers.add_parser('param_search', help='see `param_search -h`')
-    sf_parser = subparsers.add_parser('sym_func', help='see `sym_func -h`')
+    ps_parser = subparsers.add_parser('param-search', help='see `param-search -h`')
+    sf_parser = subparsers.add_parser('sym-func', help='see `sym-func -h`')
     phonon_parser = subparsers.add_parser('phonon', help='see `phonon -h`')
 
     set_up_vasp2xyz_parser(vasp2xyz_parser)

@@ -62,7 +62,7 @@ class ChainerSafelyTerminate(object):
                 # preproc.load(stg.file.out_dir/'preproc.npz')
                 # dump_lammps(self.trainer.out/'lammps.nnp', preproc,
                 #             self.trainer.updater.get_optimizer('master').target)
-            if stg.args.mode == 'param_search' and stg.mpi.rank == 0:
+            if stg.args.mode == 'param-search' and stg.mpi.rank == 0:
                 self.trainer.out.rmdir()
 
     def _snapshot(self, signum, frame):
@@ -204,7 +204,7 @@ def assert_settings(stg):
     assert stg.model.metrics is not None
 
     # skopt
-    if stg.args.mode == 'param_search':
+    if stg.args.mode == 'param-search':
         assert all(key in dir(stg.skopt) for key in ['kfold', 'init_num', 'max_num'])
         assert all(key in dir(stg.skopt) for key in ['space', 'acq_func', 'callback'])
         assert stg.skopt.kfold > 0

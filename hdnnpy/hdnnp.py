@@ -44,7 +44,7 @@ def main():
         finally:
             shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
-    elif stg.args.mode == 'param_search':
+    elif stg.args.mode == 'param-search':
         try:
             seed = np.random.get_state()[1][0]
             seed = stg.mpi.comm.bcast(seed, root=0)
@@ -61,7 +61,7 @@ def main():
         finally:
             shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
-    elif stg.args.mode == 'sym_func':
+    elif stg.args.mode == 'sym-func':
         stg.dataset.preproc = None
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
