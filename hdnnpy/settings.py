@@ -12,8 +12,7 @@ import os
 import sys
 from mpi4py import MPI
 import chainermn
-
-from .argparser import get_parser
+import hdnnpy.argparser as argparser
 
 
 class defaults:
@@ -47,23 +46,26 @@ def import_user_settings(args):
         search_path = str(args.masters.parent.absolute())
     else:
         search_path = os.getcwd()
+
     if not Path(search_path, 'settings.py').exists():
         raise FileNotFoundError('`settings.py` is not found in {}'.format(search_path))
+    
     sys.path.insert(0, search_path)
     from settings import stg
 
     # convert path string to pathlib.Path object
     stg.file.out_dir = Path(stg.file.out_dir)
     stg.dataset.xyz_file = Path(stg.dataset.xyz_file)
-    return stg
 
+    return stg
 
 def import_phonopy_settings():
     sys.path.insert(0, os.getcwd())
     import phonopy_settings
+
     return phonopy_settings
 
-args = get_parser()
+args = argparser.parse()
 stg = import_user_settings(args)
 
 if args.mode == 'phonon':
