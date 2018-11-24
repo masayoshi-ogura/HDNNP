@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 
-def get_parser():
+def parse():
     parser = argparse.ArgumentParser(description='High Dimensional Neural Network Potential',
                                      fromfile_prefix_chars='@')
     parser.add_argument(
