@@ -3,8 +3,13 @@
 from pathlib import Path
 import ase.io
 
-def merge(step_str, in_dir, output):
+def merge(args):
     """Function to merges xyz"""
+
+    step_str = args.step
+    in_dir = args.input
+    output = args.output
+
     step = int(step_str)
 
     for file in Path(in_dir).glob('*.xyz'):

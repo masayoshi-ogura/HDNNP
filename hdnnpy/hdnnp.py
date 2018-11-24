@@ -14,6 +14,9 @@ import chainer
 from chainer.training.triggers import EarlyStoppingTrigger
 import chainer.training.extensions as ext
 import chainermn
+import hdnnpy.argparser as argparser
+import hdnnpy.vasp2xyz as vasp2xyz
+import hdnnpy.merge_xyz as merge_xyz
 
 from .data import DataGenerator
 from .model import SingleNNP, HDNNP
@@ -29,60 +32,67 @@ from .chainer_extensions import scatter_plot
 
 
 def main():
-    assert_settings(stg)
-    mkdir(stg.file.out_dir)
+    args = argparser.parse()
 
-    if stg.args.mode == 'training':
-        try:
-            generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
-            dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
-            masters, result = training(dataset, elements)
-            if stg.mpi.rank == 0:
-                chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
-                dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
-                dump_training_result(stg.file.out_dir/'result.yaml', result)
-        finally:
-            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
+    if args.mode == 'vasp2xyz':
+        vasp2xyz.convert(args)
+    elif args.mode == 'merge-xyz':
+        merge_xyz.merge(args)
+    else:
+        assert_settings(stg)
+        mkdir(stg.file.out_dir)
 
-    elif stg.args.mode == 'param-search':
-        try:
-            seed = np.random.get_state()[1][0]
-            seed = stg.mpi.comm.bcast(seed, root=0)
-            result = gp_minimize(objective_func, stg.skopt.space,
-                                 n_random_starts=stg.skopt.init_num,
-                                 n_calls=stg.skopt.max_num,
-                                 acq_func=stg.skopt.acq_func,
-                                 random_state=seed,
-                                 verbose=True,
-                                 callback=stg.skopt.callback)
-            if stg.mpi.rank == 0:
-                dump_skopt_result(stg.file.out_dir/'skopt_result.csv', result)
-                dump_settings(stg.file.out_dir/'best_settings.py')
-        finally:
-            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
+        if stg.args.mode == 'training':
+            try:
+                generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
+                dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
+                masters, result = training(dataset, elements)
+                if stg.mpi.rank == 0:
+                    chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
+                    dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
+                    dump_training_result(stg.file.out_dir/'result.yaml', result)
+            finally:
+                shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
-    elif stg.args.mode == 'sym-func':
-        stg.dataset.preproc = None
-        DataGenerator(stg.dataset.xyz_file, 'xyz')
+        elif stg.args.mode == 'param-search':
+            try:
+                seed = np.random.get_state()[1][0]
+                seed = stg.mpi.comm.bcast(seed, root=0)
+                result = gp_minimize(objective_func, stg.skopt.space,
+                                    n_random_starts=stg.skopt.init_num,
+                                    n_calls=stg.skopt.max_num,
+                                    acq_func=stg.skopt.acq_func,
+                                    random_state=seed,
+                                    verbose=True,
+                                    callback=stg.skopt.callback)
+                if stg.mpi.rank == 0:
+                    dump_skopt_result(stg.file.out_dir/'skopt_result.csv', result)
+                    dump_settings(stg.file.out_dir/'best_settings.py')
+            finally:
+                shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
-    elif stg.args.mode == 'prediction':
-        _, energy, forces = predict()
-        pprint('energy:\n{}'.format(energy.data))
-        pprint('forces:\n{}'.format(forces.data))
+        elif stg.args.mode == 'sym-func':
+            stg.dataset.preproc = None
+            DataGenerator(stg.dataset.xyz_file, 'xyz')
 
-    elif stg.args.mode == 'phonon':
-        dataset, _, forces = predict()
-        phonopy = dataset.phonopy
-        phonopy.set_forces(forces.data)
-        phonopy.produce_force_constants()
+        elif stg.args.mode == 'prediction':
+            _, energy, forces = predict()
+            pprint('energy:\n{}'.format(energy.data))
+            pprint('forces:\n{}'.format(forces.data))
 
-        pprint('drawing phonon band structure ... ', end='')
-        phonopy_plt = stg.phonopy.callback(phonopy)
-        phonopy_plt.savefig(stg.args.masters.with_name('phonon_band.png'))
-        phonopy_plt.close()
-        pprint('done')
+        elif stg.args.mode == 'phonon':
+            dataset, _, forces = predict()
+            phonopy = dataset.phonopy
+            phonopy.set_forces(forces.data)
+            phonopy.produce_force_constants()
 
-        shutil.copy('phonopy_settings.py', stg.file.out_dir/'phonopy_settings.py')
+            pprint('drawing phonon band structure ... ', end='')
+            phonopy_plt = stg.phonopy.callback(phonopy)
+            phonopy_plt.savefig(stg.args.masters.with_name('phonon_band.png'))
+            phonopy_plt.close()
+            pprint('done')
+
+            shutil.copy('phonopy_settings.py', stg.file.out_dir/'phonopy_settings.py')
 
 
 @use_named_args(stg.skopt.space)
