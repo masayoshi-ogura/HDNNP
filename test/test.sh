@@ -10,13 +10,13 @@ ${clean}; ${hdnnpy} training --verbose
 
 ${clean}; ${mpirun} ${hdnnpy} training --verbose
 
-${clean}; ${hdnnpy} param_search
+${clean}; ${hdnnpy} param-search
 
-${clean}; ${mpirun} ${hdnnpy} param_search
+${clean}; ${mpirun} ${hdnnpy} param-search
 
-${clean}; ${hdnnpy} sym_func
+${clean}; ${hdnnpy} sym-func
 
-${clean}; ${mpirun} ${hdnnpy} sym_func
+${clean}; ${mpirun} ${hdnnpy} sym-func
 
 
 set +e
