@@ -19,6 +19,7 @@ def parse():
     subparsers = parser.add_subparsers(dest='mode')
 
     vasp2xyz_parser = subparsers.add_parser('vasp2xyz', help='converts vasp OUTCAR into a xyz file extention')
+    merge_xyz_parser = subparsers.add_parser('merge-xyz', help='merges multi xyz format files')
     training_parser = subparsers.add_parser('training', help='train the network')
     prediction_parser = subparsers.add_parser('prediction', help='make prediction from trained network')
     ps_parser = subparsers.add_parser('param-search', help='see `param-search -h`')
@@ -26,6 +27,7 @@ def parse():
     phonon_parser = subparsers.add_parser('phonon', help='see `phonon -h`')
 
     set_up_vasp2xyz_parser(vasp2xyz_parser)
+    set_up_merge_xyz_parser(merge_xyz_parser)
     set_up_traning_parser(training_parser)
     set_up_prediction_and_phonon_parser(prediction_parser, phonon_parser)
 
@@ -40,15 +42,32 @@ def set_up_vasp2xyz_parser(vasp2xyz_parser):
     )
 
     vasp2xyz_parser.add_argument(
-        'OUTCAR',
-        type=Path,
+        'outcar',
         help='path to vasp output file OUTCAR'
     )
 
     vasp2xyz_parser.add_argument(
-        'filename',
-        type=Path,
-        help="path to output file" 
+        'output',
+        help='path to output file with xyz file extention' 
+    )
+
+def set_up_merge_xyz_parser(merge_xyz_parser):
+    """Setups merge_xyz parser"""
+
+    # TODO: Fix messages
+    merge_xyz_parser.add_argument(
+        'step',
+        help='steps'
+    )
+
+    merge_xyz_parser.add_argument(
+        'inputs',
+        help='list of files'
+    )
+
+    merge_xyz_parser.add_argument(
+        'output',
+        help='path to output file with xyz file extention' 
     )
 
 def set_up_traning_parser(training_parser):
