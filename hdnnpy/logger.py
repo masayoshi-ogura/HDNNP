@@ -60,7 +60,7 @@ class Logger(object):
         self.__logger = None
         self.__logger_name = name
         self.__log_level = self.DEFAULT_LOG_LEVEL
-        self.__format = Formatter('%(levelname)s %(asctime)s %(module)s in line %(lineno)d: %(message)s')
+        self.__format = Formatter('%(levelname)s %(asctime)s %(module)s.py:%(funcName)s in line %(lineno)d: %(message)s')
         self.__handlers = [{
           'handler': StreamHandler(),
           'level': self.DEFAULT_LOG_LEVEL  

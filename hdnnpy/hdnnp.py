@@ -26,6 +26,7 @@ from .util import assert_settings
 from .chainer_extensions import Evaluator
 from .chainer_extensions import set_log_scale
 from .chainer_extensions import scatter_plot
+from .logger import Logger
 
 
 def main():
