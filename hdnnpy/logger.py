@@ -35,7 +35,7 @@ from logging import StreamHandler, Formatter
 
 
 class Logger(object):
-    DEFAULT_LOG_LEVEL = logging.WARNING
+    DEFAULT_LOG_LEVEL = logging.INFO
     """int: default log level of the logger"""
 
     @classmethod
