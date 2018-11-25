@@ -181,11 +181,11 @@ class Logger(object):
 
 class IncrementalLoggerLevel(IntEnum):
     """IntEnum class for count <-> String: log level"""
-    CRITICAL = -2
-    ERROR = -1
-    WARNING = 0
-    INFO = 1
-    DEBUG = 2
+    CRITICAL = -3
+    ERROR = -2
+    WARNING = -1
+    INFO = 0
+    DEBUG = 1
 
     @classmethod
     def convert_logger_level(self, count):

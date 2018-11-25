@@ -37,14 +37,14 @@ class TestLogger(TestCase):
 
 class TestIncrementalLoggerLevel(TestCase):
     def test_convert_logger_level(self):
-        count = len([])
-        level = IncrementalLoggerLevel.convert_logger_level(count)
-        self.assertEqual(level, logging.WARNING)
-
-        count = len(["-v"])
+        count = len([]) 
         level = IncrementalLoggerLevel.convert_logger_level(count)
         self.assertEqual(level, logging.INFO)
 
-        count = len(["-v","-v"]) # -vv
+        count = len(["-v"])
         level = IncrementalLoggerLevel.convert_logger_level(count)
         self.assertEqual(level, logging.DEBUG)
+
+        count = -1 # WARNING
+        level = IncrementalLoggerLevel.convert_logger_level(count)
+        self.assertEqual(level, logging.WARNING)
