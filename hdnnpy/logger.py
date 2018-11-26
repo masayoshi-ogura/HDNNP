@@ -53,11 +53,7 @@ class Logger(object):
         cls.DEFAULT_LOG_LEVEL = level
 
     def __init__(self):
-        """Fucntion of initializer `__init__`
-
-        Args:
-            name (str, optional): name of this logger
-        """
+        """Fucntion of initializer `__init__`"""
 
         self.__logger = None
         self.__logger_name = inspect.stack()[1][3]
