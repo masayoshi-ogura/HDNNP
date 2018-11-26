@@ -30,6 +30,8 @@ Example:
 """
 
 import logging
+import inspect
+
 from enum import IntEnum
 from logging import StreamHandler, Formatter
 
@@ -50,7 +52,7 @@ class Logger(object):
 
         cls.DEFAULT_LOG_LEVEL = level
 
-    def __init__(self, name="default"):
+    def __init__(self):
         """Fucntion of initializer `__init__`
 
         Args:
@@ -58,7 +60,7 @@ class Logger(object):
         """
 
         self.__logger = None
-        self.__logger_name = name
+        self.__logger_name = inspect.stack()[1][3]
         self.__log_level = self.DEFAULT_LOG_LEVEL
         self.__format = Formatter('%(levelname)s %(asctime)s %(module)s.py:%(funcName)s in line %(lineno)d: %(message)s')
         self.__handlers = [{

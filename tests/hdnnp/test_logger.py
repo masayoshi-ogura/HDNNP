@@ -18,7 +18,7 @@ class TestLogger(TestCase):
 
     def test_init(self):
         self.assertIsInstance(self.log, Logger, "init should return Logger object")
-        self.assertEqual(self.log.get_logger_name(), "default")
+        self.assertEqual(self.log.get_logger_name(), "setUp")
         self.assertEqual(self.log.get_log_level(), logging.INFO)
 
     def test_set_log_level(self):
@@ -34,6 +34,13 @@ class TestLogger(TestCase):
     def test_build(self):
         log = self.log.build()
         self.assertTrue(not isinstance(log, Logger))
+
+    def test_multi_logger_instance(self):
+        log = Logger().build()
+        log_2 = Logger().build()
+
+        self.assertEqual(log, log_2)
+        self.assertNotEqual(self.log, log)
 
 class TestIncrementalLoggerLevel(TestCase):
     def test_convert_logger_level(self):
