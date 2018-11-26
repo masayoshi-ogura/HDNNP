@@ -27,6 +27,7 @@ from .chainer_extensions import Evaluator
 from .chainer_extensions import set_log_scale
 from .chainer_extensions import scatter_plot
 
+
 def main():
     assert_settings(stg)
     mkdir(stg.file.out_dir)
