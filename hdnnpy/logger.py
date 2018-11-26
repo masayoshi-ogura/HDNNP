@@ -52,11 +52,11 @@ class Logger(object):
 
         cls.DEFAULT_LOG_LEVEL = level
 
-    def __init__(self):
+    def __init__(self, name):
         """Fucntion of initializer `__init__`"""
 
         self.__logger = None
-        self.__logger_name = inspect.stack()[1][3]
+        self.__logger_name = name
         self.__log_level = self.DEFAULT_LOG_LEVEL
         self.__format = Formatter('%(levelname)s %(asctime)s %(module)s.py:%(funcName)s in line %(lineno)d: %(message)s')
         self.__handlers = [{

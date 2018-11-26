@@ -7,11 +7,11 @@ from logging import Formatter
 class TestLogger(TestCase):
     
     def setUp(self):
-        self.log = Logger()
+        self.log = Logger("setUp")
     
     def test_default_log_level(self):
         self.log.set_default_log_level(logging.DEBUG)
-        new_logger = Logger()
+        new_logger = Logger("default_log_level")
         self.assertEqual(new_logger.DEFAULT_LOG_LEVEL, logging.DEBUG)
         self.assertEqual(self.log.DEFAULT_LOG_LEVEL, new_logger.DEFAULT_LOG_LEVEL)
         self.log.set_default_log_level(logging.INFO)
@@ -36,8 +36,8 @@ class TestLogger(TestCase):
         self.assertTrue(not isinstance(log, Logger))
 
     def test_multi_logger_instance(self):
-        log = Logger().build()
-        log_2 = Logger().build()
+        log = Logger("logger1").build()
+        log_2 = Logger("logger1").build()
 
         self.assertEqual(log, log_2)
         self.assertNotEqual(self.log, log)
