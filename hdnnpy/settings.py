@@ -36,6 +36,7 @@ class defaults:
         l1_norm = 0.0e-4
         l2_norm = 0.0e-4
         metrics = 'validation/main/tot_RMSE'
+        force_direction_penalty = False
     class skopt:
         pass
 

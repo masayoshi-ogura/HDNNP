@@ -40,6 +40,7 @@ stg.model.layer = [
     {'node': 1, 'activation': 'identity'},
 ]
 # stg.model.metrics = 'validation/main/tot_RMSE'
+# stg.model.force_direction_penalty = False
 
 stg.skopt.kfold=2
 stg.skopt.init_num=5

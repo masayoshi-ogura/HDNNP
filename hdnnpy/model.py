@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import numpy as np
 import chainer
 import chainer.links as L
 import chainer.functions as F
@@ -11,11 +12,19 @@ from . import settings as stg
 def loss_func(mixing_beta, y_pred, y_true, dy_pred, dy_true, obs):
     y_loss = F.mean_squared_error(y_pred, y_true)
     dy_loss = F.mean_squared_error(dy_pred, dy_true)
-    loss = (1. - mixing_beta) * y_loss + mixing_beta * dy_loss
+
     RMSE = F.sqrt(y_loss)
     d_RMSE = F.sqrt(dy_loss)
     tot_RMSE = (1. - mixing_beta) * RMSE + mixing_beta * d_RMSE
     chainer.report({'RMSE': RMSE, 'd_RMSE': d_RMSE, 'tot_RMSE': tot_RMSE}, obs)
+
+    if stg.model.force_direction_penalty:
+        FpFt = dy_pred * dy_true
+        force_direction_penalty = F.where(FpFt.data > 0,
+                                          np.zeros_like(FpFt.data),
+                                          F.exp(-FpFt) - 1)
+        dy_loss += F.mean(force_direction_penalty)
+    loss = (1. - mixing_beta) * y_loss + mixing_beta * dy_loss
     return loss
 
 

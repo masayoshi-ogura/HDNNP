@@ -191,6 +191,7 @@ def assert_settings(stg):
     assert all(key in dir(stg.model) for key in ['epoch', 'interval', 'patients'])
     assert all(key in dir(stg.model) for key in ['init_lr', 'final_lr', 'lr_decay', 'mixing_beta'])
     assert all(key in dir(stg.model) for key in ['l1_norm', 'l2_norm', 'layer', 'metrics'])
+    assert all(key in dir(stg.model) for key in ['force_direction_penalty'])
     assert stg.model.epoch > 0
     assert stg.model.interval > 0
     assert stg.model.patients > 0
@@ -202,6 +203,7 @@ def assert_settings(stg):
     assert 0.0 <= stg.model.l2_norm <= 1.0
     assert len(stg.model.layer) > 0
     assert stg.model.metrics is not None
+    assert isinstance(stg.model.force_direction_penalty, bool)
 
     # skopt
     if stg.args.mode == 'param_search':
