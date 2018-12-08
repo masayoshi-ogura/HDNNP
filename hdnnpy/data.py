@@ -11,8 +11,6 @@ from sklearn.model_selection import KFold
 import ase
 import ase.io
 import ase.neighborlist
-from phonopy import Phonopy
-from phonopy.structure.atoms import PhonopyAtoms
 
 from . import settings as stg
 from .preproc import PREPROC
@@ -59,10 +57,6 @@ class AtomicStructureDataset(object):
 
     def __len__(self):
         return self._Gs.shape[0]
-
-    @property
-    def phonopy(self):
-        return self._phonopy
 
     @property
     def composition(self):
@@ -151,26 +145,9 @@ class AtomicStructureDataset(object):
 
     def _load_poscar(self, poscar):
         data_dir = poscar.parent
-        unitcell = ase.io.read(str(poscar), format='vasp')
-        atoms = []
-        if stg.args.mode == 'prediction':
-            atoms.append(unitcell)
-        elif stg.args.mode == 'phonon':
-            unitcell = PhonopyAtoms(cell=unitcell.cell,
-                                    positions=unitcell.positions,
-                                    symbols=unitcell.get_chemical_symbols())
-            phonopy = Phonopy(unitcell, stg.phonopy.dimensions, **stg.phonopy.options)
-            phonopy.generate_displacements(distance=stg.phonopy.distance)
-            supercells = phonopy.get_supercells_with_displacements()
-            self._phonopy = phonopy
-            for phonopy_at in supercells:
-                at = ase.Atoms(symbols=phonopy_at.get_chemical_symbols(),
-                           positions=phonopy_at.get_positions(),
-                           cell=phonopy_at.get_cell(),
-                           pbc=True)
-                atoms.append(at)
+        atoms = ase.io.read(str(poscar), format='vasp')
 
-        symbols = atoms[0].get_chemical_symbols()
+        symbols = atoms.get_chemical_symbols()
         self._composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
                                          for k in set(symbols)},
                              'atom': symbols,
@@ -178,11 +155,11 @@ class AtomicStructureDataset(object):
         self._ifeat = defaultdict(dict)
         for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
             self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
-        self._nsample = len(atoms)
-        self._natom = len(atoms[0])
+        self._nsample = 1
+        self._natom = len(atoms)
 
         count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        self._atoms = atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
+        self._atoms = [atoms]
         self._make_input(data_dir, count, save=False)
         del self._atoms
 

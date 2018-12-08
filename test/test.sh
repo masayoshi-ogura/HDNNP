@@ -31,5 +31,3 @@ ${mpirun} ${hdnnpy} training --verbose --resume output/CrystalGa16N16
 
 
 ${hdnnpy} prediction --poscar data/POSCAR --masters output/masters.npz
-
-${hdnnpy} phonon --poscar data/POSCAR --masters output/masters.npz

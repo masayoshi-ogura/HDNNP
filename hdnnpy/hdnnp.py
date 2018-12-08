@@ -66,23 +66,13 @@ def main():
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
     elif stg.args.mode == 'prediction':
-        _, energy, forces = predict()
-        pprint('energy:\n{}'.format(energy.data))
-        pprint('forces:\n{}'.format(forces.data))
-
-    elif stg.args.mode == 'phonon':
-        dataset, _, forces = predict()
-        phonopy = dataset.phonopy
-        phonopy.set_forces(forces.data)
-        phonopy.produce_force_constants()
-
-        pprint('drawing phonon band structure ... ', end='')
-        phonopy_plt = stg.phonopy.callback(phonopy)
-        phonopy_plt.savefig(stg.args.masters.with_name('phonon_band.png'))
-        phonopy_plt.close()
-        pprint('done')
-
-        shutil.copy('phonopy_settings.py', stg.file.out_dir/'phonopy_settings.py')
+        energies, forces = predict()
+        for energy, force in zip(energies, forces):
+            pprint('total energy:')
+            np.savetxt(sys.stdout, energy)
+            pprint('forces:')
+            np.savetxt(sys.stdout, force)
+            pprint('')
 
 
 @use_named_args(stg.skopt.space)
@@ -192,8 +182,8 @@ def predict():
     chainer.serializers.load_npz(stg.args.masters, masters)
     hdnnp = HDNNP(dataset.composition)
     hdnnp.sync_param_with(masters)
-    energy, forces = hdnnp.predict(dataset.input, dataset.dinput)
-    return dataset, energy, forces
+    energies, forces = hdnnp.predict(dataset.input, dataset.dinput)
+    return energies.data, forces.data
 
 
 if __name__ == '__main__':

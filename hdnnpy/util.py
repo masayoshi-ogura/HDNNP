@@ -216,10 +216,3 @@ def assert_settings(stg):
                                   'l1_norm', 'l2_norm', 'mixing_beta', 'node', 'activation']
                    for space in stg.skopt.space)
         assert stg.skopt.acq_func in ['LCB', 'EI', 'PI', 'gp_hedge', 'Elps', 'Plps']
-
-    # phonopy
-    if stg.args.mode == 'phonon':
-        assert all(key in dir(stg.phonopy) for key in ['dimensions', 'options', 'distance', 'callback'])
-        assert len(stg.phonopy.dimensions) == 3 and all(len(d) == 3 for d in stg.phonopy.dimensions)
-        assert isinstance(stg.phonopy.options, dict)
-        assert stg.phonopy.distance > 0.0
