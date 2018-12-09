@@ -56,16 +56,6 @@ class ChainerSafelyTerminate(object):
         if not self.signum:
             self.result['training_time'] += self.trainer.elapsed_time
             self.result['observation'].append({'config': self.config, **flatten_dict(self.trainer.observation)})
-            if stg.args.mode == 'train' and stg.mpi.rank == 0:
-                chainer.serializers.save_npz(self.trainer.out/'masters.npz',
-                                             self.trainer.updater.get_optimizer('master').target)
-                ### comment out: output lammps.nnp at end of training for each config
-                # preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-                # preproc.load(stg.file.out_dir/'preproc.npz')
-                # dump_lammps(self.trainer.out/'lammps.nnp', preproc,
-                #             self.trainer.updater.get_optimizer('master').target)
-            if stg.args.mode == 'param-search' and stg.mpi.rank == 0:
-                self.trainer.out.rmdir()
 
     def _snapshot(self, signum, frame):
         self.signum = signal.Signals(signum)

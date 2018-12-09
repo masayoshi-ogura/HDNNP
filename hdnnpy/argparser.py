@@ -30,29 +30,38 @@ def get_parser():
 
     # for train mode
     train_parser.add_argument(
-        '--verbose', '-v', action='store_true', default=False,
+        '--verbose', '-v',
+        action='store_true',
         help='Plot total RMSE graph.\n'
              'This flag increases processing time.')
     train_parser.add_argument(
-        '--resume', '-r', metavar='DIR', type=Path,
+        '--resume', '-r', dest='resume_dir', metavar='DIR',
+        type=Path,
         help='Resume training from given atomic configuration directory,\n'
              'which must contain `trainer_snapshot.npz` and `interim_result.pickle`.')
 
     # for predict mode
     predict_parser.add_argument(
-        'value', metavar='VALUE', type=str, nargs='+',
-        choices=['energy', 'force', 'E', 'F'],
+        'value', metavar='VALUE',
+        type=str, nargs='+', choices=['energy', 'force', 'E', 'F'],
         help='Values to be predicted for atomic structures using trained HDNNP.\n'
              '`energy` can be abbreviated as `E`, and `force` as `F`.')
     predict_parser.add_argument(
-        '--poscars', '-p', metavar='FILE', required=True, type=Path, nargs='+',
+        '--poscars', '-p', metavar='FILE',
+        type=Path, nargs='+', required=True,
         help='Path to one or more POSCAR format files.')
     predict_parser.add_argument(
-        '--masters', '-m', metavar='FILE', required=True, type=Path,
+        '--masters', '-m', metavar='FILE',
+        type=Path, required=True,
         help='Path to a trained masters model, which is created by running `hdnnpy train`.')
     predict_parser.add_argument(
-        '--write', '-w', metavar='FILE',
-        type=Path, nargs='?', default=None, const='./prediction.dat',
+        '--write', '-w', dest='prediction_file', metavar='FILE',
+        type=Path, nargs='?', const='./prediction.dat',
         help='Write predicted value into a text file. (default: %(default)s)')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mode == 'train':
+        args.is_resume = args.resume_dir is not None
+    elif args.mode == 'predict':
+        args.is_write = args.prediction_file is not None
+    return args

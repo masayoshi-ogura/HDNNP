@@ -417,8 +417,8 @@ class DataGenerator(object):
             self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         else:
             self._preproc = PREPROC[None]()
-        if stg.args.mode == 'train' and stg.args.resume:
-            self._preproc.load(stg.file.out_dir/'preproc.npz')
+        if stg.args.mode == 'train' and stg.args.is_resume:
+            self._preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
 
         self._datasets = []
         elements = set()
@@ -448,7 +448,7 @@ class DataGenerator(object):
             configurations[formula].append(poscar)
 
         self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-        self._preproc.load(stg.file.out_dir/'preproc.npz')
+        self._preproc.load(stg.args.masters.with_name('preproc.npz'))
 
         self._datasets = []
         elements = set()
