@@ -8,13 +8,13 @@ import copy
 import numpy as np
 from mpi4py import MPI
 from sklearn.model_selection import KFold
-import ase
 import ase.io
 import ase.neighborlist
 
 from .. import settings as stg
 from ..preproc import PREPROC
-from ..util import pprint, mkdir
+from ..util import pprint
+from .file_io import load_xyz, load_poscar, parse_xyzfile
 
 
 RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution
@@ -43,10 +43,28 @@ def memorize(f):
 class AtomicStructureDataset(object):
     def __init__(self, file_path, format):
         assert format in ['xyz', 'poscar']
+
         if format == 'xyz':
-            self._load_xyz(file_path)
+            atoms, self._config, self._composition = load_xyz(file_path)
         elif format == 'poscar':
-            self._load_poscar(file_path)
+            atoms, self._config, self._composition = load_poscar(file_path)
+
+        self._ifeat = defaultdict(dict)
+        for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
+            self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
+        self._nsample = len(atoms)
+        self._natom = len(self._composition['atom'])
+        count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
+        self._atoms = atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
+
+        if format == 'xyz':
+            self._make_input(file_path.parent, count, save=True)
+            self._make_label(file_path.parent, count, save=True)
+            self._shuffle()  # shuffle dataset at once
+        elif format == 'poscar':
+            self._make_input(Path(), count, save=False)
+
+        del self._atoms
 
     def __getitem__(self, index):
         batches = [self._Gs[index], self._dGs[index], self._Es[index], self._Fs[index]]
@@ -124,44 +142,6 @@ class AtomicStructureDataset(object):
         np.random.shuffle(self._Es)
         np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._Fs)
-
-    def _load_xyz(self, xyz_file):
-        self._atoms = ase.io.read(str(xyz_file), index=':', format='xyz')
-        data_dir = xyz_file.parent
-        self._config = data_dir.name
-        self._composition = pickle.loads((data_dir/'composition.pickle').read_bytes())
-        self._ifeat = defaultdict(dict)
-        for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
-            self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
-        self._nsample = len(self._atoms)
-        self._natom = len(self._composition['atom'])
-        count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        self._atoms = self._atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
-
-        self._make_input(data_dir, count, save=True)
-        self._make_label(data_dir, count, save=True)
-        self._shuffle()  # shuffle dataset at once
-        del self._atoms
-
-    def _load_poscar(self, poscars):
-        self._atoms = [ase.io.read(str(poscar), format='vasp') for poscar in poscars]
-
-        self._config = self._atoms[0].get_chemical_formula()
-        symbols = self._atoms[0].get_chemical_symbols()
-        self._composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
-                                         for k in set(symbols)},
-                             'atom': symbols,
-                             'element': sorted(set(symbols))}
-        self._ifeat = defaultdict(dict)
-        for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
-            self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
-        self._nsample = len(self._atoms)
-        self._natom = len(self._composition['atom'])
-        count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        self._atoms = self._atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
-
-        self._make_input(Path(), count, save=False)
-        del self._atoms
 
     def _make_label(self, data_dir, count, save):
         """At this point, only root process should have whole dataset.
@@ -368,7 +348,7 @@ class AtomicStructureDataset(object):
             yield i, indices, R, tanh, dR, cos, dcos
 
 
-class DataGenerator(object):
+class AtomicStructureDatasetGenerator(object):
     def __init__(self, data_file, format):
         if format == 'xyz':
             self._construct_training_datasets(data_file, format)
@@ -458,32 +438,6 @@ class DataGenerator(object):
             self._datasets.append((poscars, dataset))
             elements.update(dataset.composition['element'])
         self._elements = sorted(elements)
-
-def parse_xyzfile(xyz_file):
-    if stg.mpi.rank == 0:
-        pprint('config_type.pickle is not found.\nparsing {} ... '.format(xyz_file), end='')
-        config_type = set()
-        dataset = defaultdict(list)
-        for atoms in ase.io.iread(str(xyz_file), index=':', format='xyz', parallel=False):
-            config = atoms.info['config_type']
-            config_type.add(config)
-            dataset[config].append(atoms)
-        xyz_file.with_name('config_type.pickle').write_bytes(pickle.dumps(config_type))
-
-        for config in config_type:
-            composition = {'indices': defaultdict(list), 'atom': [], 'element': []}
-            for i, atom in enumerate(dataset[config][0]):
-                composition['indices'][atom.symbol].append(i)
-                composition['atom'].append(atom.symbol)
-            composition['element'] = sorted(set(composition['atom']))
-
-            cfg_dir = xyz_file.with_name(config)
-            mkdir(cfg_dir)
-            ase.io.write(str(cfg_dir/'structure.xyz'), dataset[config], format='xyz', parallel=False)
-            (cfg_dir/'composition.pickle').write_bytes(pickle.dumps(dict(composition)))
-        pprint('done')
-
-    stg.mpi.comm.Barrier()
 
 
 def scatter_dataset(dataset, root=0, max_buf_len=256 * 1024 * 1024):
