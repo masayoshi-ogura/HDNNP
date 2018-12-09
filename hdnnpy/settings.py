@@ -42,8 +42,8 @@ class defaults:
 
 
 def import_user_settings(args):
-    if args.mode == 'train' and args.resume:
-        file_path = args.resume.absolute().with_name('settings.py')
+    if args.mode == 'train' and args.is_resume:
+        file_path = args.resume_dir.absolute().with_name('settings.py')
     elif args.mode == 'predict':
         file_path = args.masters.absolute().with_name('settings.py')
     else:

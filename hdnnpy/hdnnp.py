@@ -66,7 +66,7 @@ def main():
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
     elif stg.args.mode == 'predict':
-        stream = stg.args.write.open('w') if stg.args.write else sys.stdout
+        stream = stg.args.prediction_file.open('w') if stg.args.is_write else sys.stdout
         results = predict()
         for poscar, energy, force in results:
             pprint('Atomic Structure File:', stream=stream)
@@ -161,12 +161,12 @@ def train(dataset, elements):
                                               file_name='RMSE.png', marker=None, postprocess=set_log_scale))
 
         # load trainer snapshot and resume training
-        if stg.args.mode == 'train' and stg.args.resume:
-            if config != stg.args.resume.name:
+        if stg.args.mode == 'train' and stg.args.is_resume:
+            if config != stg.args.resume_dir.name:
                 continue
             pprint('Resume training loop.\n\tconfig_type: {}'.format(config))
-            trainer_snapshot = stg.args.resume/'trainer_snapshot.npz'
-            interim_result = stg.args.resume/'interim_result.pickle'
+            trainer_snapshot = stg.args.resume_dir/'trainer_snapshot.npz'
+            interim_result = stg.args.resume_dir/'interim_result.pickle'
             chainer.serializers.load_npz(trainer_snapshot, trainer)
             result = pickle.loads(interim_result.read_bytes())
             # remove snapshot
@@ -174,7 +174,7 @@ def train(dataset, elements):
             if stg.mpi.rank == 0:
                 trainer_snapshot.unlink()
                 interim_result.unlink()
-            stg.args.resume = None
+            stg.args.is_resume = False
 
         with ChainerSafelyTerminate(config, trainer, result):
             trainer.run()

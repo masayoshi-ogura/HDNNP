@@ -34,7 +34,7 @@ def get_parser():
         help='Plot total RMSE graph.\n'
              'This flag increases processing time.')
     train_parser.add_argument(
-        '--resume', '-r', metavar='DIR', type=Path,
+        '--resume', '-r', metavar='DIR', type=Path, dest='resume_dir',
         help='Resume training from given atomic configuration directory,\n'
              'which must contain `trainer_snapshot.npz` and `interim_result.pickle`.')
 
@@ -51,8 +51,13 @@ def get_parser():
         '--masters', '-m', metavar='FILE', required=True, type=Path,
         help='Path to a trained masters model, which is created by running `hdnnpy train`.')
     predict_parser.add_argument(
-        '--write', '-w', metavar='FILE',
+        '--write', '-w', metavar='FILE', dest='prediction_file',
         type=Path, nargs='?', default=None, const='./prediction.dat',
         help='Write predicted value into a text file. (default: %(default)s)')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mode == 'train':
+        args.is_resume = args.resume_dir is not None
+    elif args.mode == 'predict':
+        args.is_write = args.prediction_file is not None
+    return args
