@@ -142,7 +142,8 @@ def train(dataset, elements):
 
         # updater and trainer
         updater = HDUpdater(train_iter, optimizer={'main': main_opt, 'master': master_opt})
-        trainer = chainer.training.Trainer(updater, stop_trigger, stg.file.out_dir/config)
+        out_dir = stg.file.out_dir/config if stg.args.mode == 'train' else stg.file.out_dir
+        trainer = chainer.training.Trainer(updater, stop_trigger, out_dir)
 
         # extensions
         trainer.extend(ext.ExponentialShift('alpha', 1 - stg.model.lr_decay,

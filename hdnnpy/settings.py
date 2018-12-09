@@ -7,6 +7,7 @@ by 'settings.py' on your working directory.
 Please see 'test/settings.py' as a example.
 """
 
+import importlib.util
 from pathlib import Path
 import os
 import sys
@@ -42,15 +43,18 @@ class defaults:
 
 def import_user_settings(args):
     if args.mode == 'train' and args.resume:
-        search_path = str(args.resume.parent.absolute())
+        file_path = args.resume.absolute().with_name('settings.py')
     elif args.mode == 'predict':
-        search_path = str(args.masters.parent.absolute())
+        file_path = args.masters.absolute().with_name('settings.py')
     else:
-        search_path = os.getcwd()
-    if not Path(search_path, 'settings.py').exists():
-        raise FileNotFoundError('`settings.py` is not found in {}'.format(search_path))
-    sys.path.insert(0, search_path)
-    from settings import stg
+        file_path = Path.cwd()/'settings.py'
+
+    spec = importlib.util.spec_from_file_location('settings', file_path)
+    settings = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(settings)
+    stg = settings.stg
+    if stg.mpi.rank == 0:
+        print('Loaded user settings file: {}'.format(file_path))
 
     # convert path string to pathlib.Path object
     stg.file.out_dir = Path(stg.file.out_dir)
