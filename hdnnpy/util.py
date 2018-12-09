@@ -19,6 +19,8 @@ def pprint(data, flush=True, **options):
     if isinstance(data, list) or isinstance(data, dict):
         pretty_print(data, **options)
     else:
+        if 'stream' in options:
+            options['file'] = options.pop('stream')
         print(data, **options)
     if flush:
         sys.stdout.flush()
@@ -54,7 +56,7 @@ class ChainerSafelyTerminate(object):
         if not self.signum:
             self.result['training_time'] += self.trainer.elapsed_time
             self.result['observation'].append({'config': self.config, **flatten_dict(self.trainer.observation)})
-            if stg.args.mode == 'training' and stg.mpi.rank == 0:
+            if stg.args.mode == 'train' and stg.mpi.rank == 0:
                 chainer.serializers.save_npz(self.trainer.out/'masters.npz',
                                              self.trainer.updater.get_optimizer('master').target)
                 ### comment out: output lammps.nnp at end of training for each config
@@ -62,12 +64,12 @@ class ChainerSafelyTerminate(object):
                 # preproc.load(stg.file.out_dir/'preproc.npz')
                 # dump_lammps(self.trainer.out/'lammps.nnp', preproc,
                 #             self.trainer.updater.get_optimizer('master').target)
-            if stg.args.mode == 'param_search' and stg.mpi.rank == 0:
+            if stg.args.mode == 'param-search' and stg.mpi.rank == 0:
                 self.trainer.out.rmdir()
 
     def _snapshot(self, signum, frame):
         self.signum = signal.Signals(signum)
-        if stg.args.mode == 'training' and stg.mpi.rank == 0:
+        if stg.args.mode == 'train' and stg.mpi.rank == 0:
             pprint('Stop {} training by signal: {}!\n'
                    'Take trainer snapshot at epoch: {}'
                    .format(self.config, self.signum.name, self.trainer.updater.epoch))
@@ -204,7 +206,7 @@ def assert_settings(stg):
     assert stg.model.metrics is not None
 
     # skopt
-    if stg.args.mode == 'param_search':
+    if stg.args.mode == 'param-search':
         assert all(key in dir(stg.skopt) for key in ['kfold', 'init_num', 'max_num'])
         assert all(key in dir(stg.skopt) for key in ['space', 'acq_func', 'callback'])
         assert stg.skopt.kfold > 0
@@ -216,10 +218,3 @@ def assert_settings(stg):
                                   'l1_norm', 'l2_norm', 'mixing_beta', 'node', 'activation']
                    for space in stg.skopt.space)
         assert stg.skopt.acq_func in ['LCB', 'EI', 'PI', 'gp_hedge', 'Elps', 'Plps']
-
-    # phonopy
-    if stg.args.mode == 'phonon':
-        assert all(key in dir(stg.phonopy) for key in ['dimensions', 'options', 'distance', 'callback'])
-        assert len(stg.phonopy.dimensions) == 3 and all(len(d) == 3 for d in stg.phonopy.dimensions)
-        assert isinstance(stg.phonopy.options, dict)
-        assert stg.phonopy.distance > 0.0

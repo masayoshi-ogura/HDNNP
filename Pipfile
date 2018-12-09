@@ -12,7 +12,6 @@ scikit-learn = "*"
 scikit-optimize = "*"
 "mpi4py" = "*"
 ase = "*"
-phonopy = "*"
 chainer = "*"
 
 [dev-packages]

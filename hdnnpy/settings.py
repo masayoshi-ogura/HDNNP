@@ -41,9 +41,9 @@ class defaults:
 
 
 def import_user_settings(args):
-    if args.mode == 'training' and args.resume:
+    if args.mode == 'train' and args.resume:
         search_path = str(args.resume.parent.absolute())
-    elif args.mode in ['prediction', 'phonon']:
+    elif args.mode == 'predict':
         search_path = str(args.masters.parent.absolute())
     else:
         search_path = os.getcwd()
@@ -58,23 +58,17 @@ def import_user_settings(args):
     return stg
 
 
-def import_phonopy_settings():
-    sys.path.insert(0, os.getcwd())
-    import phonopy_settings
-    return phonopy_settings
-
-
 args = get_parser()
 
 stg = import_user_settings(args)
-if args.mode == 'phonon':
-    phonopy = import_phonopy_settings()
-
-if not args.debug and stg.mpi.rank != 0:
-    sys.stdout = Path(os.devnull).open('w')
 
 file = stg.file
 mpi = stg.mpi
 dataset = stg.dataset
 model = stg.model
 skopt = stg.skopt
+
+# Hide stdout from MPI subprocesses
+if mpi.rank != 0:
+    sys.stdout = Path(os.devnull).open('w')
+    # sys.stderr = Path(os.devnull).open('w')

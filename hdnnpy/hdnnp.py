@@ -32,11 +32,11 @@ def main():
     assert_settings(stg)
     mkdir(stg.file.out_dir)
 
-    if stg.args.mode == 'training':
+    if stg.args.mode == 'train':
         try:
             generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
             dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
-            masters, result = training(dataset, elements)
+            masters, result = train(dataset, elements)
             if stg.mpi.rank == 0:
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
                 dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
@@ -44,7 +44,7 @@ def main():
         finally:
             shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
-    elif stg.args.mode == 'param_search':
+    elif stg.args.mode == 'param-search':
         try:
             seed = np.random.get_state()[1][0]
             seed = stg.mpi.comm.bcast(seed, root=0)
@@ -61,28 +61,23 @@ def main():
         finally:
             shutil.copy('settings.py', stg.file.out_dir/'settings.py')
 
-    elif stg.args.mode == 'sym_func':
+    elif stg.args.mode == 'sym-func':
         stg.dataset.preproc = None
         DataGenerator(stg.dataset.xyz_file, 'xyz')
 
-    elif stg.args.mode == 'prediction':
-        _, energy, forces = predict()
-        pprint('energy:\n{}'.format(energy.data))
-        pprint('forces:\n{}'.format(forces.data))
-
-    elif stg.args.mode == 'phonon':
-        dataset, _, forces = predict()
-        phonopy = dataset.phonopy
-        phonopy.set_forces(forces.data)
-        phonopy.produce_force_constants()
-
-        pprint('drawing phonon band structure ... ', end='')
-        phonopy_plt = stg.phonopy.callback(phonopy)
-        phonopy_plt.savefig(stg.args.masters.with_name('phonon_band.png'))
-        phonopy_plt.close()
-        pprint('done')
-
-        shutil.copy('phonopy_settings.py', stg.file.out_dir/'phonopy_settings.py')
+    elif stg.args.mode == 'predict':
+        stream = stg.args.write.open('w') if stg.args.write else sys.stdout
+        results = predict()
+        for poscar, energy, force in results:
+            pprint('Atomic Structure File:', stream=stream)
+            pprint(poscar.absolute(), stream=stream)
+            if 'energy' in stg.args.value or 'E' in stg.args.value:
+                pprint('Total Energy:', stream=stream)
+                np.savetxt(stream, energy)
+            if 'force' in stg.args.value or 'F' in stg.args.value:
+                pprint('Forces:', stream=stream)
+                np.savetxt(stream, force)
+            pprint('', stream=stream)
 
 
 @use_named_args(stg.skopt.space)
@@ -100,17 +95,18 @@ def objective_func(**params):
 
     results = []
     with Path(os.devnull).open('w') as devnull:
+        stdout = sys.stdout
         sys.stdout = devnull
         generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
         for i, (dataset, elements) in enumerate(
                 generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
-            _, result = training(dataset, elements)
+            _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
-        sys.stdout = sys.__stdout__
+        sys.stdout = stdout
     return sum(results) / stg.skopt.kfold
 
 
-def training(dataset, elements):
+def train(dataset, elements):
     result = {'training_time': 0.0, 'observation': []}
 
     # model and optimizer
@@ -141,7 +137,7 @@ def training(dataset, elements):
         interval = (stg.model.interval, 'epoch')
         stop_trigger = EarlyStoppingTrigger(check_trigger=interval, monitor=stg.model.metrics,
                                             patients=stg.model.patients, mode='min',
-                                            verbose=stg.args.mode == 'training',
+                                            verbose=stg.args.mode == 'train',
                                             max_trigger=(stg.model.epoch, 'epoch'))
 
         # updater and trainer
@@ -153,7 +149,7 @@ def training(dataset, elements):
                                             target=stg.model.final_lr, optimizer=master_opt))
         evaluator = Evaluator(iterator=test_iter, target=hdnnp)
         trainer.extend(chainermn.create_multi_node_evaluator(evaluator, stg.mpi.chainer_comm))
-        if stg.args.mode == 'training' and stg.mpi.rank == 0:
+        if stg.args.mode == 'train' and stg.mpi.rank == 0:
             trainer.extend(ext.LogReport(log_name='training.log'))
             trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
                                             'validation/main/RMSE', 'validation/main/d_RMSE',
@@ -164,7 +160,7 @@ def training(dataset, elements):
                                               file_name='RMSE.png', marker=None, postprocess=set_log_scale))
 
         # load trainer snapshot and resume training
-        if stg.args.mode == 'training' and stg.args.resume:
+        if stg.args.mode == 'train' and stg.args.resume:
             if config != stg.args.resume.name:
                 continue
             pprint('Resume training loop.\n\tconfig_type: {}'.format(config))
@@ -186,14 +182,16 @@ def training(dataset, elements):
 
 
 def predict():
-    generator = DataGenerator(stg.args.poscar, 'poscar')
-    dataset, elements = generator()
-    masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
-    chainer.serializers.load_npz(stg.args.masters, masters)
-    hdnnp = HDNNP(dataset.composition)
-    hdnnp.sync_param_with(masters)
-    energy, forces = hdnnp.predict(dataset.input, dataset.dinput)
-    return dataset, energy, forces
+    results = []
+    generator = DataGenerator(stg.args.poscars, 'poscar')
+    for poscars, dataset, elements in generator:
+        masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
+        chainer.serializers.load_npz(stg.args.masters, masters)
+        hdnnp = HDNNP(dataset.composition)
+        hdnnp.sync_param_with(masters)
+        energies, forces = hdnnp.predict(dataset.input, dataset.dinput)
+        results.extend([data for data in zip(poscars, energies.data, forces.data)])
+    return results
 
 
 if __name__ == '__main__':
