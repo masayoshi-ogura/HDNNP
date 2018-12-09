@@ -6,28 +6,28 @@ timeout="gtimeout 5"
 mpirun="mpirun -np 2"
 hdnnpy="hdnnpy"
 
-${clean}; ${hdnnpy} training --verbose
+${clean}; ${hdnnpy} train --verbose
 
-${clean}; ${mpirun} ${hdnnpy} training --verbose
+${clean}; ${mpirun} ${hdnnpy} train --verbose
 
-${clean}; ${hdnnpy} param_search
+${clean}; ${hdnnpy} param-search
 
-${clean}; ${mpirun} ${hdnnpy} param_search
+${clean}; ${mpirun} ${hdnnpy} param-search
 
-${clean}; ${hdnnpy} sym_func
+${clean}; ${hdnnpy} sym-func
 
-${clean}; ${mpirun} ${hdnnpy} sym_func
+${clean}; ${mpirun} ${hdnnpy} sym-func
 
 
 set +e
-(${timeout} ${hdnnpy} training --verbose)
+(${timeout} ${hdnnpy} train --verbose)
 set -e
-${hdnnpy} training --verbose --resume output/CrystalGa16N16
+${hdnnpy} train --verbose --resume output/CrystalGa16N16
 
 set +e
-(${timeout} ${mpirun} ${hdnnpy} training --verbose)
+(${timeout} ${mpirun} ${hdnnpy} train --verbose)
 set -e
-${mpirun} ${hdnnpy} training --verbose --resume output/CrystalGa16N16
+${mpirun} ${hdnnpy} train --verbose --resume output/CrystalGa16N16
 
 
-${hdnnpy} prediction --poscar data/POSCAR --masters output/masters.npz
+${hdnnpy} predict energy force --poscar data/POSCAR --masters output/masters.npz --write output/prediction.dat

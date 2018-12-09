@@ -126,13 +126,13 @@ class AtomicStructureDataset(object):
         np.random.shuffle(self._Fs)
 
     def _load_xyz(self, xyz_file):
+        self._atoms = ase.io.read(str(xyz_file), index=':', format='xyz')
         data_dir = xyz_file.parent
         self._config = data_dir.name
         self._composition = pickle.loads((data_dir/'composition.pickle').read_bytes())
         self._ifeat = defaultdict(dict)
         for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
             self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
-        self._atoms = ase.io.read(str(xyz_file), index=':', format='xyz')
         self._nsample = len(self._atoms)
         self._natom = len(self._composition['atom'])
         count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
@@ -143,11 +143,11 @@ class AtomicStructureDataset(object):
         self._shuffle()  # shuffle dataset at once
         del self._atoms
 
-    def _load_poscar(self, poscar):
-        data_dir = poscar.parent
-        atoms = ase.io.read(str(poscar), format='vasp')
+    def _load_poscar(self, poscars):
+        self._atoms = [ase.io.read(str(poscar), format='vasp') for poscar in poscars]
 
-        symbols = atoms.get_chemical_symbols()
+        self._config = self._atoms[0].get_chemical_formula()
+        symbols = self._atoms[0].get_chemical_symbols()
         self._composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
                                          for k in set(symbols)},
                              'atom': symbols,
@@ -155,12 +155,12 @@ class AtomicStructureDataset(object):
         self._ifeat = defaultdict(dict)
         for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
             self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
-        self._nsample = 1
-        self._natom = len(atoms)
-
+        self._nsample = len(self._atoms)
+        self._natom = len(self._composition['atom'])
         count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        self._atoms = [atoms]
-        self._make_input(data_dir, count, save=False)
+        self._atoms = self._atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
+
+        self._make_input(Path(), count, save=False)
         del self._atoms
 
     def _make_label(self, data_dir, count, save):
@@ -375,8 +375,9 @@ class DataGenerator(object):
         elif format == 'poscar':
             self._construct_test_datasets(data_file, format)
 
-    def __call__(self):
-        return self._datasets[0], self._elements
+    def __iter__(self):
+        for poscars, dataset in self._datasets:
+            yield poscars, dataset, self._elements
 
     @property
     def preproc(self):
@@ -416,7 +417,7 @@ class DataGenerator(object):
             self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         else:
             self._preproc = PREPROC[None]()
-        if stg.args.mode == 'training' and stg.args.resume:
+        if stg.args.mode == 'train' and stg.args.resume:
             self._preproc.load(stg.file.out_dir/'preproc.npz')
 
         self._datasets = []
@@ -440,13 +441,23 @@ class DataGenerator(object):
         self._elements = sorted(elements)
         stg.dataset.nsample = sum([d.nsample for d in self._datasets])
 
-    def _construct_test_datasets(self, poscar, format):
+    def _construct_test_datasets(self, original_poscars, format):
+        configurations = defaultdict(list)
+        for poscar in original_poscars:
+            formula = ase.io.read(str(poscar), format='vasp').get_chemical_formula()
+            configurations[formula].append(poscar)
+
         self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         self._preproc.load(stg.file.out_dir/'preproc.npz')
-        dataset = AtomicStructureDataset(poscar, format)
-        self._preproc.decompose(dataset)
-        self._datasets = [dataset]
-        self._elements = dataset.composition['element']
+
+        self._datasets = []
+        elements = set()
+        for poscars in configurations.values():
+            dataset = AtomicStructureDataset(poscars, format)
+            self._preproc.decompose(dataset)
+            self._datasets.append((poscars, dataset))
+            elements.update(dataset.composition['element'])
+        self._elements = sorted(elements)
 
 def parse_xyzfile(xyz_file):
     if stg.mpi.rank == 0:
