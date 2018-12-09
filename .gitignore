@@ -31,10 +31,9 @@
 *.po[0-9]*
 *.pe[0-9]*
 
-# setting files
-settings.py
-best_settings.py
-!hdnnpy/settings.py
+# configuration files
+config.py
+best_config.py
 
 # python environment files
 .venv/
@@ -51,7 +50,7 @@ dist/
 
 # test files
 !test/test.sh
-!test/settings.py
+!test/config.py
 !test/data/GaN.xyz
 !test/data/POSCAR
 

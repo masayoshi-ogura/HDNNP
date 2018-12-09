@@ -21,7 +21,7 @@ from .updater import HDUpdater
 from .util import pprint, mkdir, flatten_dict
 from .util import ChainerSafelyTerminate
 from .util import dump_lammps, dump_training_result
-from .util import dump_skopt_result, dump_settings
+from .util import dump_skopt_result, dump_config
 from .util import assert_settings
 from .chainer_extensions import Evaluator
 from .chainer_extensions import set_log_scale
@@ -42,7 +42,7 @@ def main():
                 dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
                 dump_training_result(stg.file.out_dir/'result.yaml', result)
         finally:
-            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
+            shutil.copy('config.py', stg.file.out_dir/'config.py')
 
     elif stg.args.mode == 'param-search':
         try:
@@ -57,9 +57,9 @@ def main():
                                  callback=stg.skopt.callback)
             if stg.mpi.rank == 0:
                 dump_skopt_result(stg.file.out_dir/'skopt_result.csv', result)
-                dump_settings(stg.file.out_dir/'best_settings.py')
+                dump_config(stg.file.out_dir/'best_config.py')
         finally:
-            shutil.copy('settings.py', stg.file.out_dir/'settings.py')
+            shutil.copy('config.py', stg.file.out_dir/'config.py')
 
     elif stg.args.mode == 'sym-func':
         stg.dataset.preproc = None

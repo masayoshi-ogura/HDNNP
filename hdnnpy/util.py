@@ -137,7 +137,7 @@ def dump_skopt_result(file_path, result):
         writer.writerows([x + [fun] for x, fun in zip(result.x_iters, result.func_vals)])
 
 
-def dump_settings(file_path):
+def dump_config(file_path):
     with file_path.open('w') as f:
         f.write('# -*- coding: utf-8 -*-\n'
                 'from hdnnpy.settings import defaults as stg\n\n')

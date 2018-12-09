@@ -3,8 +3,8 @@
 """
 This script defines the default settings for this program.
 Some settings must be set, and all settings can be overwritten
-by 'settings.py' on your working directory.
-Please see 'test/settings.py' as a example.
+by 'config.py' on your working directory.
+Please see 'test/config.py' as a example.
 """
 
 import importlib.util
@@ -41,20 +41,20 @@ class defaults:
         pass
 
 
-def import_user_settings(args):
+def import_user_configurations(args):
     if args.mode == 'train' and args.is_resume:
-        file_path = args.resume_dir.absolute().with_name('settings.py')
+        file_path = args.resume_dir.absolute().with_name('config.py')
     elif args.mode == 'predict':
-        file_path = args.masters.absolute().with_name('settings.py')
+        file_path = args.masters.absolute().with_name('config.py')
     else:
-        file_path = Path.cwd()/'settings.py'
+        file_path = Path.cwd()/'config.py'
 
-    spec = importlib.util.spec_from_file_location('settings', file_path)
-    settings = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(settings)
-    stg = settings.stg
+    spec = importlib.util.spec_from_file_location('config', file_path)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+    stg = config.stg
     if stg.mpi.rank == 0:
-        print('Loaded user settings file: {}'.format(file_path))
+        print('Loaded user configuration file: {}'.format(file_path))
 
     # convert path string to pathlib.Path object
     stg.file.out_dir = Path(stg.file.out_dir)
@@ -64,7 +64,7 @@ def import_user_settings(args):
 
 args = get_parser()
 
-stg = import_user_settings(args)
+stg = import_user_configurations(args)
 
 file = stg.file
 mpi = stg.mpi
