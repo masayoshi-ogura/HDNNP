@@ -12,9 +12,9 @@ import ase
 import ase.io
 import ase.neighborlist
 
-from . import settings as stg
-from .preproc import PREPROC
-from .util import pprint, mkdir
+from .. import settings as stg
+from ..preproc import PREPROC
+from ..util import pprint, mkdir
 
 
 RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution

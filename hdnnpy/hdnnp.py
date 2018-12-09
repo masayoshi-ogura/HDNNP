@@ -15,7 +15,7 @@ from chainer.training.triggers import EarlyStoppingTrigger
 import chainer.training.extensions as ext
 import chainermn
 
-from .data import DataGenerator
+from .symmetry_function.data import DataGenerator
 from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
 from .util import pprint, mkdir, flatten_dict
