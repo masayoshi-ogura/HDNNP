@@ -62,11 +62,13 @@ args = get_parser()
 
 stg = import_user_settings(args)
 
-if not args.debug and stg.mpi.rank != 0:
-    sys.stdout = Path(os.devnull).open('w')
-
 file = stg.file
 mpi = stg.mpi
 dataset = stg.dataset
 model = stg.model
 skopt = stg.skopt
+
+# Hide stdout from MPI subprocesses
+if mpi.rank != 0:
+    sys.stdout = Path(os.devnull).open('w')
+    # sys.stderr = Path(os.devnull).open('w')

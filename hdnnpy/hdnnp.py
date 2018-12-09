@@ -95,13 +95,14 @@ def objective_func(**params):
 
     results = []
     with Path(os.devnull).open('w') as devnull:
+        stdout = sys.stdout
         sys.stdout = devnull
         generator = DataGenerator(stg.dataset.xyz_file, 'xyz')
         for i, (dataset, elements) in enumerate(
                 generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
             _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
-        sys.stdout = sys.__stdout__
+        sys.stdout = stdout
     return sum(results) / stg.skopt.kfold
 
 

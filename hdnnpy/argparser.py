@@ -8,8 +8,6 @@ def get_parser():
     parser = argparse.ArgumentParser(description='High Dimensional Neural Network Potential',
                                      fromfile_prefix_chars='@',
                                      formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--debug', '-d', action='store_true', default=False,
-                        help='If this flag is set, MPI subprocesses also print their stdout')
 
     # subcommands
     subparsers = parser.add_subparsers(dest='mode', metavar='RUNNING MODE')
