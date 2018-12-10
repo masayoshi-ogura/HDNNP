@@ -34,8 +34,9 @@ def main():
 
     if stg.args.mode == 'train':
         try:
-            generator = SymmetryFunctionDatasetGenerator(stg.dataset.xyz_file, 'xyz')
-            dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
+            generator = SymmetryFunctionDatasetGenerator()
+            generator.load_xyz(stg.dataset.xyz_file)
+            dataset, elements = generator.holdout(stg.dataset.ratio)
             masters, result = train(dataset, elements)
             if stg.mpi.rank == 0:
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
@@ -63,7 +64,8 @@ def main():
 
     elif stg.args.mode == 'sym-func':
         stg.dataset.preproc = None
-        SymmetryFunctionDatasetGenerator(stg.dataset.xyz_file, 'xyz')
+        generator = SymmetryFunctionDatasetGenerator()
+        generator.load_xyz(stg.dataset.xyz_file)
 
     elif stg.args.mode == 'predict':
         stream = stg.args.prediction_file.open('w') if stg.args.is_write else sys.stdout
@@ -97,9 +99,9 @@ def objective_func(**params):
     with Path(os.devnull).open('w') as devnull:
         stdout = sys.stdout
         sys.stdout = devnull
-        generator = SymmetryFunctionDatasetGenerator(stg.dataset.xyz_file, 'xyz')
-        for i, (dataset, elements) in enumerate(
-                generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
+        generator = SymmetryFunctionDatasetGenerator()
+        generator.load_xyz(stg.dataset.xyz_file)
+        for i, (dataset, elements) in enumerate(generator.kfold(stg.skopt.kfold)):
             _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
         sys.stdout = stdout
@@ -184,8 +186,9 @@ def train(dataset, elements):
 
 def predict():
     results = []
-    generator = SymmetryFunctionDatasetGenerator(stg.args.poscars, 'poscar')
-    for poscars, dataset, elements in generator:
+    generator = SymmetryFunctionDatasetGenerator()
+    poscars_list = generator.load_poscars(stg.args.poscars)
+    for poscars, (dataset, elements) in zip(poscars_list, generator.foreach()):
         masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
         chainer.serializers.load_npz(stg.args.masters, masters)
         hdnnp = HDNNP(dataset.elemental_composition)

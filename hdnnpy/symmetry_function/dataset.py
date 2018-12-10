@@ -253,66 +253,35 @@ class SymmetryFunctionDataset(object):
 
 
 class SymmetryFunctionDatasetGenerator(object):
-    def __init__(self, data_file, format):
-        if format == 'xyz':
-            self._construct_training_datasets(data_file, format)
-        elif format == 'poscar':
-            self._construct_test_datasets(data_file, format)
-
-    def __iter__(self):
-        for poscars, dataset in self._datasets:
-            yield poscars, dataset, self._elements
+    def __init__(self):
+        self._datasets = []
+        self._elements = []
+        self._preproc = PREPROC[None]()
 
     @property
     def preproc(self):
         return self._preproc
 
-    def holdout(self, ratio):
-        split = []
-        while self._datasets:
-            dataset = self._datasets.pop(0)
-            s = int(len(dataset) * ratio)
-            train = dataset.take(slice(None, s, None))
-            test = dataset.take(slice(s, None, None))
-            split.append((train, test))
-        return split, self._elements
-
-    def cross_validation(self, ratio, kfold):
-        kf = KFold(n_splits=kfold)
-        kfold_indices = [kf.split(range(int(len(dataset) * ratio)))
-                         for dataset in self._datasets]
-
-        for indices in zip(*kfold_indices):
-            split = []
-            for dataset, (train_idx, test_idx) in zip(self._datasets, indices):
-                train = dataset.take(train_idx)
-                test = dataset.take(test_idx)
-                split.append((train, test))
-            yield split, self._elements
-
-    def _construct_training_datasets(self, original_xyz, format):
-        cfg_pickle = original_xyz.with_name('config_type.pickle')
+    def load_xyz(self, file_path):
+        cfg_pickle = file_path.with_name('config_type.pickle')
         if not cfg_pickle.exists():
-            parse_xyzfile(original_xyz)
+            parse_xyzfile(file_path)
         config_type = pickle.loads(cfg_pickle.read_bytes())
         required_config = sorted(config_type) if 'all' in stg.dataset.config else stg.dataset.config
 
         if stg.mpi.rank == 0:
             self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-        else:
-            self._preproc = PREPROC[None]()
         if stg.args.mode == 'train' and stg.args.is_resume:
             self._preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
 
-        self._datasets = []
         elements = set()
         for config in required_config:
             if config not in config_type:
                 continue
             pprint('Construct dataset of configuration type: {}'.format(config))
 
-            parsed_xyz = original_xyz.with_name(config)/'structure.xyz'
-            dataset = SymmetryFunctionDataset(parsed_xyz, format)
+            parsed_xyz = file_path.with_name(config)/'structure.xyz'
+            dataset = SymmetryFunctionDataset(parsed_xyz, 'xyz')
             self._preproc.decompose(dataset)
             stg.mpi.comm.Barrier()
 
@@ -325,23 +294,53 @@ class SymmetryFunctionDatasetGenerator(object):
         self._elements = sorted(elements)
         stg.dataset.nsample = sum([d.nsample for d in self._datasets])
 
-    def _construct_test_datasets(self, original_poscars, format):
+    def load_poscars(self, file_paths):
         configurations = defaultdict(list)
-        for poscar in original_poscars:
+        for poscar in file_paths:
             formula = ase.io.read(str(poscar), format='vasp').get_chemical_formula()
             configurations[formula].append(poscar)
 
         self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         self._preproc.load(stg.args.masters.with_name('preproc.npz'))
 
-        self._datasets = []
         elements = set()
         for poscars in configurations.values():
-            dataset = SymmetryFunctionDataset(poscars, format)
+            dataset = SymmetryFunctionDataset(poscars, 'poscar')
             self._preproc.decompose(dataset)
-            self._datasets.append((poscars, dataset))
+            self._datasets.append(dataset)
             elements.update(dataset.elements)
         self._elements = sorted(elements)
+
+        return configurations.values()
+
+    def all(self):
+        return self._datasets, self._elements
+
+    def foreach(self):
+        for dataset in self._datasets:
+            yield dataset, self._elements
+
+    def holdout(self, ratio):
+        split = []
+        while self._datasets:
+            dataset = self._datasets.pop(0)
+            s = int(len(dataset) * ratio)
+            train = dataset.take(slice(None, s, None))
+            test = dataset.take(slice(s, None, None))
+            split.append((train, test))
+        return split, self._elements
+
+    def kfold(self, kfold):
+        kf = KFold(n_splits=kfold)
+        kfold_indices = [kf.split(range(len(dataset))) for dataset in self._datasets]
+
+        for indices in zip(*kfold_indices):
+            split = []
+            for dataset, (train_idx, test_idx) in zip(self._datasets, indices):
+                train = dataset.take(train_idx)
+                test = dataset.take(test_idx)
+                split.append((train, test))
+            yield split, self._elements
 
 
 def scatter_dataset(dataset, root=0, max_buf_len=256 * 1024 * 1024):
