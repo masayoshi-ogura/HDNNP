@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import shutil
+import tempfile
 from pathlib import Path
 from collections import defaultdict
 import pickle
 from itertools import product, combinations_with_replacement
-import copy
 import numpy as np
 from mpi4py import MPI
 from sklearn.model_selection import KFold
@@ -13,7 +14,7 @@ import ase.io
 from .. import settings as stg
 from ..preproc import PREPROC
 from ..util import pprint
-from .file_io import load_xyz, load_poscar, parse_xyzfile
+from .file_io import parse_xyz
 from .symmetry_functions import type1, type2, type4
 
 
@@ -21,26 +22,21 @@ RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle date
 
 
 class SymmetryFunctionDataset(object):
-    def __init__(self, file_path, format):
-        assert format in ['xyz', 'poscar']
+    def __init__(self, elemental_composition=None, tag=None, nsample=None, Gs=None, dGs=None, Es=None, Fs=None):
+        self.elemental_composition = elemental_composition or []
+        self.tag = tag or None
+        self.nsample = nsample or None
 
-        if format == 'xyz':
-            atoms, self._tag, self._elemental_composition = load_xyz(file_path)
-        elif format == 'poscar':
-            atoms, self._tag, self._elemental_composition = load_poscar(file_path)
+        self._Gs = Gs if Gs is not None else np.empty(0)
+        self._dGs = dGs if dGs is not None else np.empty(0)
+        self._Es = Es if Es is not None else np.empty(0)
+        self._Fs = Fs if Fs is not None else np.empty(0)
 
-        self._nsample = len(atoms)
-        self._count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        self._atoms = atoms[self._count[:stg.mpi.rank].sum(): self._count[:stg.mpi.rank + 1].sum()]
-
-        if format == 'xyz':
-            self._make_input(file_path.parent, save=True)
-            self._make_label(file_path.parent, save=True)
-            self._shuffle()  # shuffle dataset at once
-        elif format == 'poscar':
-            self._make_input(Path(), save=False)
-
-        del self._atoms
+        self._data_dir_path = Path()
+        self._atoms = []
+        self._count = None
+        self._is_save_input = False
+        self._is_save_label = False
 
     def __getitem__(self, index):
         batches = [self._Gs[index], self._dGs[index], self._Es[index], self._Fs[index]]
@@ -53,20 +49,8 @@ class SymmetryFunctionDataset(object):
         return self._Gs.shape[0]
 
     @property
-    def elemental_composition(self):
-        return self._elemental_composition
-
-    @property
     def elements(self):
-        return sorted(set(self._elemental_composition))
-
-    @property
-    def tag(self):
-        return self._tag
-
-    @property
-    def nsample(self):
-        return self._nsample
+        return sorted(set(self.elemental_composition))
 
     @property
     def ninput(self):
@@ -77,8 +61,8 @@ class SymmetryFunctionDataset(object):
         return self._Gs
 
     @input.setter
-    def input(self, input_):
-        self._Gs = input_
+    def input(self, input):
+        self._Gs = input
 
     @property
     def dinput(self):
@@ -104,123 +88,145 @@ class SymmetryFunctionDataset(object):
     def dlabel(self, dlabel):
         self._Fs = dlabel
 
+    def load(self, xyz_path, verbose=True):
+        self._data_dir_path = xyz_path.parent.absolute()
+        atoms = ase.io.read(xyz_path, index=':', format='xyz')
+        self.elemental_composition = atoms[0].get_chemical_symbols()
+        self.tag = atoms[0].info['tag']
+        self.nsample = len(atoms)
+        self._count = np.array([(self.nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
+        self._atoms = atoms[self._count[:stg.mpi.rank].sum(): self._count[:stg.mpi.rank + 1].sum()]
+        if atoms[0].calc is not None:
+            self._make_input(verbose)
+            self._make_label(verbose)
+            self._shuffle()  # shuffle dataset at once
+        else:
+            self._make_input(verbose)
+        del self._atoms
+
+    def save(self):
+        if self._is_save_input:
+            shutil.copy(self._temp_SF_file.name,
+                        self._data_dir_path/'Symmetry_Function.npz')
+        if self._is_save_label:
+            shutil.copy(self._temp_EF_file.name,
+                        self._data_dir_path/'Energy_Force.npz')
+
     def take(self, slc):
         assert isinstance(slc, slice) or isinstance(slc, np.ndarray)
-        sliced = copy.copy(self)
-        sliced.input = self.input[slc]
-        sliced.dinput = self.dinput[slc]
-        sliced.label = self.label[slc]
-        sliced.dlabel = self.dlabel[slc]
+        sliced = SymmetryFunctionDataset(
+            elemental_composition=self.elemental_composition,
+            tag=self.tag,
+            nsample=self.nsample,
+            Gs=self.input[slc],
+            dGs=self.dinput[slc],
+            Es=self.label[slc],
+            Fs=self.dlabel[slc],
+        )
         return sliced
 
-    def _shuffle(self):
-        np.random.set_state(RANDOMSTATE)
-        np.random.shuffle(self._Gs)
-        np.random.set_state(RANDOMSTATE)
-        np.random.shuffle(self._dGs)
-        np.random.set_state(RANDOMSTATE)
-        np.random.shuffle(self._Es)
-        np.random.set_state(RANDOMSTATE)
-        np.random.shuffle(self._Fs)
-
-    def _make_label(self, data_dir, save):
+    def _make_input(self, verbose):
         """At this point, only root process should have whole dataset.
         non-root processes work as calculators if necessary,
             but discard the calculated data once.
         preprocessed datasets will be scattered to all processes later.
         """
-        EF_file = data_dir/'Energy_Force.npz'
+        SF_path = self._data_dir_path/'Symmetry_Function.npz'
         try:
-            if not save:
-                raise ValueError
-            ndarray = np.load(EF_file)
-            assert ndarray['nsample'] == self._nsample, \
-                '# of samples of {} and given data file do not match.'.format(EF_file)
-            pprint('{} is found.'.format(EF_file))
-            Es = ndarray['E']
-            Fs = ndarray['F']
-
-        except (ValueError, FileNotFoundError) as e:
-            if isinstance(e, FileNotFoundError):
-                pprint('{} is not found.'.format(EF_file))
-            pprint('calculate energy and forces from scratch.')
-
-            if stg.mpi.rank == 0:
-                natom = len(self._atoms[0])
-                Es = np.empty((self._nsample, 1))
-                Fs = np.empty((self._nsample, natom, 3))
-                Es_send = np.array([data.get_potential_energy() for data in self._atoms]).reshape(-1, 1)
-                Fs_send = np.array([data.get_forces() for data in self._atoms])
-                stg.mpi.comm.Gatherv(Es_send, (Es, (self._count, None), MPI.DOUBLE), root=0)
-                stg.mpi.comm.Gatherv(Fs_send, (Fs, (self._count * natom * 3, None), MPI.DOUBLE), root=0)
-                if save:
-                    np.savez(EF_file, nsample=self._nsample, E=Es, F=Fs)
-            else:
-                Es_send = np.array([data.get_potential_energy() for data in self._atoms]).reshape(-1, 1)
-                Fs_send = np.array([data.get_forces() for data in self._atoms])
-                stg.mpi.comm.Gatherv(Es_send, None, 0)
-                stg.mpi.comm.Gatherv(Fs_send, None, 0)
-
-        if stg.mpi.rank == 0:
-            self._Es = Es.astype(np.float32)
-            self._Fs = Fs.astype(np.float32)
-        else:
-            self._Es = np.empty(0)
-            self._Fs = np.empty(0)
-
-    def _make_input(self, data_dir, save):
-        """At this point, only root process should have whole dataset.
-        non-root processes work as calculators if necessary,
-            but discard the calculated data once.
-        preprocessed datasets will be scattered to all processes later.
-        """
-        SF_file = data_dir/'Symmetry_Function.npz'
-        try:
-            if not save:
-                raise ValueError
-            ndarray = np.load(SF_file)
-            assert ndarray['nsample'] == self._nsample, \
-                '# of samples of {} and given data file do not match.'.format(SF_file)
-            pprint('{} is found.'.format(SF_file))
+            ndarray = np.load(SF_path)
+            assert ndarray['nsample'] == self.nsample, \
+                '# of samples of {} and given data file do not match.'.format(SF_path)
             existing_keys = set([Path(key).parent for key in ndarray.keys() if key.endswith('G')])
-        except (ValueError, FileNotFoundError) as e:
-            if isinstance(e, FileNotFoundError):
-                pprint('{} is not found.'.format(SF_file))
-            pprint('calculate symmetry functions from scratch.')
+            if verbose:
+                pprint('Loaded symmetry functions from {}.'.format(SF_path))
+        except FileNotFoundError as e:
+            if verbose:
+                pprint('{} does not exist.'.format(SF_path))
+                pprint('Calculate symmetry functions from scratch.')
             existing_keys = None
         new_keys, re_used_keys, no_used_keys = self._check_uncalculated_keys(existing_keys)
-        if new_keys and save:
-            pprint('uncalculated symmetry function parameters are as follows:')
+        if new_keys and verbose:
+            pprint('Uncalculated symmetry function parameters are as follows:')
             pprint('\n'.join(map(str, new_keys)))
 
         if stg.mpi.rank == 0:
             Gs, dGs = {}, {}
             for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):
-                G = np.empty((self._nsample,) + G_send.shape[1:])
-                dG = np.empty((self._nsample,) + dG_send.shape[1:])
-                stg.mpi.comm.Gatherv(G_send, (G, (self._count * G[0].size, None), MPI.DOUBLE), root=0)
-                stg.mpi.comm.Gatherv(dG_send, (dG, (self._count * dG[0].size, None), MPI.DOUBLE), root=0)
+                G_send = G_send.astype(np.float32)
+                dG_send = dG_send.astype(np.float32)
+                G = np.empty((self.nsample,) + G_send.shape[1:], dtype=np.float32)
+                dG = np.empty((self.nsample,) + dG_send.shape[1:], dtype=np.float32)
+                stg.mpi.comm.Gatherv(
+                        G_send, (G, (self._count * G[0].size, None), MPI.FLOAT), root=0)
+                stg.mpi.comm.Gatherv(
+                        dG_send, (dG, (self._count * dG[0].size, None), MPI.FLOAT), root=0)
                 Gs[str(key/'G')] = G
                 dGs[str(key/'dG')] = dG
             for key in re_used_keys:
                 Gs[str(key/'G')] = ndarray[str(key/'G')]
                 dGs[str(key/'dG')] = ndarray[str(key/'dG')]
-            self._Gs = np.concatenate([v for k, v in sorted(Gs.items())], axis=2).astype(np.float32)
-            self._dGs = np.concatenate([v for k, v in sorted(dGs.items())], axis=2).astype(np.float32)
-            if new_keys and save:
+            self._Gs = np.concatenate([v for k, v in sorted(Gs.items())], axis=2)
+            self._dGs = np.concatenate([v for k, v in sorted(dGs.items())], axis=2)
+            if new_keys:
                 for key in no_used_keys:
                     Gs[str(key/'G')] = ndarray[str(key/'G')]
                     dGs[str(key/'dG')] = ndarray[str(key/'dG')]
-                np.savez(SF_file, nsample=self._nsample, **Gs, **dGs)
+                self._is_save_input = True
+                self._temp_SF_file = tempfile.NamedTemporaryFile()
+                np.savez(self._temp_SF_file, nsample=self.nsample, **Gs, **dGs)
 
         else:
             for _, G_send, dG_send in self._calculate_symmetry_function(new_keys):
+                G_send = G_send.astype(np.float32)
+                dG_send = dG_send.astype(np.float32)
                 stg.mpi.comm.Gatherv(G_send, None, 0)
                 stg.mpi.comm.Gatherv(dG_send, None, 0)
-            self._Gs = np.empty(0)
-            self._dGs = np.empty(0)
 
-    def _check_uncalculated_keys(self, existing_keys=None):
+    def _make_label(self, verbose):
+        """At this point, only root process should have whole dataset.
+        non-root processes work as calculators if necessary,
+            but discard the calculated data once.
+        preprocessed datasets will be scattered to all processes later.
+        """
+        EF_path = self._data_dir_path/'Energy_Force.npz'
+        try:
+            ndarray = np.load(EF_path)
+            assert ndarray['nsample'] == self.nsample, \
+                '# of samples of {} and given data file do not match.'.format(EF_path)
+            self._Es = ndarray['energy']
+            self._Fs = ndarray['force']
+            if verbose:
+                pprint('Loaded energies and forces from {}.'.format(EF_path))
+
+        except FileNotFoundError as e:
+            if verbose:
+                pprint('{} does not exist.'.format(EF_path))
+                pprint('Calculate energies and forces from scratch.')
+
+            if stg.mpi.rank == 0:
+                natom = len(self._atoms[0])
+                self._Es = np.empty((self.nsample, 1), dtype=np.float32)
+                self._Fs = np.empty((self.nsample, natom, 3), dtype=np.float32)
+                Es_send = np.array([data.get_potential_energy() for data in self._atoms],
+                                   dtype=np.float32).reshape(-1, 1)
+                Fs_send = np.array([data.get_forces() for data in self._atoms],
+                                   dtype=np.float32)
+                stg.mpi.comm.Gatherv(
+                        Es_send, (self._Es, (self._count, None), MPI.FLOAT), root=0)
+                stg.mpi.comm.Gatherv(
+                        Fs_send, (self._Fs, (self._count * natom * 3, None), MPI.FLOAT), root=0)
+                self._is_save_label = True
+                self._temp_EF_file = tempfile.NamedTemporaryFile()
+                np.savez(self._temp_EF_file, nsample=self.nsample, energy=self._Es, force=self._Fs)
+            else:
+                Es_send = np.array([data.get_potential_energy() for data in self._atoms],
+                                   dtype=np.float32).reshape(-1, 1)
+                Fs_send = np.array([data.get_forces() for data in self._atoms],
+                                   dtype=np.float32)
+                stg.mpi.comm.Gatherv(Es_send, None, 0)
+                stg.mpi.comm.Gatherv(Fs_send, None, 0)
+
+    def _check_uncalculated_keys(self, existing_keys):
         if existing_keys is None:
             existing_keys = set()
         required_keys = set()
@@ -251,6 +257,16 @@ class SymmetryFunctionDataset(object):
         for key in keys:
             yield key, np.stack(Gs[key]), np.stack(dGs[key])
 
+    def _shuffle(self):
+        np.random.set_state(RANDOMSTATE)
+        np.random.shuffle(self._Gs)
+        np.random.set_state(RANDOMSTATE)
+        np.random.shuffle(self._dGs)
+        np.random.set_state(RANDOMSTATE)
+        np.random.shuffle(self._Es)
+        np.random.set_state(RANDOMSTATE)
+        np.random.shuffle(self._Fs)
+
 
 class SymmetryFunctionDatasetGenerator(object):
     def __init__(self):
@@ -263,7 +279,8 @@ class SymmetryFunctionDatasetGenerator(object):
         return self._preproc
 
     def load_xyz(self, file_path):
-        all_tags = parse_xyzfile(file_path)
+        file_path = file_path.absolute()
+        all_tags = parse_xyz(file_path)
         included_tags = all_tags if 'all' in stg.dataset.tag else stg.dataset.tag
 
         if stg.mpi.rank == 0:
@@ -272,30 +289,32 @@ class SymmetryFunctionDatasetGenerator(object):
             self._preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
 
         elements = set()
+        stg.dataset.nsample = 0
         for tag in included_tags:
             if tag not in all_tags:
                 pprint('Data tagged "{}" does not exist in {}. Skipped.\n'.format(tag, file_path))
                 continue
             pprint('Construct dataset tagged "{}"'.format(tag))
 
-            parsed_xyz = file_path.with_name(tag)/'structure.xyz'
-            dataset = SymmetryFunctionDataset(parsed_xyz, 'xyz')
-            self._preproc.decompose(dataset)
-            stg.mpi.comm.Barrier()
+            xyz = file_path.with_name(tag)/'Atomic_Structure.xyz'
+            dataset = SymmetryFunctionDataset()
+            dataset.load(xyz, verbose=True)
+            dataset.save()
+            elements.update(dataset.elements)
+            stg.dataset.nsample += dataset.nsample
 
+            self._preproc.decompose(dataset)
             dataset = scatter_dataset(dataset)
             self._datasets.append(dataset)
-            elements.update(dataset.elements)
             pprint('')
 
         self._preproc.save(stg.file.out_dir/'preproc.npz')
         self._elements = sorted(elements)
-        stg.dataset.nsample = sum([d.nsample for d in self._datasets])
 
     def load_poscars(self, file_paths):
         tag_poscars_map = defaultdict(list)
         for poscar in file_paths:
-            tag = ase.io.read(str(poscar), format='vasp').get_chemical_formula()
+            tag = ase.io.read(poscar, format='vasp').get_chemical_formula()
             tag_poscars_map[tag].append(poscar)
 
         self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
@@ -303,7 +322,13 @@ class SymmetryFunctionDatasetGenerator(object):
 
         elements = set()
         for poscars in tag_poscars_map.values():
-            dataset = SymmetryFunctionDataset(poscars, 'poscar')
+            with tempfile.NamedTemporaryFile('w') as xyz:
+                for poscar in poscars:
+                    atoms = ase.io.read(poscar, format='vasp')
+                    atoms.info['tag'] = atoms.get_chemical_symbols()
+                    ase.io.write(xyz.name, atoms, format='xyz', append=True)
+                dataset = SymmetryFunctionDataset()
+                dataset.load(Path(xyz.name), verbose=False)
             self._preproc.decompose(dataset)
             self._datasets.append(dataset)
             elements.update(dataset.elements)
@@ -351,6 +376,7 @@ def scatter_dataset(dataset, root=0, max_buf_len=256 * 1024 * 1024):
         use raw mpi4py method to send/recv dataset
     """
     assert 0 <= root and root < stg.mpi.size
+    stg.mpi.comm.Barrier()
 
     if stg.mpi.rank == root:
         mine = None
