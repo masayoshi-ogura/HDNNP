@@ -30,4 +30,6 @@ set -e
 ${mpirun} ${hdnnpy} train --verbose --resume output/CrystalGa16N16
 
 
-${hdnnpy} predict energy force --poscar data/POSCAR --masters output/masters.npz --write output/prediction.dat
+${hdnnpy} predict energy force --poscar data/POSCAR --masters output/masters.npz
+
+${hdnnpy} predict force --poscar data/POSCAR --masters output/masters.npz --write output/prediction.dat

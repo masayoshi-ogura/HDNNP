@@ -24,6 +24,7 @@ def memorize(f):
 
     return helper
 
+
 @memorize
 def neighbour_info(atoms, Rc):
     i_list, j_list, R_list, r_list = ase.neighborlist.neighbor_list('ijdD', atoms, Rc)

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
+from pathlib import Path
 from itertools import product, combinations
 import numpy as np
 
+from ..settings import stg
 from .atomic_structure import neighbour_info
 
 
@@ -67,3 +69,19 @@ def type4(ifeat, atoms, elements, Rc, eta, lambda_, zeta):
         for (j, jelem), kelem in product(enumerate(atoms.get_chemical_symbols()), elements):
             dG[i, ifeat[jelem][kelem], j] = dg.take(indices[j], 0).take(indices[kelem], 1).sum((0, 1))
     return G, dG
+
+
+def check_uncalculated_keys(existing_keys):
+    if existing_keys is None:
+        existing_keys = set()
+    required_keys = set()
+    for Rc in stg.dataset.Rc:
+        required_keys.add(Path('type1', str(Rc)))
+    for Rc, eta, Rs in product(stg.dataset.Rc, stg.dataset.eta, stg.dataset.Rs):
+        required_keys.add(Path('type2', str(Rc), str(eta), str(Rs)))
+    for Rc, eta, lambda_, zeta in product(stg.dataset.Rc, stg.dataset.eta, stg.dataset.lambda_, stg.dataset.zeta):
+        required_keys.add(Path('type4', str(Rc), str(eta), str(lambda_), str(zeta)))
+    new_keys = sorted(required_keys - existing_keys)
+    re_used_keys = sorted(required_keys & existing_keys)
+    no_used_keys = sorted(existing_keys - required_keys)
+    return new_keys, re_used_keys, no_used_keys

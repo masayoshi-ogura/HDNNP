@@ -20,14 +20,17 @@ from .argparser import get_parser
 class defaults:
     class file:
         out_dir = 'output'
+
     class mpi:
         comm = MPI.COMM_WORLD
         rank = MPI.COMM_WORLD.Get_rank()
         size = MPI.COMM_WORLD.Get_size()
         chainer_comm = chainermn.create_communicator('naive', MPI.COMM_WORLD)
+
     class dataset:
         tag = ['all']
         ratio = 0.9
+
     class model:
         interval = 10
         patients = 5
@@ -37,6 +40,7 @@ class defaults:
         l1_norm = 0.0e-4
         l2_norm = 0.0e-4
         metrics = 'validation/main/tot_RMSE'
+
     class skopt:
         pass
 

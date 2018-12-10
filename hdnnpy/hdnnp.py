@@ -15,17 +15,19 @@ from chainer.training.triggers import EarlyStoppingTrigger
 import chainer.training.extensions as ext
 import chainermn
 
-from .symmetry_function.dataset import SymmetryFunctionDatasetGenerator
+from .chainer_extensions import Evaluator
+from .chainer_extensions import set_log_scale
+from .chainer_extensions import scatter_plot
 from .model import SingleNNP, HDNNP
+from .preproc import PREPROC
+from .symmetry_function.file_io import load_xyz, load_poscars
+from .symmetry_function.utils import DatasetGenerator
 from .updater import HDUpdater
-from .util import pprint, mkdir, flatten_dict
+from .util import pprint, mkdir
 from .util import ChainerSafelyTerminate
 from .util import dump_lammps, dump_training_result
 from .util import dump_skopt_result, dump_config
 from .util import assert_settings
-from .chainer_extensions import Evaluator
-from .chainer_extensions import set_log_scale
-from .chainer_extensions import scatter_plot
 
 
 def main():
@@ -34,13 +36,17 @@ def main():
 
     if stg.args.mode == 'train':
         try:
-            generator = SymmetryFunctionDatasetGenerator()
-            generator.load_xyz(stg.dataset.xyz_file)
-            dataset, elements = generator.holdout(stg.dataset.ratio)
+            preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature) \
+                    if stg.mpi.rank == 0 else PREPROC[None]()
+            if stg.args.is_resume:
+                preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
+            datasets, elements = load_xyz(stg.dataset.xyz_file, preproc)
+            preproc.save(stg.file.out_dir/'preproc.npz')
+            dataset = DatasetGenerator(datasets).holdout(stg.dataset.ratio)
             masters, result = train(dataset, elements)
             if stg.mpi.rank == 0:
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
-                dump_lammps(stg.file.out_dir/'lammps.nnp', generator.preproc, masters)
+                dump_lammps(stg.file.out_dir/'lammps.nnp', preproc, masters)
                 dump_training_result(stg.file.out_dir/'result.yaml', result)
         finally:
             shutil.copy('config.py', stg.file.out_dir/'config.py')
@@ -63,9 +69,8 @@ def main():
             shutil.copy('config.py', stg.file.out_dir/'config.py')
 
     elif stg.args.mode == 'sym-func':
-        stg.dataset.preproc = None
-        generator = SymmetryFunctionDatasetGenerator()
-        generator.load_xyz(stg.dataset.xyz_file)
+        preproc = PREPROC[None]()
+        load_xyz(stg.dataset.xyz_file, preproc)
 
     elif stg.args.mode == 'predict':
         stream = stg.args.prediction_file.open('w') if stg.args.is_write else sys.stdout
@@ -99,9 +104,10 @@ def objective_func(**params):
     with Path(os.devnull).open('w') as devnull:
         stdout = sys.stdout
         sys.stdout = devnull
-        generator = SymmetryFunctionDatasetGenerator()
-        generator.load_xyz(stg.dataset.xyz_file)
-        for i, (dataset, elements) in enumerate(generator.kfold(stg.skopt.kfold)):
+        preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature) \
+                if stg.mpi.rank == 0 else PREPROC[None]()
+        datasets, elements = load_xyz(stg.dataset.xyz_file, preproc)
+        for dataset in DatasetGenerator(datasets).kfold(stg.skopt.kfold):
             _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
         sys.stdout = stdout
@@ -185,10 +191,12 @@ def train(dataset, elements):
 
 
 def predict():
+    preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
+    preproc.load(stg.args.masters.with_name('preproc.npz'))
+    poscars_list, datasets, elements = load_poscars(stg.args.poscars, preproc)
+
     results = []
-    generator = SymmetryFunctionDatasetGenerator()
-    poscars_list = generator.load_poscars(stg.args.poscars)
-    for poscars, (dataset, elements) in zip(poscars_list, generator.foreach()):
+    for poscars, dataset in zip(poscars_list, DatasetGenerator(datasets).foreach()):
         masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
         chainer.serializers.load_npz(stg.args.masters, masters)
         hdnnp = HDNNP(dataset.elemental_composition)
