@@ -15,7 +15,7 @@ from chainer.training.triggers import EarlyStoppingTrigger
 import chainer.training.extensions as ext
 import chainermn
 
-from .symmetry_function.dataset import AtomicStructureDatasetGenerator
+from .symmetry_function.dataset import SymmetryFunctionDatasetGenerator
 from .model import SingleNNP, HDNNP
 from .updater import HDUpdater
 from .util import pprint, mkdir, flatten_dict
@@ -34,7 +34,7 @@ def main():
 
     if stg.args.mode == 'train':
         try:
-            generator = AtomicStructureDatasetGenerator(stg.dataset.xyz_file, 'xyz')
+            generator = SymmetryFunctionDatasetGenerator(stg.dataset.xyz_file, 'xyz')
             dataset, elements = generator.holdout(ratio=stg.dataset.ratio)
             masters, result = train(dataset, elements)
             if stg.mpi.rank == 0:
@@ -63,7 +63,7 @@ def main():
 
     elif stg.args.mode == 'sym-func':
         stg.dataset.preproc = None
-        AtomicStructureDatasetGenerator(stg.dataset.xyz_file, 'xyz')
+        SymmetryFunctionDatasetGenerator(stg.dataset.xyz_file, 'xyz')
 
     elif stg.args.mode == 'predict':
         stream = stg.args.prediction_file.open('w') if stg.args.is_write else sys.stdout
@@ -97,7 +97,7 @@ def objective_func(**params):
     with Path(os.devnull).open('w') as devnull:
         stdout = sys.stdout
         sys.stdout = devnull
-        generator = AtomicStructureDatasetGenerator(stg.dataset.xyz_file, 'xyz')
+        generator = SymmetryFunctionDatasetGenerator(stg.dataset.xyz_file, 'xyz')
         for i, (dataset, elements) in enumerate(
                 generator.cross_validation(ratio=stg.dataset.ratio, kfold=stg.skopt.kfold)):
             _, result = train(dataset, elements)
@@ -184,7 +184,7 @@ def train(dataset, elements):
 
 def predict():
     results = []
-    generator = AtomicStructureDatasetGenerator(stg.args.poscars, 'poscar')
+    generator = SymmetryFunctionDatasetGenerator(stg.args.poscars, 'poscar')
     for poscars, dataset, elements in generator:
         masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
         chainer.serializers.load_npz(stg.args.masters, masters)

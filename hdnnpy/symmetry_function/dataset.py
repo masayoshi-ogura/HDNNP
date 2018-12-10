@@ -20,7 +20,7 @@ from .symmetry_functions import type1, type2, type4
 RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution
 
 
-class AtomicStructureDataset(object):
+class SymmetryFunctionDataset(object):
     def __init__(self, file_path, format):
         assert format in ['xyz', 'poscar']
 
@@ -252,7 +252,7 @@ class AtomicStructureDataset(object):
             yield key, np.stack(Gs[key]), np.stack(dGs[key])
 
 
-class AtomicStructureDatasetGenerator(object):
+class SymmetryFunctionDatasetGenerator(object):
     def __init__(self, data_file, format):
         if format == 'xyz':
             self._construct_training_datasets(data_file, format)
@@ -312,7 +312,7 @@ class AtomicStructureDatasetGenerator(object):
             pprint('Construct dataset of configuration type: {}'.format(config))
 
             parsed_xyz = original_xyz.with_name(config)/'structure.xyz'
-            dataset = AtomicStructureDataset(parsed_xyz, format)
+            dataset = SymmetryFunctionDataset(parsed_xyz, format)
             self._preproc.decompose(dataset)
             stg.mpi.comm.Barrier()
 
@@ -337,7 +337,7 @@ class AtomicStructureDatasetGenerator(object):
         self._datasets = []
         elements = set()
         for poscars in configurations.values():
-            dataset = AtomicStructureDataset(poscars, format)
+            dataset = SymmetryFunctionDataset(poscars, format)
             self._preproc.decompose(dataset)
             self._datasets.append((poscars, dataset))
             elements.update(dataset.elements)
