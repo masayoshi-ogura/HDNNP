@@ -10,10 +10,9 @@ from ..util import pprint, mkdir
 
 def load_xyz(xyz_file):
     atoms_list = ase.io.read(str(xyz_file), index=':', format='xyz')
-    data_dir = xyz_file.parent
-    config = data_dir.name
-    composition = pickle.loads((data_dir/'composition.pickle').read_bytes())
-    return atoms_list, config, composition
+    config = atoms_list[0].info['config_type']
+    elemental_composition = atoms_list[0].get_chemical_symbols()
+    return atoms_list, config, elemental_composition
 
 
 def load_poscar(poscars):
@@ -21,13 +20,9 @@ def load_poscar(poscars):
     for poscar in poscars:
         atoms = ase.io.read(str(poscar), format='vasp')
         atoms.info['config_type'] = config = atoms.get_chemical_formula()
-        symbols = atoms.get_chemical_symbols()
-        composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
-                                   for k in set(symbols)},
-                       'atom': symbols,
-                       'element': sorted(set(symbols))}
+        elemental_composition = atoms.get_chemical_symbols()
         atoms_list.append(atoms)
-    return atoms_list, config, composition
+    return atoms_list, config, elemental_composition
 
 
 def parse_xyzfile(xyz_file):
@@ -42,16 +37,9 @@ def parse_xyzfile(xyz_file):
         xyz_file.with_name('config_type.pickle').write_bytes(pickle.dumps(config_type))
 
         for config in config_type:
-            composition = {'indices': defaultdict(list), 'atom': [], 'element': []}
-            for i, atom in enumerate(dataset[config][0]):
-                composition['indices'][atom.symbol].append(i)
-                composition['atom'].append(atom.symbol)
-            composition['element'] = sorted(set(composition['atom']))
-
             cfg_dir = xyz_file.with_name(config)
             mkdir(cfg_dir)
             ase.io.write(str(cfg_dir/'structure.xyz'), dataset[config], format='xyz', parallel=False)
-            (cfg_dir/'composition.pickle').write_bytes(pickle.dumps(dict(composition)))
         pprint('done')
 
     stg.mpi.comm.Barrier()

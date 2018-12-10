@@ -49,13 +49,14 @@ class PCA(PreprocBase):
         np.savez(file_path, elements=self._elements, **mean_dict, **components_dict)
 
     def decompose(self, dataset):
-        for element in dataset.composition['element']:
+        for element in dataset.elements:
             if element in self._elements:
                 pprint('Use already calculated PCA parameters for: {}'.format(element))
                 continue
 
             nfeature = dataset.input.shape[-1]
-            X = dataset.input.take(dataset.composition['indices'][element], 1).reshape(-1, nfeature)
+            indices = [i for i, e in enumerate(dataset.elemental_composition) if e == element]
+            X = dataset.input.take(indices, 1).reshape(-1, nfeature)
             pca = decomposition.PCA(n_components=self.n_components)
             pca.fit(X)
             self._mean[element] = pca.mean_.astype(np.float32)
@@ -66,9 +67,9 @@ class PCA(PreprocBase):
                    .format(element, nfeature, self.n_components, np.sum(pca.explained_variance_ratio_)))
 
         mean = np.array([self._mean[element]  # (atom, feature)
-                         for element in dataset.composition['atom']])
+                         for element in dataset.elemental_composition])
         components = np.array([self._components[element]  # (atom, feature, component)
-                               for element in dataset.composition['atom']])
+                               for element in dataset.elemental_composition])
         dataset.input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
         dataset.dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
 

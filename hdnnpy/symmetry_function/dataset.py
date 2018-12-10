@@ -25,9 +25,9 @@ class AtomicStructureDataset(object):
         assert format in ['xyz', 'poscar']
 
         if format == 'xyz':
-            atoms, self._config, self._composition = load_xyz(file_path)
+            atoms, self._config, self._elemental_composition = load_xyz(file_path)
         elif format == 'poscar':
-            atoms, self._config, self._composition = load_poscar(file_path)
+            atoms, self._config, self._elemental_composition = load_poscar(file_path)
 
         self._nsample = len(atoms)
         self._count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
@@ -53,8 +53,12 @@ class AtomicStructureDataset(object):
         return self._Gs.shape[0]
 
     @property
-    def composition(self):
-        return self._composition
+    def elemental_composition(self):
+        return self._elemental_composition
+
+    @property
+    def elements(self):
+        return sorted(set(self._elemental_composition))
 
     @property
     def config(self):
@@ -241,7 +245,7 @@ class AtomicStructureDataset(object):
         for atoms in self._atoms:
             for key in keys:
                 params = key.parts
-                G, dG = eval(params[0])(ifeat, atoms, *map(float, params[1:]))
+                G, dG = eval(params[0])(ifeat, atoms, self.elements, *map(float, params[1:]))
                 Gs[key].append(G)
                 dGs[key].append(dG)
         for key in keys:
@@ -270,7 +274,7 @@ class AtomicStructureDatasetGenerator(object):
             s = int(len(dataset) * ratio)
             train = dataset.take(slice(None, s, None))
             test = dataset.take(slice(s, None, None))
-            split.append((train, test, dataset.composition))
+            split.append((train, test))
         return split, self._elements
 
     def cross_validation(self, ratio, kfold):
@@ -283,7 +287,7 @@ class AtomicStructureDatasetGenerator(object):
             for dataset, (train_idx, test_idx) in zip(self._datasets, indices):
                 train = dataset.take(train_idx)
                 test = dataset.take(test_idx)
-                split.append((train, test, dataset.composition))
+                split.append((train, test))
             yield split, self._elements
 
     def _construct_training_datasets(self, original_xyz, format):
@@ -314,7 +318,7 @@ class AtomicStructureDatasetGenerator(object):
 
             dataset = scatter_dataset(dataset)
             self._datasets.append(dataset)
-            elements.update(dataset.composition['element'])
+            elements.update(dataset.elements)
             pprint('')
 
         self._preproc.save(stg.file.out_dir/'preproc.npz')
@@ -336,7 +340,7 @@ class AtomicStructureDatasetGenerator(object):
             dataset = AtomicStructureDataset(poscars, format)
             self._preproc.decompose(dataset)
             self._datasets.append((poscars, dataset))
-            elements.update(dataset.composition['element'])
+            elements.update(dataset.elements)
         self._elements = sorted(elements)
 
 

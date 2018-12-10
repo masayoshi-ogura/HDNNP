@@ -117,7 +117,7 @@ def train(dataset, elements):
     master_opt.add_hook(chainer.optimizer_hooks.Lasso(stg.model.l1_norm))
     master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(stg.model.l2_norm))
 
-    for train, test, composition in dataset:
+    for train, test in dataset:
         config = train.config
 
         # iterators
@@ -127,7 +127,7 @@ def train(dataset, elements):
                                                      repeat=False, shuffle=False)
 
         # model
-        hdnnp = HDNNP(composition)
+        hdnnp = HDNNP(train.elemental_composition)
         hdnnp.sync_param_with(masters)
         main_opt = chainer.Optimizer()
         main_opt = chainermn.create_multi_node_optimizer(main_opt, stg.mpi.chainer_comm)
@@ -188,7 +188,7 @@ def predict():
     for poscars, dataset, elements in generator:
         masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
         chainer.serializers.load_npz(stg.args.masters, masters)
-        hdnnp = HDNNP(dataset.composition)
+        hdnnp = HDNNP(dataset.elemental_composition)
         hdnnp.sync_param_with(masters)
         energies, forces = hdnnp.predict(dataset.input, dataset.dinput)
         results.extend([data for data in zip(poscars, energies.data, forces.data)])

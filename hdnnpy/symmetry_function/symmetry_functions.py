@@ -6,8 +6,7 @@ import numpy as np
 from .atomic_structure import neighbour_info
 
 
-def type1(ifeat, atoms, Rc):
-    elements = sorted(set(atoms.get_chemical_symbols()))
+def type1(ifeat, atoms, elements, Rc):
     natom = len(atoms)
     size = len(elements)
     G = np.zeros((natom, size))
@@ -24,8 +23,7 @@ def type1(ifeat, atoms, Rc):
     return G, dG
 
 
-def type2(ifeat, atoms, Rc, eta, Rs):
-    elements = sorted(set(atoms.get_chemical_symbols()))
+def type2(ifeat, atoms, elements, Rc, eta, Rs):
     natom = len(atoms)
     size = len(elements)
     G = np.zeros((natom, size))
@@ -43,8 +41,7 @@ def type2(ifeat, atoms, Rc, eta, Rs):
     return G, dG
 
 
-def type4(ifeat, atoms, Rc, eta, lambda_, zeta):
-    elements = sorted(set(atoms.get_chemical_symbols()))
+def type4(ifeat, atoms, elements, Rc, eta, lambda_, zeta):
     natom = len(atoms)
     size = len(elements) * (1 + len(elements)) // 2
     G = np.zeros((natom, size))
