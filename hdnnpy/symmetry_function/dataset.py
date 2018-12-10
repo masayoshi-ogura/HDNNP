@@ -3,41 +3,21 @@
 from pathlib import Path
 from collections import defaultdict
 import pickle
-from itertools import product, combinations, combinations_with_replacement
+from itertools import product, combinations_with_replacement
 import copy
 import numpy as np
 from mpi4py import MPI
 from sklearn.model_selection import KFold
 import ase.io
-import ase.neighborlist
 
 from .. import settings as stg
 from ..preproc import PREPROC
 from ..util import pprint
 from .file_io import load_xyz, load_poscar, parse_xyzfile
+from .symmetry_functions import type1, type2, type4
 
 
 RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution
-
-
-def memorize(f):
-    cache = defaultdict(list)
-    identifier = ['']
-
-    def helper(self, at, Rc):
-        if identifier[0] != str(id(self)) + str(id(at)):
-            cache.clear()
-            identifier[0] = str(id(self)) + str(id(at))
-
-        if Rc not in cache:
-            for ret in f(self, at, Rc):
-                cache[Rc].append(ret)
-                yield cache[Rc][-1]
-        else:
-            for ret in cache[Rc]:
-                yield ret
-
-    return helper
 
 
 class AtomicStructureDataset(object):
@@ -49,20 +29,16 @@ class AtomicStructureDataset(object):
         elif format == 'poscar':
             atoms, self._config, self._composition = load_poscar(file_path)
 
-        self._ifeat = defaultdict(dict)
-        for idx, (jelem, kelem) in enumerate(combinations_with_replacement(self._composition['element'], 2)):
-            self._ifeat[jelem][kelem] = self._ifeat[kelem][jelem] = idx
         self._nsample = len(atoms)
-        self._natom = len(self._composition['atom'])
-        count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        self._atoms = atoms[count[:stg.mpi.rank].sum(): count[:stg.mpi.rank + 1].sum()]
+        self._count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
+        self._atoms = atoms[self._count[:stg.mpi.rank].sum(): self._count[:stg.mpi.rank + 1].sum()]
 
         if format == 'xyz':
-            self._make_input(file_path.parent, count, save=True)
-            self._make_label(file_path.parent, count, save=True)
+            self._make_input(file_path.parent, save=True)
+            self._make_label(file_path.parent, save=True)
             self._shuffle()  # shuffle dataset at once
         elif format == 'poscar':
-            self._make_input(Path(), count, save=False)
+            self._make_input(Path(), save=False)
 
         del self._atoms
 
@@ -143,7 +119,7 @@ class AtomicStructureDataset(object):
         np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._Fs)
 
-    def _make_label(self, data_dir, count, save):
+    def _make_label(self, data_dir, save):
         """At this point, only root process should have whole dataset.
         non-root processes work as calculators if necessary,
             but discard the calculated data once.
@@ -166,12 +142,13 @@ class AtomicStructureDataset(object):
             pprint('calculate energy and forces from scratch.')
 
             if stg.mpi.rank == 0:
+                natom = len(self._atoms[0])
                 Es = np.empty((self._nsample, 1))
-                Fs = np.empty((self._nsample, self._natom, 3))
+                Fs = np.empty((self._nsample, natom, 3))
                 Es_send = np.array([data.get_potential_energy() for data in self._atoms]).reshape(-1, 1)
                 Fs_send = np.array([data.get_forces() for data in self._atoms])
-                stg.mpi.comm.Gatherv(Es_send, (Es, (count, None), MPI.DOUBLE), root=0)
-                stg.mpi.comm.Gatherv(Fs_send, (Fs, (count * self._natom * 3, None), MPI.DOUBLE), root=0)
+                stg.mpi.comm.Gatherv(Es_send, (Es, (self._count, None), MPI.DOUBLE), root=0)
+                stg.mpi.comm.Gatherv(Fs_send, (Fs, (self._count * natom * 3, None), MPI.DOUBLE), root=0)
                 if save:
                     np.savez(EF_file, nsample=self._nsample, E=Es, F=Fs)
             else:
@@ -187,7 +164,7 @@ class AtomicStructureDataset(object):
             self._Es = np.empty(0)
             self._Fs = np.empty(0)
 
-    def _make_input(self, data_dir, count, save):
+    def _make_input(self, data_dir, save):
         """At this point, only root process should have whole dataset.
         non-root processes work as calculators if necessary,
             but discard the calculated data once.
@@ -217,8 +194,8 @@ class AtomicStructureDataset(object):
             for key, G_send, dG_send in self._calculate_symmetry_function(new_keys):
                 G = np.empty((self._nsample,) + G_send.shape[1:])
                 dG = np.empty((self._nsample,) + dG_send.shape[1:])
-                stg.mpi.comm.Gatherv(G_send, (G, (count * G[0].size, None), MPI.DOUBLE), root=0)
-                stg.mpi.comm.Gatherv(dG_send, (dG, (count * dG[0].size, None), MPI.DOUBLE), root=0)
+                stg.mpi.comm.Gatherv(G_send, (G, (self._count * G[0].size, None), MPI.DOUBLE), root=0)
+                stg.mpi.comm.Gatherv(dG_send, (dG, (self._count * dG[0].size, None), MPI.DOUBLE), root=0)
                 Gs[str(key/'G')] = G
                 dGs[str(key/'dG')] = dG
             for key in re_used_keys:
@@ -257,95 +234,18 @@ class AtomicStructureDataset(object):
     def _calculate_symmetry_function(self, keys):
         Gs = defaultdict(list)
         dGs = defaultdict(list)
-        for at in self._atoms:
+        ifeat = defaultdict(dict)
+        for idx, (jelem, kelem) in enumerate(
+                combinations_with_replacement(sorted(set(self._atoms[0].get_chemical_symbols())), 2)):
+            ifeat[jelem][kelem] = ifeat[kelem][jelem] = idx
+        for atoms in self._atoms:
             for key in keys:
                 params = key.parts
-                G, dG = getattr(self, '_' + params[0])(at, *map(float, params[1:]))
+                G, dG = eval(params[0])(ifeat, atoms, *map(float, params[1:]))
                 Gs[key].append(G)
                 dGs[key].append(dG)
         for key in keys:
             yield key, np.stack(Gs[key]), np.stack(dGs[key])
-
-    def _type1(self, at, Rc):
-        size = len(self._composition['element'])
-        G = np.zeros((self._natom, size))
-        dG = np.zeros((self._natom, size, self._natom, 3))
-        for i, indices, R, tanh, dR, _, _ in self._neighbour_info(at, Rc):
-            g = tanh ** 3
-            dg = -3. / Rc * ((1. - tanh ** 2) * tanh ** 2)[:, None] * dR
-            # G
-            for jelem in self._composition['element']:
-                G[i, self._ifeat[self._composition['element'][0]][jelem]] = g[indices[jelem]].sum()
-            # dG
-            for j, jelem in enumerate(self._composition['atom']):
-                dG[i, self._ifeat[self._composition['element'][0]][jelem], j] = dg.take(indices[j], 0).sum(0)
-        return G, dG
-
-    def _type2(self, at, Rc, eta, Rs):
-        size = len(self._composition['element'])
-        G = np.zeros((self._natom, size))
-        dG = np.zeros((self._natom, size, self._natom, 3))
-        for i, indices, R, tanh, dR, _, _ in self._neighbour_info(at, Rc):
-            g = np.exp(- eta * (R - Rs) ** 2) * tanh ** 3
-            dg = (np.exp(- eta * (R - Rs) ** 2) * tanh ** 2 * (
-                    -2. * eta * (R - Rs) * tanh + 3. / Rc * (tanh ** 2 - 1.0)))[:, None] * dR
-            # G
-            for jelem in self._composition['element']:
-                G[i, self._ifeat[self._composition['element'][0]][jelem]] = g[indices[jelem]].sum()
-            # dG
-            for j, jelem in enumerate(self._composition['atom']):
-                dG[i, self._ifeat[self._composition['element'][0]][jelem], j] = dg.take(indices[j], 0).sum(0)
-        return G, dG
-
-    def _type4(self, at, Rc, eta, lambda_, zeta):
-        size = len(self._composition['element']) * (1 + len(self._composition['element'])) // 2
-        G = np.zeros((self._natom, size))
-        dG = np.zeros((self._natom, size, self._natom, 3))
-        for i, indices, R, tanh, dR, cos, dcos in self._neighbour_info(at, Rc):
-            ang = 1. + lambda_ * cos
-            rad1 = np.exp(-eta * R ** 2) * tanh ** 3
-            rad2 = np.exp(-eta * R ** 2) * tanh ** 2 * (-2. * eta * R * tanh + 3. / Rc * (tanh ** 2 - 1.0))
-            ang[np.eye(len(R), dtype=bool)] = 0
-            g = 2. ** (1 - zeta) * ang ** zeta * rad1[:, None] * rad1[None, :]
-            dg_radial_part = 2. ** (1 - zeta) * ang[:, :, None] ** zeta * \
-                             rad2[:, None, None] * rad1[None, :, None] * dR[:, None, :]
-            dg_angular_part = zeta * lambda_ * 2. ** (1 - zeta) * ang[:, :, None] ** (zeta - 1) * \
-                              rad1[:, None, None] * rad1[None, :, None] * dcos
-            dg = dg_radial_part + dg_angular_part
-
-            # G
-            for jelem in self._composition['element']:
-                G[i, self._ifeat[jelem][jelem]] = g.take(indices[jelem], 0).take(indices[jelem], 1).sum() / 2.0
-            for jelem, kelem in combinations(self._composition['element'], 2):
-                G[i, self._ifeat[jelem][kelem]] = g.take(indices[jelem], 0).take(indices[kelem], 1).sum()
-            # dG
-            for (j, jelem), kelem in product(enumerate(self._composition['atom']), self._composition['element']):
-                dG[i, self._ifeat[jelem][kelem], j] = dg.take(indices[j], 0).take(indices[kelem], 1).sum((0, 1))
-        return G, dG
-
-    @memorize
-    def _neighbour_info(self, at, Rc):
-        i_list, j_list, R_list, r_list = ase.neighborlist.neighbor_list('ijdD', at, Rc)
-        for i in range(self._natom):
-            i_ind, = np.where(i_list == i)
-            if i_ind.size == 0:
-                continue
-
-            indices = defaultdict(list)
-            for j_ind, j in enumerate(j_list[i_ind]):
-                indices[j].append(j_ind)
-                indices[self._composition['atom'][j]].append(j_ind)
-
-            R = R_list[i_ind]
-            r = r_list[i_ind]
-            tanh = np.tanh(1 - R / Rc)
-            dR = r / R[:, None]
-            cos = dR.dot(dR.T)
-            # cosine(j - i - k) differentiate w.r.t. "j"
-            # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
-            dcos = - r[:, None, :] / R[:, None, None] ** 2 * cos[:, :, None] \
-                   + r[None, :, :] / (R[:, None, None] * R[None, :, None])
-            yield i, indices, R, tanh, dR, cos, dcos
 
 
 class AtomicStructureDatasetGenerator(object):

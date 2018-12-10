@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from collections import defaultdict
 import pickle
 import ase.io
@@ -7,22 +9,25 @@ from ..util import pprint, mkdir
 
 
 def load_xyz(xyz_file):
-    atoms = ase.io.read(str(xyz_file), index=':', format='xyz')
+    atoms_list = ase.io.read(str(xyz_file), index=':', format='xyz')
     data_dir = xyz_file.parent
     config = data_dir.name
     composition = pickle.loads((data_dir/'composition.pickle').read_bytes())
-    return atoms, config, composition
+    return atoms_list, config, composition
 
 
 def load_poscar(poscars):
-    atoms = [ase.io.read(str(poscar), format='vasp') for poscar in poscars]
-    config = atoms[0].get_chemical_formula()
-    symbols = atoms[0].get_chemical_symbols()
-    composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
-                                     for k in set(symbols)},
-                         'atom': symbols,
-                         'element': sorted(set(symbols))}
-    return atoms, config, composition
+    atoms_list = []
+    for poscar in poscars:
+        atoms = ase.io.read(str(poscar), format='vasp')
+        atoms.info['config_type'] = config = atoms.get_chemical_formula()
+        symbols = atoms.get_chemical_symbols()
+        composition = {'indices': {k: set([i for i, s in enumerate(symbols) if s == k])
+                                   for k in set(symbols)},
+                       'atom': symbols,
+                       'element': sorted(set(symbols))}
+        atoms_list.append(atoms)
+    return atoms_list, config, composition
 
 
 def parse_xyzfile(xyz_file):
