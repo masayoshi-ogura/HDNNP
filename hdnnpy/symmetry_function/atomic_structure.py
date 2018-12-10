@@ -10,9 +10,9 @@ def memorize(f):
     identifier = ['']
 
     def helper(atoms, Rc):
-        if identifier[0] != atoms.info['config_type'] + str(id(atoms)):
+        if identifier[0] != atoms.info['tag'] + str(id(atoms)):
             cache.clear()
-            identifier[0] = atoms.info['config_type'] + str(id(atoms))
+            identifier[0] = atoms.info['tag'] + str(id(atoms))
 
         if Rc not in cache:
             for ret in f(atoms, Rc):

@@ -39,8 +39,8 @@ def flatten_dict(dic):
 
 # signal handler of SIGINT and SIGTERM
 class ChainerSafelyTerminate(object):
-    def __init__(self, config, trainer, result):
-        self.config = config
+    def __init__(self, tag, trainer, result):
+        self.tag = tag
         self.trainer = trainer
         self.result = result
         self.signum = None
@@ -55,14 +55,14 @@ class ChainerSafelyTerminate(object):
         signal.signal(signal.SIGTERM, self.old_sigterm_handler)
         if not self.signum:
             self.result['training_time'] += self.trainer.elapsed_time
-            self.result['observation'].append({'config': self.config, **flatten_dict(self.trainer.observation)})
+            self.result['observation'].append({'tag': self.tag, **flatten_dict(self.trainer.observation)})
 
     def _snapshot(self, signum, frame):
         self.signum = signal.Signals(signum)
         if stg.args.mode == 'train' and stg.mpi.rank == 0:
             pprint('Stop {} training by signal: {}!\n'
                    'Take trainer snapshot at epoch: {}'
-                   .format(self.config, self.signum.name, self.trainer.updater.epoch))
+                   .format(self.tag, self.signum.name, self.trainer.updater.epoch))
             chainer.serializers.save_npz(self.trainer.out/'trainer_snapshot.npz', self.trainer)
             (self.trainer.out/'interim_result.pickle').write_bytes(pickle.dumps(self.result))
         # must raise any Exception to stop trainer.run()
@@ -165,7 +165,7 @@ def assert_settings(stg):
 
     # dataset
     assert all(key in dir(stg.dataset) for key in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta'])
-    assert all(key in dir(stg.dataset) for key in ['xyz_file', 'config', 'preproc', 'ratio'])
+    assert all(key in dir(stg.dataset) for key in ['xyz_file', 'tag', 'preproc', 'ratio'])
     assert all(key in dir(stg.dataset) for key in ['nfeature', 'batch_size'])
     assert len(stg.dataset.Rc) > 0
     assert len(stg.dataset.eta) > 0
@@ -173,7 +173,7 @@ def assert_settings(stg):
     assert len(stg.dataset.lambda_) > 0
     assert len(stg.dataset.zeta) > 0
     assert stg.dataset.xyz_file is not None
-    assert len(stg.dataset.config) > 0
+    assert len(stg.dataset.tag) > 0
     assert stg.dataset.preproc in [None, 'pca']
     assert 0.0 <= stg.dataset.ratio <= 1.0
     assert stg.dataset.nfeature > 0

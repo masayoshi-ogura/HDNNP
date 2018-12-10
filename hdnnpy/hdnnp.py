@@ -120,7 +120,7 @@ def train(dataset, elements):
     master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(stg.model.l2_norm))
 
     for train, test in dataset:
-        config = train.config
+        tag = train.tag
 
         # iterators
         train_iter = chainer.iterators.SerialIterator(train, stg.dataset.batch_size // stg.mpi.size,
@@ -144,7 +144,7 @@ def train(dataset, elements):
 
         # updater and trainer
         updater = HDUpdater(train_iter, optimizer={'main': main_opt, 'master': master_opt})
-        out_dir = stg.file.out_dir/config if stg.args.mode == 'train' else stg.file.out_dir
+        out_dir = stg.file.out_dir/tag if stg.args.mode == 'train' else stg.file.out_dir
         trainer = chainer.training.Trainer(updater, stop_trigger, out_dir)
 
         # extensions
@@ -164,9 +164,9 @@ def train(dataset, elements):
 
         # load trainer snapshot and resume training
         if stg.args.mode == 'train' and stg.args.is_resume:
-            if config != stg.args.resume_dir.name:
+            if tag != stg.args.resume_dir.name:
                 continue
-            pprint('Resume training loop.\n\tconfig_type: {}'.format(config))
+            pprint('Resume training loop from dataset tagged "{}"'.format(tag))
             trainer_snapshot = stg.args.resume_dir/'trainer_snapshot.npz'
             interim_result = stg.args.resume_dir/'interim_result.pickle'
             chainer.serializers.load_npz(trainer_snapshot, trainer)
@@ -178,7 +178,7 @@ def train(dataset, elements):
                 interim_result.unlink()
             stg.args.is_resume = False
 
-        with ChainerSafelyTerminate(config, trainer, result):
+        with ChainerSafelyTerminate(tag, trainer, result):
             trainer.run()
 
     return masters, result

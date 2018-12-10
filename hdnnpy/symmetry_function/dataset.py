@@ -25,9 +25,9 @@ class SymmetryFunctionDataset(object):
         assert format in ['xyz', 'poscar']
 
         if format == 'xyz':
-            atoms, self._config, self._elemental_composition = load_xyz(file_path)
+            atoms, self._tag, self._elemental_composition = load_xyz(file_path)
         elif format == 'poscar':
-            atoms, self._config, self._elemental_composition = load_poscar(file_path)
+            atoms, self._tag, self._elemental_composition = load_poscar(file_path)
 
         self._nsample = len(atoms)
         self._count = np.array([(self._nsample + i) // stg.mpi.size for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
@@ -61,8 +61,8 @@ class SymmetryFunctionDataset(object):
         return sorted(set(self._elemental_composition))
 
     @property
-    def config(self):
-        return self._config
+    def tag(self):
+        return self._tag
 
     @property
     def nsample(self):
@@ -263,11 +263,8 @@ class SymmetryFunctionDatasetGenerator(object):
         return self._preproc
 
     def load_xyz(self, file_path):
-        cfg_pickle = file_path.with_name('config_type.pickle')
-        if not cfg_pickle.exists():
-            parse_xyzfile(file_path)
-        config_type = pickle.loads(cfg_pickle.read_bytes())
-        required_config = sorted(config_type) if 'all' in stg.dataset.config else stg.dataset.config
+        all_tags = parse_xyzfile(file_path)
+        included_tags = all_tags if 'all' in stg.dataset.tag else stg.dataset.tag
 
         if stg.mpi.rank == 0:
             self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
@@ -275,12 +272,13 @@ class SymmetryFunctionDatasetGenerator(object):
             self._preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
 
         elements = set()
-        for config in required_config:
-            if config not in config_type:
+        for tag in included_tags:
+            if tag not in all_tags:
+                pprint('Data tagged "{}" does not exist in {}. Skipped.\n'.format(tag, file_path))
                 continue
-            pprint('Construct dataset of configuration type: {}'.format(config))
+            pprint('Construct dataset tagged "{}"'.format(tag))
 
-            parsed_xyz = file_path.with_name(config)/'structure.xyz'
+            parsed_xyz = file_path.with_name(tag)/'structure.xyz'
             dataset = SymmetryFunctionDataset(parsed_xyz, 'xyz')
             self._preproc.decompose(dataset)
             stg.mpi.comm.Barrier()
@@ -295,23 +293,23 @@ class SymmetryFunctionDatasetGenerator(object):
         stg.dataset.nsample = sum([d.nsample for d in self._datasets])
 
     def load_poscars(self, file_paths):
-        configurations = defaultdict(list)
+        tag_poscars_map = defaultdict(list)
         for poscar in file_paths:
-            formula = ase.io.read(str(poscar), format='vasp').get_chemical_formula()
-            configurations[formula].append(poscar)
+            tag = ase.io.read(str(poscar), format='vasp').get_chemical_formula()
+            tag_poscars_map[tag].append(poscar)
 
         self._preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         self._preproc.load(stg.args.masters.with_name('preproc.npz'))
 
         elements = set()
-        for poscars in configurations.values():
+        for poscars in tag_poscars_map.values():
             dataset = SymmetryFunctionDataset(poscars, 'poscar')
             self._preproc.decompose(dataset)
             self._datasets.append(dataset)
             elements.update(dataset.elements)
         self._elements = sorted(elements)
 
-        return configurations.values()
+        return tag_poscars_map.values()
 
     def all(self):
         return self._datasets, self._elements

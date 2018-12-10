@@ -37,7 +37,7 @@ def get_parser():
     train_parser.add_argument(
         '--resume', '-r', dest='resume_dir', metavar='DIR',
         type=Path,
-        help='Resume training from given atomic configuration directory,\n'
+        help='Resume training from given directory,\n'
              'which must contain `trainer_snapshot.npz` and `interim_result.pickle`.')
 
     # for predict mode

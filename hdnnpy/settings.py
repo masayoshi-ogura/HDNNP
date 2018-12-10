@@ -26,7 +26,7 @@ class defaults:
         size = MPI.COMM_WORLD.Get_size()
         chainer_comm = chainermn.create_communicator('naive', MPI.COMM_WORLD)
     class dataset:
-        config = ['all']
+        tag = ['all']
         ratio = 0.9
     class model:
         interval = 10
