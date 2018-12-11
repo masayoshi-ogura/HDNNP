@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import matplotlib as mpl
-from skopt.space import Real, Integer, Categorical
 from skopt.callbacks import DeltaYStopper
+from skopt.space import (Real, Integer, Categorical)
 
 from hdnnpy.settings import defaults as stg
 from hdnnpy.skopt_callbacks import SamePointStopper

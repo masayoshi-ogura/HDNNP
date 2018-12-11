@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'scatter_dataset',
+    ]
+
 import pickle
 
-from .. import settings as stg
+from hdnnpy import settings as stg
 
 
 def scatter_dataset(dataset, root=0, max_buf_len=256 * 1024 * 1024):

@@ -1,34 +1,48 @@
 # -*- coding: utf-8 -*-
 
-from . import settings as stg
+__all__ = [
+    'main',
+    ]
 
-import shutil
-import pickle
 import os
-import sys
 from pathlib import Path
+import pickle
+import shutil
+import sys
+
+import chainer
+import chainer.training.extensions as ext
+from chainer.training.triggers import EarlyStoppingTrigger
+import chainermn
+import numpy as np
 from skopt import gp_minimize
 from skopt.utils import use_named_args
-import numpy as np
-import chainer
-from chainer.training.triggers import EarlyStoppingTrigger
-import chainer.training.extensions as ext
-import chainermn
 
-from .chainer_extensions import Evaluator
-from .chainer_extensions import set_log_scale
-from .chainer_extensions import scatter_plot
-from .dataset import construct_training_datasets, construct_test_datasets
-from .dataset import DatasetGenerator
-from .format import parse_xyz, parse_poscars
-from .model import SingleNNP, HDNNP
-from .preproc import PREPROC
-from .updater import HDUpdater
-from .utils import pprint, mkdir
-from .utils import ChainerSafelyTerminate
-from .utils import dump_lammps, dump_training_result
-from .utils import dump_skopt_result, dump_config
-from .utils import assert_settings
+from hdnnpy.chainer_extensions import (Evaluator,
+                                       scatter_plot,
+                                       set_log_scale,
+                                       )
+from hdnnpy.dataset import (DatasetGenerator,
+                            construct_test_datasets,
+                            construct_training_datasets,
+                            )
+from hdnnpy.format import (parse_poscars,
+                           parse_xyz,
+                           )
+from hdnnpy.model import (HDNNP,
+                          SingleNNP,
+                          )
+from hdnnpy.preproc import PREPROC
+from hdnnpy.updater import HDUpdater
+from hdnnpy.utils import (ChainerSafelyTerminate,
+                          assert_settings,
+                          dump_config,
+                          dump_lammps,
+                          dump_skopt_result,
+                          dump_training_result,
+                          mkdir,
+                          pprint,
+                          )
 
 
 def main():

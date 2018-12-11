@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 
-from pathlib import Path
+__all__ = [
+    'construct_test_datasets',
+    'construct_training_datasets',
+    ]
 
-from .scatter_dataset import scatter_dataset
-from .symmetry_function_dataset import SymmetryFunctionDataset
-from ..settings import stg
-from ..utils import pprint
+from hdnnpy.dataset.scatter_dataset import scatter_dataset
+from hdnnpy.dataset.symmetry_function_dataset import SymmetryFunctionDataset
+from hdnnpy.settings import stg
+from hdnnpy.utils import pprint
 
 
 def construct_training_datasets(tag_xyz_map, preproc):

@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'DatasetGenerator',
+    ]
+
 from sklearn.model_selection import KFold
 
 

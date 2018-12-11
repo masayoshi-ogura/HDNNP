@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'neighbour_info',
+    ]
+
 from collections import defaultdict
+
 import numpy as np
 import ase.neighborlist
 

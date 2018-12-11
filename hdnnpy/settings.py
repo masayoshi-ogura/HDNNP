@@ -1,20 +1,30 @@
 # -*- coding: utf-8 -*-
 
-"""
-This script defines the default settings for this program.
+"""This script defines the default settings for this program.
 Some settings must be set, and all settings can be overwritten
 by 'config.py' on your working directory.
 Please see 'test/config.py' as a example.
 """
 
-import importlib.util
-from pathlib import Path
-import os
-import sys
-from mpi4py import MPI
-import chainermn
+__all__ = [
+    'args',
+    'dataset',
+    'defaults',
+    'file',
+    'model',
+    'mpi',
+    'skopt',
+    ]
 
-from .argparser import get_parser
+import importlib.util
+import os
+from pathlib import Path
+import sys
+
+import chainermn
+from mpi4py import MPI
+
+from hdnnpy.argparser import get_parser
 
 
 class defaults:

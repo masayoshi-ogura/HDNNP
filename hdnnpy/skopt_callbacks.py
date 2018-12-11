@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'SamePointStopper',
+    ]
+
 from skopt.callbacks import EarlyStopper
 
 

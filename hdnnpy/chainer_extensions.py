@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'Evaluator',
+    'scatter_plot',
+    'set_log_scale',
+    ]
+
 from copy import copy
-import numpy as np
-import matplotlib.pyplot as plt
+
 import chainer
 from chainer import reporter as reporter_module
 from chainer.training.extensions import evaluator
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Evaluator(evaluator.Evaluator):

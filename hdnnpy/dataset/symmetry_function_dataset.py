@@ -1,17 +1,25 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'SymmetryFunctionDataset',
+    ]
+
+from collections import defaultdict
+from itertools import (combinations,
+                       combinations_with_replacement,
+                       product,
+                       )
+from pathlib import Path
 import shutil
 from tempfile import NamedTemporaryFile
-from pathlib import Path
-from collections import defaultdict
-from itertools import product, combinations, combinations_with_replacement
-import numpy as np
-from mpi4py import MPI
-import ase.io
 
-from .. import settings as stg
-from ..utils import pprint
-from .atomic_structure import neighbour_info
+import ase.io
+from mpi4py import MPI
+import numpy as np
+
+from hdnnpy import settings as stg
+from hdnnpy.utils import pprint
+from hdnnpy.dataset.atomic_structure import neighbour_info
 
 
 RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution

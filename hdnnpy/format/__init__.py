@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from .vasp import parse_poscars
-from .xyz import parse_xyz
+__all__ = [
+    'parse_poscars',
+    'parse_xyz',
+    ]
 
-__all__ = ['parse_poscars', 'parse_xyz']
+from hdnnpy.format.vasp import parse_poscars
+from hdnnpy.format.xyz import parse_xyz

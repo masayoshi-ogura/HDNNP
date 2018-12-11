@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'HDNNP',
+    'SingleNNP',
+    ]
+
 import chainer
-import chainer.links as L
 import chainer.functions as F
+import chainer.links as L
 from chainer import Variable
 
-from . import settings as stg
+from hdnnpy import settings as stg
 
 
 def loss_func(mixing_beta, y_pred, y_true, dy_pred, dy_true, obs):

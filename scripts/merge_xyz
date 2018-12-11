@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import sys
+
 import ase.io
 
 args = sys.argv

@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'PREPROC',
+    ]
+
 import numpy as np
 from sklearn import decomposition
 
-from .utils import pprint
+from hdnnpy.utils import pprint
 
 
 class PreprocBase(object):
