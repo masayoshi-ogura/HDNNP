@@ -26,6 +26,7 @@ class Evaluator(evaluator.Evaluator):
 
         for batch in it:
             observation = {}
+            # backprop_mode is needed for HDNNP
             with reporter_module.report_scope(observation):
                 in_arrays = self.converter(batch, self.device)
                 if isinstance(in_arrays, tuple):

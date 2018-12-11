@@ -4,14 +4,14 @@ import shutil
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 from collections import defaultdict
-from itertools import combinations_with_replacement
+from itertools import product, combinations, combinations_with_replacement
 import numpy as np
 from mpi4py import MPI
 import ase.io
 
 from .. import settings as stg
-from ..util import pprint
-from .symmetry_functions import type1, type2, type4, check_uncalculated_keys
+from ..utils import pprint
+from .atomic_structure import neighbour_info
 
 
 RANDOMSTATE = np.random.get_state()  # use the same random state to shuffle datesets on a execution
@@ -35,7 +35,14 @@ class SymmetryFunctionDataset(object):
         self._is_save_label = False
 
     def __getitem__(self, index):
-        batches = [self._Gs[index], self._dGs[index], self._Es[index], self._Fs[index]]
+        if self.has_input and self.has_label:
+            batches = [self._Gs[index], self._dGs[index], self._Es[index], self._Fs[index]]
+        elif self.has_input and not self.has_label:
+            batches = [self._Gs[index], self._dGs[index]]
+        else:
+            pprint('This dataset does not have any data yet.')
+            return None
+
         if isinstance(index, slice):
             return [tuple([batch[i] for batch in batches]) for i in range(len(batches[0]))]
         else:
@@ -84,8 +91,16 @@ class SymmetryFunctionDataset(object):
     def dlabel(self, dlabel):
         self._Fs = dlabel
 
+    @property
+    def has_input(self):
+        return self._Gs.size != 0 and self._dGs.size != 0
+
+    @property
+    def has_label(self):
+        return self._Es.size != 0 and self._Fs.size != 0
+
     def load(self, xyz_path, verbose=True):
-        self._data_dir_path = xyz_path.parent.absolute()
+        self._data_dir_path = xyz_path.parent
         atoms = ase.io.read(xyz_path, index=':', format='xyz')
         self.elemental_composition = atoms[0].get_chemical_symbols()
         self.tag = atoms[0].info['tag']
@@ -247,3 +262,82 @@ class SymmetryFunctionDataset(object):
         np.random.shuffle(self._Es)
         np.random.set_state(RANDOMSTATE)
         np.random.shuffle(self._Fs)
+
+
+def type1(ifeat, atoms, elements, Rc):
+    natom = len(atoms)
+    size = len(elements)
+    G = np.zeros((natom, size))
+    dG = np.zeros((natom, size, natom, 3))
+    for i, indices, R, tanh, dR, _, _ in neighbour_info(atoms, Rc):
+        g = tanh ** 3
+        dg = -3. / Rc * ((1. - tanh ** 2) * tanh ** 2)[:, None] * dR
+        # G
+        for jelem in elements:
+            G[i, ifeat[elements[0]][jelem]] = g[indices[jelem]].sum()
+        # dG
+        for j, jelem in enumerate(atoms.get_chemical_symbols()):
+            dG[i, ifeat[elements[0]][jelem], j] = dg.take(indices[j], 0).sum(0)
+    return G, dG
+
+
+def type2(ifeat, atoms, elements, Rc, eta, Rs):
+    natom = len(atoms)
+    size = len(elements)
+    G = np.zeros((natom, size))
+    dG = np.zeros((natom, size, natom, 3))
+    for i, indices, R, tanh, dR, _, _ in neighbour_info(atoms, Rc):
+        g = np.exp(- eta * (R - Rs) ** 2) * tanh ** 3
+        dg = (np.exp(- eta * (R - Rs) ** 2) * tanh ** 2 * (
+                -2. * eta * (R - Rs) * tanh + 3. / Rc * (tanh ** 2 - 1.0)))[:, None] * dR
+        # G
+        for jelem in elements:
+            G[i, ifeat[elements[0]][jelem]] = g[indices[jelem]].sum()
+        # dG
+        for j, jelem in enumerate(atoms.get_chemical_symbols()):
+            dG[i, ifeat[elements[0]][jelem], j] = dg.take(indices[j], 0).sum(0)
+    return G, dG
+
+
+def type4(ifeat, atoms, elements, Rc, eta, lambda_, zeta):
+    natom = len(atoms)
+    size = len(elements) * (1 + len(elements)) // 2
+    G = np.zeros((natom, size))
+    dG = np.zeros((natom, size, natom, 3))
+    for i, indices, R, tanh, dR, cos, dcos in neighbour_info(atoms, Rc):
+        ang = 1. + lambda_ * cos
+        rad1 = np.exp(-eta * R ** 2) * tanh ** 3
+        rad2 = np.exp(-eta * R ** 2) * tanh ** 2 * (-2. * eta * R * tanh + 3. / Rc * (tanh ** 2 - 1.0))
+        ang[np.eye(len(R), dtype=bool)] = 0
+        g = 2. ** (1 - zeta) * ang ** zeta * rad1[:, None] * rad1[None, :]
+        dg_radial_part = 2. ** (1 - zeta) * ang[:, :, None] ** zeta * \
+                         rad2[:, None, None] * rad1[None, :, None] * dR[:, None, :]
+        dg_angular_part = zeta * lambda_ * 2. ** (1 - zeta) * ang[:, :, None] ** (zeta - 1) * \
+                          rad1[:, None, None] * rad1[None, :, None] * dcos
+        dg = dg_radial_part + dg_angular_part
+
+        # G
+        for jelem in elements:
+            G[i, ifeat[jelem][jelem]] = g.take(indices[jelem], 0).take(indices[jelem], 1).sum() / 2.0
+        for jelem, kelem in combinations(elements, 2):
+            G[i, ifeat[jelem][kelem]] = g.take(indices[jelem], 0).take(indices[kelem], 1).sum()
+        # dG
+        for (j, jelem), kelem in product(enumerate(atoms.get_chemical_symbols()), elements):
+            dG[i, ifeat[jelem][kelem], j] = dg.take(indices[j], 0).take(indices[kelem], 1).sum((0, 1))
+    return G, dG
+
+
+def check_uncalculated_keys(existing_keys):
+    if existing_keys is None:
+        existing_keys = set()
+    required_keys = set()
+    for Rc in stg.dataset.Rc:
+        required_keys.add(Path('type1', str(Rc)))
+    for Rc, eta, Rs in product(stg.dataset.Rc, stg.dataset.eta, stg.dataset.Rs):
+        required_keys.add(Path('type2', str(Rc), str(eta), str(Rs)))
+    for Rc, eta, lambda_, zeta in product(stg.dataset.Rc, stg.dataset.eta, stg.dataset.lambda_, stg.dataset.zeta):
+        required_keys.add(Path('type4', str(Rc), str(eta), str(lambda_), str(zeta)))
+    new_keys = sorted(required_keys - existing_keys)
+    re_used_keys = sorted(required_keys & existing_keys)
+    no_used_keys = sorted(existing_keys - required_keys)
+    return new_keys, re_used_keys, no_used_keys

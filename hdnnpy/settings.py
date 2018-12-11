@@ -47,9 +47,9 @@ class defaults:
 
 def import_user_configurations(args):
     if args.mode == 'train' and args.is_resume:
-        file_path = args.resume_dir.absolute().with_name('config.py')
+        file_path = args.resume_dir.with_name('config.py')
     elif args.mode == 'predict':
-        file_path = args.masters.absolute().with_name('config.py')
+        file_path = args.masters.with_name('config.py')
     else:
         file_path = Path.cwd()/'config.py'
 
@@ -61,8 +61,8 @@ def import_user_configurations(args):
         print('Loaded user configuration file: {}'.format(file_path))
 
     # convert path string to pathlib.Path object
-    stg.file.out_dir = Path(stg.file.out_dir)
-    stg.dataset.xyz_file = Path(stg.dataset.xyz_file)
+    stg.file.out_dir = Path(stg.file.out_dir).absolute()
+    stg.dataset.xyz_file = Path(stg.dataset.xyz_file).absolute()
     return stg
 
 

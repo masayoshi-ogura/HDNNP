@@ -60,8 +60,20 @@ def get_parser():
         help='Write predicted value into a text file. (default: %(default)s)')
 
     args = parser.parse_args()
+
     if args.mode == 'train':
-        args.is_resume = args.resume_dir is not None
+        if args.resume_dir is not None:
+            args.is_resume = True
+            args.resume_dir = args.resume_dir.absolute()
+        else:
+            args.is_resume = False
     elif args.mode == 'predict':
-        args.is_write = args.prediction_file is not None
+        args.poscars = [poscar_path.absolute() for poscar_path in args.poscars]
+        args.masters = args.masters.absolute()
+        if args.prediction_file is not None:
+            args.is_write = True
+            args.prediction_file = args.prediction_file.absolute()
+        else:
+            args.is_write = False
+
     return args

@@ -15,7 +15,9 @@ from chainermn.communicators.mpi_communicator_base import MpiCommunicatorBase
 from . import settings as stg
 
 
-def pprint(data, flush=True, **options):
+def pprint(data=None, flush=True, **options):
+    if data is None:
+        data = ''
     if isinstance(data, list) or isinstance(data, dict):
         pretty_print(data, **options)
     else:

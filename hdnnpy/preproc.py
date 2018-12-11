@@ -3,7 +3,7 @@
 import numpy as np
 from sklearn import decomposition
 
-from .util import pprint
+from .utils import pprint
 
 
 class PreprocBase(object):
