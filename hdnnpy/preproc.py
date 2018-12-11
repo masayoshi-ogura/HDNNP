@@ -32,13 +32,17 @@ class PCA(PreprocBase):
     def load(self, file_path):
         ndarray = np.load(file_path)
         self._elements = ndarray['elements'].item()
-        self.mean = {element: ndarray['mean/{}'.format(element)] for element in self._elements}
-        self.components = {element: ndarray['components/{}'.format(element)] for element in self._elements}
+        self.mean = {element: ndarray[f'mean/{element}']
+                     for element in self._elements}
+        self.components = {element: ndarray[f'components/{element}']
+                           for element in self._elements}
 
     def save(self, file_path):
-        mean_dict = {'mean/{}'.format(k): v for k, v in self.mean.items()}
-        components_dict = {'components/{}'.format(k): v for k, v in self.components.items()}
-        np.savez(file_path, elements=self._elements, **mean_dict, **components_dict)
+        mean_dict = {f'mean/{k}': v for k, v in self.mean.items()}
+        components_dict = {f'components/{k}': v
+                           for k, v in self.components.items()}
+        np.savez(file_path, elements=self._elements,
+                 **mean_dict, **components_dict)
 
     def decompose(self, dataset):
         for element in set(dataset.elements) - self._elements:
@@ -50,16 +54,22 @@ class PCA(PreprocBase):
             self.mean[element] = pca.mean_.astype(np.float32)
             self.components[element] = pca.components_.T.astype(np.float32)
             self._elements.add(element)
-            pprint('Initialize PCA parameters for: {}\n'
-                   '\tdecompose symmetry functions: {} => {}\n\tcumulative contribution rate = {}'
-                   .format(element, nfeature, self._n_components, np.sum(pca.explained_variance_ratio_)))
+            pprint(f'Initialize PCA parameters for: {element}\n'
+                   f'\tDecompose features: {nfeature} => '
+                   f'{self._n_components}\n'
+                   f'\tcumulative contribution rate = '
+                   f'{np.sum(pca.explained_variance_ratio_)}')
 
-        mean = np.array([self.mean[element]  # (atom, feature)
-                         for element in dataset.elemental_composition])
-        components = np.array([self.components[element]  # (atom, feature, component)
-                               for element in dataset.elemental_composition])
-        dataset.input = np.einsum('ijk,jkl->ijl', dataset.input - mean, components)  # (sample, atom, feature)
-        dataset.dinput = np.einsum('ijkmn,jkl->ijlmn', dataset.dinput, components)  # (sample, atom, feature, atom, 3)
+        mean = np.array(
+            [self.mean[element]
+             for element in dataset.elemental_composition])
+        components = np.array(
+            [self.components[element]
+             for element in dataset.elemental_composition])
+        dataset.input = np.einsum(
+            'ijk,jkl->ijl', dataset.input - mean, components)
+        dataset.dinput = np.einsum(
+            'ijkmn,jkl->ijlmn', dataset.dinput, components)
 
 
 PREPROC = {None: PreprocBase, 'pca': PCA}

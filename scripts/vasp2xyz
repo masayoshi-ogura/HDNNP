@@ -8,13 +8,13 @@ args = sys.argv
 
 # argv[0] contains all args
 if len(args) is not 3 + 1:
-    sys.stdout.write("""\
-Error: args should have 3 but has {}
+    print(f"""
+Error: args should have 3 but has {len(args)-1}
 
 The format should be
 
 $ vasp2xyz [PREFIX] [OUTCAR] [XYZFILE]\
-""".format(len(args)-1))
+""")
     sys.exit(1)
 
 prefix = args[1]

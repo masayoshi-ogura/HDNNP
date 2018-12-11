@@ -58,7 +58,7 @@ def import_user_configurations(args):
     spec.loader.exec_module(config)
     stg = config.stg
     if stg.mpi.rank == 0:
-        print('Loaded user configuration file: {}'.format(file_path))
+        print('Loaded user configuration from {}'.format(file_path))
 
     # convert path string to pathlib.Path object
     stg.file.out_dir = Path(stg.file.out_dir).absolute()

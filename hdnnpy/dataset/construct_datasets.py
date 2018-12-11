@@ -17,7 +17,7 @@ def construct_training_datasets(tag_xyz_map, preproc):
     for tag in included_tags:
         try:
             xyz_path = tag_xyz_map[tag]
-            pprint('Construct sub dataset tagged as "{}"'.format(tag))
+            pprint(f'Construct sub dataset tagged as "{tag}"')
             dataset = SymmetryFunctionDataset()
             dataset.load(xyz_path, verbose=True)
             dataset.save()
@@ -28,7 +28,7 @@ def construct_training_datasets(tag_xyz_map, preproc):
             datasets.append(dataset)
             elements.update(dataset.elements)
         except KeyError:
-            pprint('Sub dataset tagged as "{}" does not exist. Skipped.'.format(tag))
+            pprint(f'Sub dataset tagged as "{tag}" does not exist. Skipped.')
     pprint()
     return datasets, elements
 

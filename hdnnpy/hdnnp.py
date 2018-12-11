@@ -173,7 +173,7 @@ def train(dataset, elements):
         if stg.args.mode == 'train' and stg.args.is_resume:
             if tag != stg.args.resume_dir.name:
                 continue
-            pprint('Resume training loop from dataset tagged "{}"'.format(tag))
+            pprint(f'Resume training loop from dataset tagged "{tag}"')
             trainer_snapshot = stg.args.resume_dir/'trainer_snapshot.npz'
             interim_result = stg.args.resume_dir/'interim_result.pickle'
             chainer.serializers.load_npz(trainer_snapshot, trainer)

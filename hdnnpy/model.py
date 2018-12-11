@@ -28,8 +28,10 @@ class SingleNNP(chainer.Chain):
         with self.init_scope():
             w = chainer.initializers.HeNormal()
             for i in range(self._nlink):
-                setattr(self, 'f{}'.format(i), eval('F.{}'.format(stg.model.layer[i]['activation'])))
-                setattr(self, 'l{}'.format(i), L.Linear(nodes[i], nodes[i + 1], initialW=w))
+                setattr(self, f'f{i}',
+                        eval(f'F.{stg.model.layer[i]["activation"]}'))
+                setattr(self, f'l{i}',
+                        L.Linear(nodes[i], nodes[i + 1], initialW=w))
         self.add_persistent('element', element)
 
     def __call__(self, x, dx, y_true, dy_true, train=False):
@@ -45,7 +47,7 @@ class SingleNNP(chainer.Chain):
     def predict_y(self, x):
         h = x
         for i in range(self._nlink):
-            h = eval('self.f{}(self.l{}(h))'.format(i, i))
+            h = eval(f'self.f{i}(self.l{i}(h))')
         y = h
         return y
 

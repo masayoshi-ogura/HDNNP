@@ -62,13 +62,16 @@ class ChainerSafelyTerminate(object):
     def _snapshot(self, signum, frame):
         self.signum = signal.Signals(signum)
         if stg.args.mode == 'train' and stg.mpi.rank == 0:
-            pprint('Stop {} training by signal: {}!\n'
-                   'Take trainer snapshot at epoch: {}'
-                   .format(self.tag, self.signum.name, self.trainer.updater.epoch))
-            chainer.serializers.save_npz(self.trainer.out/'trainer_snapshot.npz', self.trainer)
+            pprint(f'Stop {self.tag} training by signal: '
+                   f'{self.signum.name}!\n'
+                   f'Take trainer snapshot at epoch: '
+                   f'{self.trainer.updater.epoch}')
+            chainer.serializers.save_npz(
+                self.trainer.out/'trainer_snapshot.npz', self.trainer)
             (self.trainer.out/'interim_result.pickle').write_bytes(pickle.dumps(self.result))
         # must raise any Exception to stop trainer.run()
-        raise InterruptedError('Chainer training loop is interrupted by {}'.format(self.signum.name))
+        raise InterruptedError(f'Chainer training loop is interrupted by '
+                               f'{self.signum.name}')
 
 
 def dump_lammps(file_path, preproc, masters):
@@ -76,12 +79,12 @@ def dump_lammps(file_path, preproc, masters):
     depth = len(masters[0])
     with file_path.open('w') as f:
         f.write('# title\nneural network potential trained by HDNNP\n\n')
-        f.write('# symmetry function parameters\n{}\n{}\n{}\n{}\n{}\n\n'
-                .format(' '.join(map(str, stg.dataset.Rc)),
-                        ' '.join(map(str, stg.dataset.eta)),
-                        ' '.join(map(str, stg.dataset.Rs)),
-                        ' '.join(map(str, stg.dataset.lambda_)),
-                        ' '.join(map(str, stg.dataset.zeta))))
+        f.write('# symmetry function parameters\n'
+                f'{" ".join(map(str, stg.dataset.Rc))}\n'
+                f'{" ".join(map(str, stg.dataset.eta))}\n'
+                f'{" ".join(map(str, stg.dataset.Rs))}\n'
+                f'{" ".join(map(str, stg.dataset.lambda_))}\n'
+                f'{" ".join(map(str, stg.dataset.zeta))}\n\n')
 
         if stg.dataset.preproc is None:
             f.write('# preprocess parameters\n0\n\n')
@@ -91,25 +94,26 @@ def dump_lammps(file_path, preproc, masters):
                 element = masters[i].element
                 components = preproc.components[element]
                 mean = preproc.mean[element]
-                f.write('{} {} {}\n'.format(element, components.shape[1], components.shape[0]))
+                f.write(f'{element} {components.shape[1]} '
+                        f'{components.shape[0]}\n')
                 f.write('# components\n')
                 for row in components.T:
-                    f.write('{}\n'.format(' '.join(map(str, row))))
+                    f.write(f'{" ".join(map(str, row))}\n')
                 f.write('# mean\n')
-                f.write('{}\n\n'.format(' '.join(map(str, mean))))
+                f.write(f'{" ".join(map(str, row))}\n\n')
 
-        f.write('# neural network parameters\n{}\n\n'.format(depth))
+        f.write(f'# neural network parameters\n{depth}\n\n')
         for i in range(nelements):
             for j in range(depth):
-                W = getattr(masters[i], 'l{}'.format(j)).W.data
-                b = getattr(masters[i], 'l{}'.format(j)).b.data
-                f.write('{} {} {} {} {}\n'
-                        .format(masters[i].element, j + 1, W.shape[1], W.shape[0], stg.model.layer[j]['activation']))
+                W = getattr(masters[i], f'l{j}').W.data
+                b = getattr(masters[i], f'l{j}').b.data
+                f.write(f'{masters[i].element} {j+1} {W.shape[1]} '
+                        f'{W.shape[0]} {stg.model.layer[j]["activation"]}\n')
                 f.write('# weight\n')
                 for row in W.T:
-                    f.write('{}\n'.format(' '.join(map(str, row))))
+                    f.write(f'{" ".join(map(str, row))}\n')
                 f.write('# bias\n')
-                f.write('{}\n\n'.format(' '.join(map(str, b))))
+                f.write(f'{" ".join(map(str, b))}\n\n')
 
 
 def dump_training_result(file_path, result):
@@ -146,11 +150,11 @@ def dump_config(file_path):
         for k, v in vars(stg.dataset).items():
             if k.startswith('_'):
                 continue
-            f.write('stg.dataset.{} = {}\n'.format(k, v))
+            f.write(f'stg.dataset.{k} = {v}\n')
         for k, v in vars(stg.model).items():
             if k.startswith('_'):
                 continue
-            f.write('stg.model.{} = {}\n'.format(k, v))
+            f.write(f'stg.model.{k} = {v}\n')
 
 
 def assert_settings(stg):

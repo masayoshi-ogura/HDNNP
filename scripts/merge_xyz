@@ -11,5 +11,5 @@ in_dir = args[2]
 output = args[3]
 
 for f in Path(in_dir).glob('*.xyz'):
-    images = ase.io.read(f, index='::{}'.format(step), format='xyz')
+    images = ase.io.read(f, index=f'::{step}', format='xyz')
     ase.io.write(output, images, format='xyz', append=True)

@@ -146,13 +146,13 @@ class SymmetryFunctionDataset(object):
         try:
             ndarray = np.load(SF_path)
             assert ndarray['nsample'] == self.nsample, \
-                '# of samples of {} and given data file do not match.'.format(SF_path)
+                f'# of samples of {SF_path} and given data file do not match.'
             existing_keys = set([Path(key).parent for key in ndarray.keys() if key.endswith('G')])
             if verbose:
-                pprint('Loaded symmetry functions from {}.'.format(SF_path))
+                pprint(f'Loaded symmetry functions from {SF_path}.')
         except FileNotFoundError:
             if verbose:
-                pprint('{} does not exist.'.format(SF_path))
+                pprint(f'{SF_path} does not exist.')
                 pprint('Calculate symmetry functions from scratch.')
             existing_keys = None
         new_keys, re_used_keys, no_used_keys = check_uncalculated_keys(existing_keys)
@@ -203,15 +203,15 @@ class SymmetryFunctionDataset(object):
         try:
             ndarray = np.load(EF_path)
             assert ndarray['nsample'] == self.nsample, \
-                '# of samples of {} and given data file do not match.'.format(EF_path)
+                f'# of samples of {EF_path} and given data file do not match.'
             self._Es = ndarray['energy']
             self._Fs = ndarray['force']
             if verbose:
-                pprint('Loaded energies and forces from {}.'.format(EF_path))
+                pprint(f'Loaded energies and forces from {EF_path}.')
 
         except FileNotFoundError:
             if verbose:
-                pprint('{} does not exist.'.format(EF_path))
+                pprint(f'{EF_path} does not exist.')
                 pprint('Calculate energies and forces from scratch.')
 
             if stg.mpi.rank == 0:

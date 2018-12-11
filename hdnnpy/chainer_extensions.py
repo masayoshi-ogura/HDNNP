@@ -49,14 +49,14 @@ def scatter_plot(model, dataset):
             min_ = np.min(true)
             max_ = np.max(true)
             plt.scatter(pred, true, c='blue'),
-            plt.xlabel('NNP ({})'.format(unit)),
-            plt.ylabel('DFT ({})'.format(unit)),
+            plt.xlabel(f'NNP ({unit})'),
+            plt.ylabel(f'DFT ({unit})'),
             plt.xlim(min_, max_),
             plt.ylim(min_, max_),
             plt.text(0.5, 0.9,
-                     '{} @epoch={}'.format(title, trainer.updater.epoch),
+                     f'{title} @ epoch={trainer.updater.epoch}',
                      ha='center', transform=plt.gcf().transFigure)
-            fig.savefig(trainer.out/'{}.png'.format(title))
+            fig.savefig(trainer.out/f'{title}.png')
 
         G, dG, E_true, F_true = chainer.dataset.concat_examples(dataset)
         E_pred, F_pred, _ = model(G, dG, E_true, F_true)
