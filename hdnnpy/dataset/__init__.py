@@ -2,11 +2,8 @@
 
 __all__ = [
     'DatasetGenerator',
-    'construct_test_datasets',
-    'construct_training_datasets',
+    'HDNNPDataset',
     ]
 
-from hdnnpy.dataset.construct_datasets import (construct_test_datasets,
-                                               construct_training_datasets,
-                                               )
 from hdnnpy.dataset.dataset_generator import DatasetGenerator
+from hdnnpy.dataset.hdnnp_dataset import HDNNPDataset

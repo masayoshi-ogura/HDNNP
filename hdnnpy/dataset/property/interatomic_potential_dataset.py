@@ -7,8 +7,9 @@ __all__ = [
 import numpy as np
 
 from hdnnpy.dataset.property.property_dataset_base import PropertyDatasetBase
-from hdnnpy.settings import stg
-from hdnnpy.utils import pprint
+from hdnnpy.utils import (MPI,
+                          pprint,
+                          )
 
 
 class InteratomicPotentialDataset(PropertyDatasetBase):
@@ -26,28 +27,28 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
         n_sample = len(atoms)
         n_atom = len(atoms[0])
 
-        count = np.array([(n_sample + i) // stg.mpi.size
-                          for i in range(stg.mpi.size)[::-1]], dtype=np.int32)
-        s = count[: stg.mpi.rank].sum()
-        e = count[: stg.mpi.rank+1].sum()
+        count = np.array([(n_sample + i) // MPI.size
+                          for i in range(MPI.size)[::-1]], dtype=np.int32)
+        s = count[: MPI.rank].sum()
+        e = count[: MPI.rank+1].sum()
         atoms = atoms[s:e]
 
         for i, send_data in enumerate(self._calculate_properties(atoms)):
             recv_data = None
-            if stg.mpi.rank == 0:
+            if MPI.rank == 0:
                 shape = (n_sample, 1, *(n_atom, 3) * i)
                 data = np.empty(shape, dtype=np.float32)
                 recv_data = (data, count * data[0].size)
-                stg.mpi.comm.Gatherv(send_data, recv_data, root=0)
+                MPI.comm.Gatherv(send_data, recv_data, root=0)
                 self._dataset.append(data)
             else:
-                stg.mpi.comm.Gatherv(send_data, recv_data, root=0)
+                MPI.comm.Gatherv(send_data, recv_data, root=0)
 
         if verbose:
             pprint('Calculated interatomic potential dataset.')
 
     def load(self, file_path, verbose=True):
-        if stg.mpi.rank == 0:
+        if MPI.rank == 0:
             ndarray = np.load(file_path)
             for i in range(self._order + 1):
                 self._dataset.append(ndarray[self._properties[i]])
@@ -60,7 +61,7 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
                     f'Loaded interatomic potential dataset from {file_path}.')
 
     def save(self, file_path, verbose=True):
-        if stg.mpi.rank == 0:
+        if MPI.rank == 0:
             if not self.has_data:
                 raise RuntimeError('This dataset does not have any data.')
 

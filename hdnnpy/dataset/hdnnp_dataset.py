@@ -8,8 +8,7 @@ import numpy as np
 
 from hdnnpy.dataset.descriptor import DESCRIPTOR_DATASET
 from hdnnpy.dataset.property import PROPERTY_DATASET
-from hdnnpy.settings import stg
-from hdnnpy.utils import (pprint,
+from hdnnpy.utils import (MPI,
                           recv_chunk,
                           send_chunk,
                           )
@@ -90,7 +89,7 @@ class HDNNPDataset(object):
         return self._property_dataset
 
     def construct(self, preproc=None, shuffle=True):
-        if stg.mpi.rank == 0:
+        if MPI.rank == 0:
             # check compatibility and add info to myself
             self._check_dataset_compatibility()
 
@@ -121,16 +120,16 @@ class HDNNPDataset(object):
                 self._property_dataset.clear()
 
     def scatter(self, root=0, max_buf_len=256 * 1024 * 1024):
-        assert 0 <= root < stg.mpi.size
-        stg.mpi.comm.Barrier()
+        assert 0 <= root < MPI.size
+        MPI.comm.Barrier()
 
-        if stg.mpi.rank == root:
+        if MPI.rank == root:
             mine = None
             n_total_samples = self._total_size
-            n_sub_samples = (n_total_samples+stg.mpi.size-1) // stg.mpi.size
+            n_sub_samples = (n_total_samples+MPI.size-1) // MPI.size
 
-            for i in range(stg.mpi.size):
-                b = n_total_samples * i // stg.mpi.size
+            for i in range(MPI.size):
+                b = n_total_samples * i // MPI.size
                 e = b + n_sub_samples
                 slc = slice(b, e, None)
 

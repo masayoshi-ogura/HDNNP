@@ -16,21 +16,13 @@ import os
 from pathlib import Path
 import sys
 
-import chainermn
-from mpi4py import MPI
-
 from hdnnpy.argparser import get_parser
+from hdnnpy.utils import MPI
 
 
 class defaults:
     class file:
         out_dir = 'output'
-
-    class mpi:
-        comm = MPI.COMM_WORLD
-        rank = MPI.COMM_WORLD.Get_rank()
-        size = MPI.COMM_WORLD.Get_size()
-        chainer_comm = chainermn.create_communicator('naive', MPI.COMM_WORLD)
 
     class dataset:
         tag = ['all']
@@ -62,7 +54,7 @@ def import_user_configurations(args):
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
     stg = config.stg
-    if stg.mpi.rank == 0:
+    if MPI.rank == 0:
         print('Loaded user configuration from {}'.format(file_path))
 
     # convert path string to pathlib.Path object
@@ -77,6 +69,6 @@ def import_user_configurations(args):
 stg = import_user_configurations(get_parser())
 
 # Hide stdout from MPI subprocesses
-if stg.mpi.rank != 0:
+if MPI.rank != 0:
     sys.stdout = Path(os.devnull).open('w')
     # sys.stderr = Path(os.devnull).open('w')

@@ -8,7 +8,7 @@ from abc import (ABC,
                  abstractmethod,
                  )
 
-from hdnnpy.settings import stg
+from hdnnpy.utils import MPI
 
 
 class DescriptorDatasetBase(ABC):
@@ -81,7 +81,7 @@ class DescriptorDatasetBase(ABC):
 
     @abstractmethod
     def load(self, *args, **kwargs):
-        if stg.mpi.rank == 0:
+        if MPI.rank == 0:
             pass
 
     @abstractmethod
@@ -90,7 +90,7 @@ class DescriptorDatasetBase(ABC):
 
     @abstractmethod
     def save(self, *args, **kwargs):
-        if stg.mpi.rank == 0:
+        if MPI.rank == 0:
             if not self.has_data:
                 raise RuntimeError('This dataset does not have any data.')
             pass
