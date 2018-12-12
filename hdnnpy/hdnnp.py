@@ -11,6 +11,7 @@ import shutil
 import sys
 
 import chainer
+from chainer.dataset import concat_examples
 import chainer.training.extensions as ext
 from chainer.training.triggers import EarlyStoppingTrigger
 import chainermn
@@ -31,8 +32,10 @@ from hdnnpy.format import (parse_poscars,
                            )
 from hdnnpy.model import (HDNNP,
                           SingleNNP,
+                          loss_func,
                           )
 from hdnnpy.preproc import PREPROC
+from hdnnpy.settings import stg
 from hdnnpy.updater import HDUpdater
 from hdnnpy.utils import (ChainerSafelyTerminate,
                           assert_settings,
@@ -57,7 +60,7 @@ def main():
                 preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
             datasets, elements = construct_training_datasets(parse_xyz(stg.dataset.xyz_file), preproc)
             preproc.save(stg.file.out_dir/'preproc.npz')
-            dataset = DatasetGenerator(datasets).holdout(stg.dataset.ratio)
+            dataset = DatasetGenerator(*datasets).holdout(stg.dataset.ratio)
             masters, result = train(dataset, elements)
             if stg.mpi.rank == 0:
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
@@ -88,18 +91,33 @@ def main():
         construct_training_datasets(parse_xyz(stg.dataset.xyz_file), preproc)
 
     elif stg.args.mode == 'predict':
-        stream = stg.args.prediction_file.open('w') if stg.args.is_write else sys.stdout
-        results = predict()
-        for poscar, energy, force in results:
-            pprint('Atomic Structure File:', stream=stream)
-            pprint(poscar, stream=stream)
-            if 'energy' in stg.args.value or 'E' in stg.args.value:
-                pprint('Total Energy:', stream=stream)
-                np.savetxt(stream, energy)
-            if 'force' in stg.args.value or 'F' in stg.args.value:
-                pprint('Forces:', stream=stream)
-                np.savetxt(stream, force)
-            pprint('', stream=stream)
+        if stg.args.is_write:
+            stream = stg.args.prediction_file.open('w')
+        else:
+            stream = sys.stdout
+
+        preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
+        preproc.load(stg.args.masters.with_name('preproc.npz'))
+        tag_xyz_map, tag_poscars_map = parse_poscars(stg.args.poscars)
+        datasets, elements = construct_test_datasets(tag_xyz_map, preproc)
+
+        for xyz_path, poscars, dataset in zip(
+                tag_xyz_map.values(), tag_poscars_map.values(),
+                DatasetGenerator(*datasets).foreach()):
+            xyz_path.unlink()
+            energies, forces = predict(dataset, elements)
+
+            for poscar, energy, force in zip(poscars, energies, forces):
+                pprint('Atomic Structure File:', stream=stream)
+                pprint(poscar, stream=stream)
+                if 'energy' in stg.args.value or 'E' in stg.args.value:
+                    pprint('Total Energy:', stream=stream)
+                    np.savetxt(stream, energy)
+                if 'force' in stg.args.value or 'F' in stg.args.value:
+                    for f in force:
+                        pprint('Forces:', stream=stream)
+                        np.savetxt(stream, f)
+                        pprint(stream=stream)
 
 
 @use_named_args(stg.skopt.space)
@@ -122,7 +140,7 @@ def objective_func(**params):
         preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature) \
                 if stg.mpi.rank == 0 else PREPROC[None]()
         datasets, elements = construct_training_datasets(parse_xyz(stg.dataset.xyz_file), preproc)
-        for dataset in DatasetGenerator(datasets).kfold(stg.skopt.kfold):
+        for dataset in DatasetGenerator(*datasets).kfold(stg.skopt.kfold):
             _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
         sys.stdout = stdout
@@ -150,7 +168,7 @@ def train(dataset, elements):
                                                      repeat=False, shuffle=False)
 
         # model
-        hdnnp = HDNNP(train.elemental_composition)
+        hdnnp = HDNNP(train.elemental_composition, loss_func)
         hdnnp.sync_param_with(masters)
         main_opt = chainer.Optimizer()
         main_opt = chainermn.create_multi_node_optimizer(main_opt, stg.mpi.chainer_comm)
@@ -205,23 +223,13 @@ def train(dataset, elements):
     return masters, result
 
 
-def predict():
-    preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-    preproc.load(stg.args.masters.with_name('preproc.npz'))
-    tag_xyz_map, tag_poscars_map = parse_poscars(stg.args.poscars)
-    datasets, elements = construct_test_datasets(tag_xyz_map, preproc)
-    for xyz_path in tag_xyz_map.values():
-        xyz_path.unlink()
-
-    results = []
-    for poscars, dataset in zip(tag_poscars_map.values(), DatasetGenerator(datasets).foreach()):
-        masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
-        chainer.serializers.load_npz(stg.args.masters, masters)
-        hdnnp = HDNNP(dataset.elemental_composition)
-        hdnnp.sync_param_with(masters)
-        energies, forces = hdnnp.predict(dataset.input, dataset.dinput)
-        results.extend([data for data in zip(poscars, energies.data, forces.data)])
-    return results
+def predict(dataset, elements):
+    masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
+    chainer.serializers.load_npz(stg.args.masters, masters)
+    hdnnp = HDNNP(dataset.elemental_composition, loss_func)
+    hdnnp.sync_param_with(masters)
+    energies, forces = hdnnp.predict(*concat_examples(dataset[:]))
+    return energies.data, forces.data
 
 
 if __name__ == '__main__':

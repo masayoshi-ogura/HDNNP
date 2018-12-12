@@ -6,10 +6,16 @@ __all__ = [
 
 from sklearn.model_selection import KFold
 
+from hdnnpy.dataset.hdnnp_dataset import HDNNPDataset
+
 
 class DatasetGenerator(object):
-    def __init__(self, datasets):
-        self._datasets = datasets
+    def __init__(self, *datasets):
+        if not datasets:
+            raise ValueError('No dataset are given')
+        for dataset in datasets:
+            assert isinstance(dataset, HDNNPDataset)
+        self._datasets = list(datasets)
 
     def all(self):
         return self._datasets
@@ -22,7 +28,7 @@ class DatasetGenerator(object):
         split = []
         while self._datasets:
             dataset = self._datasets.pop(0)
-            s = int(len(dataset) * ratio)
+            s = int(dataset.partial_size * ratio)
             train = dataset.take(slice(None, s, None))
             test = dataset.take(slice(s, None, None))
             split.append((train, test))
@@ -30,7 +36,7 @@ class DatasetGenerator(object):
 
     def kfold(self, kfold):
         kf = KFold(n_splits=kfold)
-        kfold_indices = [kf.split(range(len(dataset))) for dataset in self._datasets]
+        kfold_indices = [kf.split(range(dataset.partial_size)) for dataset in self._datasets]
 
         for indices in zip(*kfold_indices):
             split = []

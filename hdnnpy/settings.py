@@ -7,13 +7,8 @@ Please see 'test/config.py' as a example.
 """
 
 __all__ = [
-    'args',
-    'dataset',
     'defaults',
-    'file',
-    'model',
-    'mpi',
-    'skopt',
+    'stg',
     ]
 
 import importlib.util
@@ -73,20 +68,15 @@ def import_user_configurations(args):
     # convert path string to pathlib.Path object
     stg.file.out_dir = Path(stg.file.out_dir).absolute()
     stg.dataset.xyz_file = Path(stg.dataset.xyz_file).absolute()
+
+    # add args in `stg` namespace
+    stg.args = args
     return stg
 
 
-args = get_parser()
-
-stg = import_user_configurations(args)
-
-file = stg.file
-mpi = stg.mpi
-dataset = stg.dataset
-model = stg.model
-skopt = stg.skopt
+stg = import_user_configurations(get_parser())
 
 # Hide stdout from MPI subprocesses
-if mpi.rank != 0:
+if stg.mpi.rank != 0:
     sys.stdout = Path(os.devnull).open('w')
     # sys.stderr = Path(os.devnull).open('w')

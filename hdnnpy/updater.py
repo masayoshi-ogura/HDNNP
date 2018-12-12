@@ -22,7 +22,7 @@ class HDUpdater(chainer.training.updaters.StandardUpdater):
         masters.cleargrads()
         hdnnp.cleargrads()
 
-        _, _, loss = hdnnp(*batch, train=True)
+        loss = hdnnp(*batch, train=True)
         loss.backward()
 
         hdnnp.reduce_grad_to(masters)

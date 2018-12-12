@@ -20,8 +20,8 @@ class PreprocBase(object):
     def save(self, *args, **kwargs):
         pass
 
-    def decompose(self, *args, **kwargs):
-        pass
+    def decompose(self, elemental_composition, elements, input_, dinput):
+        return [input_, dinput]
 
 
 class PCA(PreprocBase):
@@ -48,32 +48,30 @@ class PCA(PreprocBase):
         np.savez(file_path, elements=self._elements,
                  **mean_dict, **components_dict)
 
-    def decompose(self, dataset):
-        for element in set(dataset.elements) - self._elements:
-            nfeature = dataset.input.shape[-1]
-            indices = [i for i, e in enumerate(dataset.elemental_composition) if e == element]
-            X = dataset.input.take(indices, 1).reshape(-1, nfeature)
+    def decompose(self, elemental_composition, elements, input_, dinput):
+        for element in set(elements) - self._elements:
+            nfeature = input_.shape[-1]
+            indices = [i for i, e in enumerate(elemental_composition)
+                       if e == element]
+            X = input_.take(indices, 1).reshape(-1, nfeature)
             pca = decomposition.PCA(n_components=self._n_components)
             pca.fit(X)
             self.mean[element] = pca.mean_.astype(np.float32)
             self.components[element] = pca.components_.T.astype(np.float32)
             self._elements.add(element)
-            pprint(f'Initialize PCA parameters for: {element}\n'
-                   f'\tDecompose features: {nfeature} => '
-                   f'{self._n_components}\n'
-                   f'\tcumulative contribution rate = '
-                   f'{np.sum(pca.explained_variance_ratio_)}')
+            pprint(f'''
+Initialize PCA parameters for: {element}
+Decompose features: {nfeature} => {self._n_components}
+Cumulative contribution rate = {np.sum(pca.explained_variance_ratio_)}
+''')
 
         mean = np.array(
-            [self.mean[element]
-             for element in dataset.elemental_composition])
+            [self.mean[element] for element in elemental_composition])
         components = np.array(
-            [self.components[element]
-             for element in dataset.elemental_composition])
-        dataset.input = np.einsum(
-            'ijk,jkl->ijl', dataset.input - mean, components)
-        dataset.dinput = np.einsum(
-            'ijkmn,jkl->ijlmn', dataset.dinput, components)
+            [self.components[element] for element in elemental_composition])
+        input_ = np.einsum('ijk,jkl->ijl', input_ - mean, components)
+        dinput = np.einsum('ijkmn,jkl->ijlmn', dinput, components)
+        return [input_, dinput]
 
 
 PREPROC = {None: PreprocBase, 'pca': PCA}

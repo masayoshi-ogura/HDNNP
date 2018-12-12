@@ -38,10 +38,10 @@ def neighbour_info(atoms, Rc):
         if i_ind.size == 0:
             continue
 
-        indices = defaultdict(list)
+        idx_neigh = defaultdict(list)
         for j_ind, j in enumerate(j_list[i_ind]):
-            indices[j].append(j_ind)
-            indices[atoms[j].symbol].append(j_ind)
+            idx_neigh[j].append(j_ind)
+            idx_neigh[atoms[j].symbol].append(j_ind)
 
         R = R_list[i_ind]
         r = r_list[i_ind]
@@ -52,4 +52,4 @@ def neighbour_info(atoms, Rc):
         # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
         dcos = - r[:, None, :] / R[:, None, None] ** 2 * cos[:, :, None] \
                + r[None, :, :] / (R[:, None, None] * R[None, :, None])
-        yield i, indices, R, tanh, dR, cos, dcos
+        yield i, idx_neigh, R, tanh, dR, cos, dcos
