@@ -63,7 +63,6 @@ class PropertyDatasetBase(ABC):
         self._elements.clear()
         self._tag = None
 
-
     @abstractmethod
     def load(self, *args, **kwargs):
         if MPI.rank == 0:

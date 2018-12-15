@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eux
 
-clean="rm -rf data/CrystalGa16N16 data/CrystalGa2N2 data/GaN.xyz.tag output/ __pycache__/"
+clean="rm -rf data/CrystalGa16N16 data/CrystalGa2N2 data/GaN.xyz.dat output/ __pycache__/"
 timeout="gtimeout 5"
 mpirun="mpirun -np 2"
 hdnnpy="hdnnpy"

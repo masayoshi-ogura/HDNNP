@@ -8,6 +8,7 @@ dependencies:
   - numpy
   - matplotlib
   - pyyaml
+  - scipy
   - scikit-learn
   - scikit-optimize
   - mpi4py

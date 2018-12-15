@@ -1,55 +1,123 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'neighbour_info',
+    'AtomicStructure',
     ]
 
-from collections import defaultdict
-
-import numpy as np
+import ase.build
 import ase.neighborlist
+import numpy as np
 
 
-def memorize(f):
-    cache = defaultdict(list)
-    identifier = ['']
+class AtomicStructure(object):
+    def __init__(self, atoms):
+        sorted_atoms = ase.build.sort(atoms)
+        sorted_atoms.set_calculator(atoms.get_calculator())
+        self._atoms = sorted_atoms
+        self._symbols = self._atoms.get_chemical_symbols()
+        self._elements = sorted(set(self._symbols))
+        self._index_element_map = [self._elements.index(element)
+                                   for element in self._symbols]
+        self._cache = {}
 
-    def helper(atoms, Rc):
-        if identifier[0] != atoms.info['tag'] + str(id(atoms)):
-            cache.clear()
-            identifier[0] = atoms.info['tag'] + str(id(atoms))
+    def __getattr__(self, item):
+        return getattr(self._atoms, item)
 
-        if Rc not in cache:
-            for ret in f(atoms, Rc):
-                cache[Rc].append(ret)
-                yield cache[Rc][-1]
+    def __len__(self):
+        return len(self._atoms)
+
+    @property
+    def elements(self):
+        return self._elements
+
+    def clear_cache(self, cutoff_distance=None):
+        if cutoff_distance:
+            self._cache[cutoff_distance].clear()
         else:
-            for ret in cache[Rc]:
-                yield ret
+            self._cache.clear()
 
-    return helper
+    def get_neighbor_info(self, cutoff_distance, geometry_keys):
+        ret = []
+        for key in geometry_keys:
+            if (cutoff_distance not in self._cache
+                    or key not in self._cache[cutoff_distance]):
+                if key in ['distance', 'distance_vector',
+                           'j2elem', 'neigh2elem', 'neigh2j']:
+                    self._calculate_distance(cutoff_distance)
+                elif key in ['diff_distance']:
+                    self._calculate_diff_distance(cutoff_distance)
+                elif key in ['cosine']:
+                    self._calculate_cosine(cutoff_distance)
+                elif key in ['diff_cosine']:
+                    self._calculate_diff_cosine(cutoff_distance)
+            ret.append(self._cache[cutoff_distance][key])
+        return zip(*ret)
 
+    def _calculate_cosine(self, cutoff_distance):
+        cosine = []
+        for dRdr, in self.get_neighbor_info(
+                cutoff_distance, ['diff_distance']):
+            cosine.append(np.dot(dRdr, dRdr.T))
 
-@memorize
-def neighbour_info(atoms, Rc):
-    i_list, j_list, R_list, r_list = ase.neighborlist.neighbor_list('ijdD', atoms, Rc)
-    for i in range(len(atoms)):
-        i_ind, = np.where(i_list == i)
-        if i_ind.size == 0:
-            continue
+        self._cache[cutoff_distance].update({
+            'cosine': cosine,
+            })
 
-        idx_neigh = defaultdict(list)
-        for j_ind, j in enumerate(j_list[i_ind]):
-            idx_neigh[j].append(j_ind)
-            idx_neigh[atoms[j].symbol].append(j_ind)
+    def _calculate_diff_cosine(self, cutoff_distance):
+        diff_cosine = []
+        for R, cos, dRdr in self.get_neighbor_info(
+                cutoff_distance, ['distance', 'cosine', 'diff_distance']):
+            dcosdr = ((dRdr[None, :, :]
+                       - dRdr[:, None, :] * cos[:, :, None])
+                      / R[:, None, None])
+            diff_cosine.append(dcosdr)
 
-        R = R_list[i_ind]
-        r = r_list[i_ind]
-        tanh = np.tanh(1 - R / Rc)
-        dR = r / R[:, None]
-        cos = dR.dot(dR.T)
-        # cosine(j - i - k) differentiate w.r.t. "j"
-        # dcos = - rj * cos / Rj**2 + rk / Rj / Rk
-        dcos = - r[:, None, :] / R[:, None, None] ** 2 * cos[:, :, None] \
-               + r[None, :, :] / (R[:, None, None] * R[None, :, None])
-        yield i, idx_neigh, R, tanh, dR, cos, dcos
+        self._cache[cutoff_distance].update({
+            'diff_cosine': diff_cosine,
+            })
+
+    def _calculate_diff_distance(self, cutoff_distance):
+        diff_distance = []
+        for r, R in self.get_neighbor_info(
+                cutoff_distance, ['distance_vector', 'distance']):
+            diff_distance.append(r / R[:, None])
+
+        self._cache[cutoff_distance].update({
+            'diff_distance': diff_distance,
+            })
+
+    def _calculate_distance(self, cutoff_distance):
+        i_list, j_list, d_list, D_list = ase.neighborlist.neighbor_list(
+            'ijdD', self._atoms, cutoff_distance)
+
+        sort_indices = np.lexsort((j_list, i_list))
+        i_list = i_list[sort_indices]
+        j_list = j_list[sort_indices]
+        d_list = d_list[sort_indices]
+        D_list = D_list[sort_indices]
+        elem_list = np.array([self._index_element_map[idx] for idx in j_list])
+
+        i_indices = np.unique(i_list, return_index=True)[1]
+        j_list = np.split(j_list, i_indices[1:])
+        distance = np.split(d_list, i_indices[1:])
+        distance_vector = np.split(D_list, i_indices[1:])
+        elem_list = np.split(elem_list, i_indices[1:])
+
+        j2elem = []
+        neigh2elem = []
+        neigh2j = []
+        for j, elem in zip(j_list, elem_list):
+            j2elem.append(np.unique(
+                self._atoms.get_chemical_symbols(), return_index=True)[1])
+            neigh2j.append(
+                np.searchsorted(j, range(len(self._symbols))))
+            neigh2elem.append(
+                np.searchsorted(elem, range(len(self._elements))))
+
+        self._cache[cutoff_distance] = {
+            'distance': distance,
+            'distance_vector': distance_vector,
+            'j2elem': j2elem,
+            'neigh2elem': neigh2elem,
+            'neigh2j': neigh2j,
+            }

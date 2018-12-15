@@ -8,6 +8,7 @@ hdnnpy = {editable = true, path = "."}
 numpy = "*"
 matplotlib = "*"
 pyyaml = "*"
+scipy = "*"
 scikit-learn = "*"
 scikit-optimize = "*"
 "mpi4py" = "*"

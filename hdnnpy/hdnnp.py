@@ -4,6 +4,7 @@ __all__ = [
     'main',
     ]
 
+from itertools import product
 import os
 from pathlib import Path
 import pickle
@@ -24,7 +25,8 @@ from hdnnpy.chainer_extensions import (Evaluator,
                                        scatter_plot,
                                        set_log_scale,
                                        )
-from hdnnpy.dataset import (DatasetGenerator,
+from hdnnpy.dataset import (AtomicStructure,
+                            DatasetGenerator,
                             HDNNPDataset,
                             )
 from hdnnpy.format import (parse_poscars,
@@ -60,7 +62,8 @@ def main():
                     if MPI.rank == 0 else PREPROC[None]()
             if stg.args.is_resume:
                 preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
-            datasets, elements = construct_training_datasets(parse_xyz(stg.dataset.xyz_file), preproc)
+            tag_xyz_map, elements = parse_xyz(stg.dataset.xyz_file)
+            datasets = construct_training_datasets(tag_xyz_map, elements, preproc)
             preproc.save(stg.file.out_dir/'preproc.npz')
             dataset = DatasetGenerator(*datasets).holdout(stg.dataset.ratio)
             masters, result = train(dataset, elements)
@@ -90,7 +93,8 @@ def main():
 
     elif stg.args.mode == 'sym-func':
         preproc = PREPROC[None]()
-        construct_training_datasets(parse_xyz(stg.dataset.xyz_file), preproc)
+        tag_xyz_map, elements = parse_xyz(stg.dataset.xyz_file)
+        construct_training_datasets(tag_xyz_map, elements, preproc)
 
     elif stg.args.mode == 'predict':
         if stg.args.is_write:
@@ -100,8 +104,8 @@ def main():
 
         preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
         preproc.load(stg.args.masters.with_name('preproc.npz'))
-        tag_xyz_map, tag_poscars_map = parse_poscars(stg.args.poscars)
-        datasets, elements = construct_test_datasets(tag_xyz_map, preproc)
+        tag_xyz_map, tag_poscars_map, elements = parse_poscars(stg.args.poscars)
+        datasets = construct_test_datasets(tag_xyz_map, elements, preproc)
 
         for xyz_path, poscars, dataset in zip(
                 tag_xyz_map.values(), tag_poscars_map.values(),
@@ -141,7 +145,8 @@ def objective_func(**params):
         sys.stdout = devnull
         preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature) \
                 if MPI.rank == 0 else PREPROC[None]()
-        datasets, elements = construct_training_datasets(parse_xyz(stg.dataset.xyz_file), preproc)
+        tag_xyz_map, elements = parse_xyz(stg.dataset.xyz_file)
+        datasets = construct_training_datasets(tag_xyz_map, elements, preproc)
         for dataset in DatasetGenerator(*datasets).kfold(stg.skopt.kfold):
             _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
@@ -236,22 +241,21 @@ def predict(dataset, elements):
     return energies.data, forces.data
 
 
-def construct_training_datasets(tag_xyz_map, preproc):
+def construct_training_datasets(tag_xyz_map, elements, preproc):
     if 'all' in stg.dataset.tag:
         included_tags = sorted(tag_xyz_map)
     else:
         included_tags = stg.dataset.tag
 
     params = {
-        'Rc': stg.dataset.Rc,
-        'eta': stg.dataset.eta,
-        'Rs': stg.dataset.Rs,
-        'lambda_': stg.dataset.lambda_,
-        'zeta': stg.dataset.zeta,
+        'type1': list(product(stg.dataset.Rc)),
+        'type2': list(product(stg.dataset.Rc, stg.dataset.eta,
+                              stg.dataset.Rs)),
+        'type4': list(product(stg.dataset.Rc, stg.dataset.eta,
+                              stg.dataset.lambda_, stg.dataset.zeta)),
         }
 
     datasets = []
-    elements = set()
     stg.dataset.nsample = 0
     for tag in included_tags:
         try:
@@ -264,61 +268,55 @@ def construct_training_datasets(tag_xyz_map, preproc):
         dataset = HDNNPDataset(descriptor='symmetry_function',
                                property_='interatomic_potential',
                                order=1)
-        atoms = ase.io.read(xyz_path, index=':', format='xyz')
+        structures = [AtomicStructure(atoms) for atoms
+                      in ase.io.iread(str(xyz_path), index=':', format='xyz')]
 
         descriptor_npz_path = xyz_path.with_name('Symmetry_Function.npz')
         if descriptor_npz_path.exists():
             dataset.descriptor_dataset.load(descriptor_npz_path, verbose=True)
         else:
-            dataset.descriptor_dataset.make(atoms, params, verbose=True)
+            dataset.descriptor_dataset.make(structures, **params, verbose=True)
             dataset.descriptor_dataset.save(descriptor_npz_path, verbose=True)
 
         property_npz_path = xyz_path.with_name('Interatomic_Potential.npz')
         if property_npz_path.exists():
             dataset.property_dataset.load(property_npz_path, verbose=True)
         else:
-            dataset.property_dataset.make(atoms, verbose=True)
+            dataset.property_dataset.make(structures, verbose=True)
             dataset.property_dataset.save(property_npz_path, verbose=True)
 
-        dataset.construct(preproc, shuffle=True)
+        dataset.construct(elements, preproc, shuffle=True)
 
         dataset.scatter()
         datasets.append(dataset)
-        elements.update(dataset.elements)
         stg.dataset.nsample += dataset.total_size
     pprint()
-    return datasets, elements
+    return datasets
 
 
-def construct_test_datasets(tag_xyz_map, preproc):
+def construct_test_datasets(tag_xyz_map, elements, preproc):
     params = {
-        'Rc': stg.dataset.Rc,
-        'eta': stg.dataset.eta,
-        'Rs': stg.dataset.Rs,
-        'lambda_': stg.dataset.lambda_,
-        'zeta': stg.dataset.zeta,
+        'type1': list(product(stg.dataset.Rc)),
+        'type2': list(product(stg.dataset.Rc, stg.dataset.eta,
+                              stg.dataset.Rs)),
+        'type4': list(product(stg.dataset.Rc, stg.dataset.eta,
+                              stg.dataset.lambda_, stg.dataset.zeta)),
         }
 
     datasets = []
-    elements = set()
     for xyz_path in tag_xyz_map.values():
         dataset = HDNNPDataset(descriptor='symmetry_function',
                                order=1)
-        atoms = ase.io.read(xyz_path, index=':', format='xyz')
+        structures = [AtomicStructure(atoms) for atoms
+                      in ase.io.iread(str(xyz_path), index=':', format='xyz')]
 
-        descriptor_npz_path = xyz_path.with_name('Symmetry_Function.npz')
-        if descriptor_npz_path.exists():
-            dataset.descriptor_dataset.load(descriptor_npz_path, verbose=False)
-        else:
-            dataset.descriptor_dataset.make(atoms, params, verbose=False)
-            dataset.descriptor_dataset.save(descriptor_npz_path, verbose=False)
+        dataset.descriptor_dataset.make(structures, **params, verbose=False)
 
-        dataset.construct(preproc, shuffle=False)
+        dataset.construct(elements, preproc, shuffle=False)
 
         datasets.append(dataset)
-        elements.update(dataset.elements)
 
-    return datasets, elements
+    return datasets
 
 
 if __name__ == '__main__':

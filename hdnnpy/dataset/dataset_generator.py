@@ -36,7 +36,8 @@ class DatasetGenerator(object):
 
     def kfold(self, kfold):
         kf = KFold(n_splits=kfold)
-        kfold_indices = [kf.split(range(dataset.partial_size)) for dataset in self._datasets]
+        kfold_indices = [kf.split(range(dataset.partial_size))
+                         for dataset in self._datasets]
 
         for indices in zip(*kfold_indices):
             split = []

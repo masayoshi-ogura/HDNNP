@@ -88,24 +88,29 @@ class HDNNPDataset(object):
     def property_dataset(self):
         return self._property_dataset
 
-    def construct(self, preproc=None, shuffle=True):
+    def construct(self, all_elements, preproc=None, shuffle=True):
         if MPI.rank == 0:
             # check compatibility and add info to myself
             self._check_dataset_compatibility()
 
             # apply pre-processing & append my dataset
-            keys = self._descriptor_dataset.descriptors
+            input_dataset = [self._descriptor_dataset[key]
+                             for key in self._descriptor_dataset.descriptors]
+            if all_elements != self._descriptor_dataset.elements:
+                old_feature_keys = self._descriptor_dataset.feature_keys
+                new_feature_keys = (self._descriptor_dataset
+                                    .generate_feature_keys(all_elements))
+                input_dataset = self._expand_features(
+                    old_feature_keys, new_feature_keys, *input_dataset)
             if preproc:
                 input_dataset = preproc.decompose(
-                    self._elemental_composition, self._elements,
-                    *[self._descriptor_dataset[key] for key in keys])
-            else:
-                input_dataset = [self._descriptor_dataset[key] for key in keys]
+                    self._elemental_composition,
+                    self._elements, *input_dataset)
 
             # merge dataset
             if self._property_dataset:
-                keys = self._property_dataset.properties
-                label_dataset = [self._property_dataset[key] for key in keys]
+                label_dataset = [self._property_dataset[key]
+                                 for key in self._property_dataset.properties]
                 self._dataset = input_dataset + label_dataset
             else:
                 self._dataset = input_dataset
@@ -114,7 +119,7 @@ class HDNNPDataset(object):
             if shuffle:
                 self._shuffle()
 
-            # delete duplicated datasets
+            # delete original datasets
             self._descriptor_dataset.clear()
             if self._property_dataset:
                 self._property_dataset.clear()
@@ -229,6 +234,26 @@ Property dataset has following values:
             self._elements = self._descriptor_dataset.elements[:]
             self._tag = self._descriptor_dataset.tag
             self._total_size = len(self._descriptor_dataset)
+
+    @staticmethod
+    def _expand_features(old_feature_keys, new_feature_keys, dataset):
+        n_pad = len(new_feature_keys) - len(old_feature_keys)
+        idx_pad = len(old_feature_keys)
+        sort_indices = []
+        for key in new_feature_keys:
+            if key in old_feature_keys:
+                sort_indices.append(old_feature_keys.index(key))
+            else:
+                sort_indices.append(idx_pad)
+                idx_pad += 1
+        sort_indices = np.array(sort_indices)
+
+        for i, data in enumerate(dataset):
+            n_pad = [(0, n_pad) if i == 2 else (0, 0)
+                     for i in range(data.ndim)]
+            np.pad(data, n_pad, 'constant')
+            dataset[i] = data[:, :, sort_indices]
+        return dataset
 
     def _shuffle(self):
         for data in self._dataset:

@@ -18,8 +18,7 @@ class DescriptorDatasetBase(ABC):
         self._elemental_composition = []
         self._elements = []
         self._descriptors = []
-        self._n_feature = 0
-        self._params = {}
+        self._feature_keys = []
         self._tag = None
 
     def __getitem__(self, item):
@@ -48,20 +47,20 @@ class DescriptorDatasetBase(ABC):
         return self._elements
 
     @property
+    def feature_keys(self):
+        return self._feature_keys
+
+    @property
     def has_data(self):
         return len(self._dataset) != 0
 
     @property
     def n_feature(self):
-        return self._n_feature
+        return len(self._feature_keys)
 
     @property
     def order(self):
         return self._order
-
-    @property
-    def params(self):
-        return self._params
 
     @property
     def tag(self):
@@ -71,12 +70,11 @@ class DescriptorDatasetBase(ABC):
         self._dataset.clear()
         self._elemental_composition.clear()
         self._elements.clear()
-        self._n_feature = 0
-        self._params.clear()
+        self._feature_keys.clear()
         self._tag = None
 
     @abstractmethod
-    def dump_params(self, *args, **kwargs):
+    def generate_feature_keys(self, elements):
         pass
 
     @abstractmethod
@@ -85,7 +83,7 @@ class DescriptorDatasetBase(ABC):
             pass
 
     @abstractmethod
-    def make(self, *args, **kwargs):
+    def make(self, structures, *args, **kwargs):
         pass
 
     @abstractmethod

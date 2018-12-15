@@ -3,7 +3,6 @@
 *OUTCAR*
 *.xml
 *.xyz
-*.xyz.tag
 
 # intermediate file formats
 *.pyc

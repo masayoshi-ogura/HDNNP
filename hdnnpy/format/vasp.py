@@ -15,6 +15,7 @@ from hdnnpy.utils import pprint
 def parse_poscars(file_paths, save=False):
     tag_xyz_map = {}
     tag_poscars_map = {}
+    elements = set()
     for poscar_path in file_paths:
         atoms = ase.io.read(poscar_path, format='vasp')
         tag = atoms.info['tag'] = atoms.get_chemical_formula()
@@ -35,5 +36,6 @@ def parse_poscars(file_paths, save=False):
             tag_xyz_map[tag] = xyz_path
             tag_poscars_map[tag] = [poscar_path]
         ase.io.write(str(xyz_path), atoms, format='xyz', append=True)
+        elements.update(atoms.get_chemical_symbols())
     pprint()
-    return tag_xyz_map, tag_poscars_map
+    return tag_xyz_map, tag_poscars_map, sorted(elements)

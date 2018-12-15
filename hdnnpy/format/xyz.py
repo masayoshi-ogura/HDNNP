@@ -16,9 +16,12 @@ from hdnnpy.utils import (mkdir,
 
 def parse_xyz(file_path, save=True):
     tag_xyz_map = {}
-    tag_file = file_path.with_name(f'{file_path.name}.tag')
-    if tag_file.exists():
-        for tag in tag_file.read_text().split():
+    elements = set()
+    info_file = file_path.with_name(f'{file_path.name}.dat')
+    if info_file.exists():
+        elements, *tags = info_file.read_text().strip().split('\n')
+        elements = set(elements.split())
+        for tag in tags:
             tag_xyz_map[tag] = (Path(file_path.with_name(tag))
                                 / 'Atomic_Structure.xyz')
     else:
@@ -41,7 +44,9 @@ def parse_xyz(file_path, save=True):
                            f'manually.')
                 tag_xyz_map[tag] = xyz_path
             ase.io.write(str(xyz_path), atoms, format='xyz', append=True)
+            elements.update(atoms.get_chemical_symbols())
         if save:
-            tag_file.write_text('\n'.join(sorted(tag_xyz_map)) + '\n')
+            info_file.write_text(' '.join(sorted(elements)) + '\n'
+                                 + '\n'.join(sorted(tag_xyz_map)) + '\n')
     pprint()
-    return tag_xyz_map
+    return tag_xyz_map, sorted(elements)
