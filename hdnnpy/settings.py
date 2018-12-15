@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 
 """This script defines the default settings for this program.
 Some settings must be set, and all settings can be overwritten

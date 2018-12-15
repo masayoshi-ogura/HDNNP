@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 
 __all__ = [
     'DESCRIPTOR_DATASET',

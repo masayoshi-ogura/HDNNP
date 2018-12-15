@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 
 import matplotlib as mpl
 from skopt.callbacks import DeltaYStopper
