@@ -74,7 +74,7 @@ class DescriptorDatasetBase(ABC):
         self._tag = None
 
     @abstractmethod
-    def generate_feature_keys(self, elements):
+    def generate_feature_keys(self, *args, **kwargs):
         pass
 
     @abstractmethod
@@ -83,7 +83,7 @@ class DescriptorDatasetBase(ABC):
             pass
 
     @abstractmethod
-    def make(self, structures, *args, **kwargs):
+    def make(self, *args, **kwargs):
         pass
 
     @abstractmethod

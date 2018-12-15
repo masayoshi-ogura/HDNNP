@@ -23,7 +23,7 @@ def parse_xyz(file_path, save=True):
         elements = set(elements.split())
         for tag in tags:
             tag_xyz_map[tag] = (Path(file_path.with_name(tag))
-                                / 'Atomic_Structure.xyz')
+                                / 'AtomicStructure.xyz')
     else:
         for atoms in ase.io.iread(str(file_path), index=':', format='xyz'):
             tag = atoms.info['tag']
@@ -32,7 +32,7 @@ def parse_xyz(file_path, save=True):
             except KeyError:
                 if save:
                     mkdir(file_path.with_name(tag))
-                    xyz_path = file_path.with_name(tag)/'Atomic_Structure.xyz'
+                    xyz_path = file_path.with_name(tag)/'AtomicStructure.xyz'
                     pprint(f'Sub dataset tagged as "{tag}" is saved to '
                            f'{xyz_path}.')
 

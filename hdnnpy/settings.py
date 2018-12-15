@@ -58,7 +58,10 @@ def import_user_configurations(args):
         print('Loaded user configuration from {}'.format(file_path))
 
     # convert path string to pathlib.Path object
-    stg.file.out_dir = Path(stg.file.out_dir).absolute()
+    if args.mode == 'train' and args.is_resume:
+        stg.file.out_dir = args.resume_dir.parent
+    else:
+        stg.file.out_dir = Path(stg.file.out_dir).absolute()
     stg.dataset.xyz_file = Path(stg.dataset.xyz_file).absolute()
 
     # add args in `stg` namespace

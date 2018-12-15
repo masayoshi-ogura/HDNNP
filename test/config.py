@@ -20,7 +20,7 @@ stg.dataset.Rs = [2.0, 3.2, 3.8]
 stg.dataset.lambda_ = [-1, 1]
 stg.dataset.zeta = [1, 2, 4]
 
-stg.dataset.preproc = 'pca'
+stg.dataset.preprocess = ['pca']
 stg.dataset.nfeature = 20
 # stg.dataset.ratio = 0.9
 stg.dataset.batch_size = 5

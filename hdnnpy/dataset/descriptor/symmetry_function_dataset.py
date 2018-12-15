@@ -39,6 +39,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         super().clear()
         self._func_param_map.clear()
 
+    def dump_params(self):
+        # todo
+        pass
+
     def generate_feature_keys(self, elements):
         feature_keys = []
         for function_name, params_set in self._func_param_map.items():

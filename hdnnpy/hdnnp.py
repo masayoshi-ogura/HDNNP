@@ -43,7 +43,7 @@ from hdnnpy.others import (ChainerSafelyTerminate,
                            dump_skopt_result,
                            dump_training_result,
                            )
-from hdnnpy.preproc import PREPROC
+from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.settings import stg
 from hdnnpy.updater import HDUpdater
 from hdnnpy.utils import (MPI,
@@ -58,18 +58,13 @@ def main():
 
     if stg.args.mode == 'train':
         try:
-            preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature) \
-                    if MPI.rank == 0 else PREPROC[None]()
-            if stg.args.is_resume:
-                preproc.load(stg.args.resume_dir.with_name('preproc.npz'))
             tag_xyz_map, elements = parse_xyz(stg.dataset.xyz_file)
-            datasets = construct_training_datasets(tag_xyz_map, elements, preproc)
-            preproc.save(stg.file.out_dir/'preproc.npz')
+            datasets = construct_training_datasets(tag_xyz_map, elements)
             dataset = DatasetGenerator(*datasets).holdout(stg.dataset.ratio)
             masters, result = train(dataset, elements)
             if MPI.rank == 0:
                 chainer.serializers.save_npz(stg.file.out_dir/'masters.npz', masters)
-                dump_lammps(stg.file.out_dir/'lammps.nnp', preproc, masters)
+                # dump_lammps(stg.file.out_dir/'lammps.nnp', preprocesses[0], masters)
                 dump_training_result(stg.file.out_dir/'result.yaml', result)
         finally:
             shutil.copy('config.py', stg.file.out_dir/'config.py')
@@ -92,9 +87,8 @@ def main():
             shutil.copy('config.py', stg.file.out_dir/'config.py')
 
     elif stg.args.mode == 'sym-func':
-        preproc = PREPROC[None]()
         tag_xyz_map, elements = parse_xyz(stg.dataset.xyz_file)
-        construct_training_datasets(tag_xyz_map, elements, preproc)
+        construct_training_datasets(tag_xyz_map, elements)
 
     elif stg.args.mode == 'predict':
         if stg.args.is_write:
@@ -102,10 +96,8 @@ def main():
         else:
             stream = sys.stdout
 
-        preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature)
-        preproc.load(stg.args.masters.with_name('preproc.npz'))
         tag_xyz_map, tag_poscars_map, elements = parse_poscars(stg.args.poscars)
-        datasets = construct_test_datasets(tag_xyz_map, elements, preproc)
+        datasets = construct_test_datasets(tag_xyz_map, elements)
 
         for xyz_path, poscars, dataset in zip(
                 tag_xyz_map.values(), tag_poscars_map.values(),
@@ -143,10 +135,8 @@ def objective_func(**params):
     with Path(os.devnull).open('w') as devnull:
         stdout = sys.stdout
         sys.stdout = devnull
-        preproc = PREPROC[stg.dataset.preproc](stg.dataset.nfeature) \
-                if MPI.rank == 0 else PREPROC[None]()
         tag_xyz_map, elements = parse_xyz(stg.dataset.xyz_file)
-        datasets = construct_training_datasets(tag_xyz_map, elements, preproc)
+        datasets = construct_training_datasets(tag_xyz_map, elements)
         for dataset in DatasetGenerator(*datasets).kfold(stg.skopt.kfold):
             _, result = train(dataset, elements)
             results.append(result['observation'][-1][stg.model.metrics])
@@ -241,7 +231,7 @@ def predict(dataset, elements):
     return energies.data, forces.data
 
 
-def construct_training_datasets(tag_xyz_map, elements, preproc):
+def construct_training_datasets(tag_xyz_map, elements):
     if 'all' in stg.dataset.tag:
         included_tags = sorted(tag_xyz_map)
     else:
@@ -254,6 +244,18 @@ def construct_training_datasets(tag_xyz_map, elements, preproc):
         'type4': list(product(stg.dataset.Rc, stg.dataset.eta,
                               stg.dataset.lambda_, stg.dataset.zeta)),
         }
+    preprocesses = []
+    preprocess_dir_path = stg.file.out_dir.with_name('preprocess')
+    mkdir(preprocess_dir_path)
+    for preprocess_name in stg.dataset.preprocess:
+        if preprocess_name == 'pca':
+            preprocess = PREPROCESS[preprocess_name](stg.dataset.nfeature)
+        else:
+            preprocess = PREPROCESS[preprocess_name]()
+        if stg.args.mode == 'train' and stg.args.is_resume:
+            preprocess.load(preprocess_dir_path
+                            / f'{preprocess.__class__.__name__}.npz')
+        preprocesses.append(preprocess)
 
     datasets = []
     stg.dataset.nsample = 0
@@ -271,21 +273,24 @@ def construct_training_datasets(tag_xyz_map, elements, preproc):
         structures = [AtomicStructure(atoms) for atoms
                       in ase.io.iread(str(xyz_path), index=':', format='xyz')]
 
-        descriptor_npz_path = xyz_path.with_name('Symmetry_Function.npz')
+        descriptor_npz_path = xyz_path.with_name('SymmetryFunction.npz')
         if descriptor_npz_path.exists():
             dataset.descriptor_dataset.load(descriptor_npz_path, verbose=True)
         else:
             dataset.descriptor_dataset.make(structures, **params, verbose=True)
             dataset.descriptor_dataset.save(descriptor_npz_path, verbose=True)
 
-        property_npz_path = xyz_path.with_name('Interatomic_Potential.npz')
+        property_npz_path = xyz_path.with_name('InteratomicPotential.npz')
         if property_npz_path.exists():
             dataset.property_dataset.load(property_npz_path, verbose=True)
         else:
             dataset.property_dataset.make(structures, verbose=True)
             dataset.property_dataset.save(property_npz_path, verbose=True)
 
-        dataset.construct(elements, preproc, shuffle=True)
+        dataset.construct(elements, preprocesses, shuffle=True)
+        for preprocess in preprocesses:
+            preprocess.save(preprocess_dir_path
+                            / f'{preprocess.__class__.__name__}.npz')
 
         dataset.scatter()
         datasets.append(dataset)
@@ -294,7 +299,7 @@ def construct_training_datasets(tag_xyz_map, elements, preproc):
     return datasets
 
 
-def construct_test_datasets(tag_xyz_map, elements, preproc):
+def construct_test_datasets(tag_xyz_map, elements):
     params = {
         'type1': list(product(stg.dataset.Rc)),
         'type2': list(product(stg.dataset.Rc, stg.dataset.eta,
@@ -302,6 +307,16 @@ def construct_test_datasets(tag_xyz_map, elements, preproc):
         'type4': list(product(stg.dataset.Rc, stg.dataset.eta,
                               stg.dataset.lambda_, stg.dataset.zeta)),
         }
+    preprocesses = []
+    preprocess_dir_path = stg.file.out_dir.with_name('preprocess')
+    for preprocess_name in stg.dataset.preprocess:
+        if preprocess_name == 'pca':
+            preprocess = PREPROCESS[preprocess_name](stg.dataset.nfeature)
+        else:
+            preprocess = PREPROCESS[preprocess_name]()
+        preprocess.load(preprocess_dir_path
+                        / f'{preprocess.__class__.__name__}.npz')
+        preprocesses.append(preprocess)
 
     datasets = []
     for xyz_path in tag_xyz_map.values():
@@ -312,7 +327,7 @@ def construct_test_datasets(tag_xyz_map, elements, preproc):
 
         dataset.descriptor_dataset.make(structures, **params, verbose=False)
 
-        dataset.construct(elements, preproc, shuffle=False)
+        dataset.construct(elements, preprocesses, shuffle=False)
 
         datasets.append(dataset)
 

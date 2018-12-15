@@ -58,7 +58,7 @@ class ChainerSafelyTerminate(object):
                                f'{self.signum.name}')
 
 
-def dump_lammps(file_path, preproc, masters):
+def dump_lammps(file_path, preprocess, masters):
     nelements = len(masters)
     depth = len(masters[0])
     with file_path.open('w') as f:
@@ -70,18 +70,18 @@ def dump_lammps(file_path, preproc, masters):
                 f'{" ".join(map(str, stg.dataset.lambda_))}\n'
                 f'{" ".join(map(str, stg.dataset.zeta))}\n\n')
 
-        if stg.dataset.preproc is None:
+        if stg.dataset.preprocess is None:
             f.write('# preprocess parameters\n0\n\n')
-        elif stg.dataset.preproc == 'pca':
+        elif stg.dataset.preprocess == 'pca':
             f.write('# preprocess parameters\n1\npca\n\n')
             for i in range(nelements):
                 element = masters[i].element
-                components = preproc.components[element]
-                mean = preproc.mean[element]
-                f.write(f'{element} {components.shape[1]} '
-                        f'{components.shape[0]}\n')
-                f.write('# components\n')
-                for row in components.T:
+                transform = preprocess.transform[element]
+                mean = preprocess.mean[element]
+                f.write(f'{element} {transform.shape[1]} '
+                        f'{transform.shape[0]}\n')
+                f.write('# transformation matrix\n')
+                for row in transform.T:
                     f.write(f'{" ".join(map(str, row))}\n')
                 f.write('# mean\n')
                 f.write(f'{" ".join(map(str, mean))}\n\n')
@@ -148,7 +148,7 @@ def assert_settings(stg):
 
     # dataset
     assert all(key in dir(stg.dataset) for key in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta'])
-    assert all(key in dir(stg.dataset) for key in ['xyz_file', 'tag', 'preproc', 'ratio'])
+    assert all(key in dir(stg.dataset) for key in ['xyz_file', 'tag', 'preprocess', 'ratio'])
     assert all(key in dir(stg.dataset) for key in ['nfeature', 'batch_size'])
     assert len(stg.dataset.Rc) > 0
     assert len(stg.dataset.eta) > 0
@@ -157,7 +157,8 @@ def assert_settings(stg):
     assert len(stg.dataset.zeta) > 0
     assert stg.dataset.xyz_file is not None
     assert len(stg.dataset.tag) > 0
-    assert stg.dataset.preproc in [None, 'pca']
+    assert all(preprocess in ['normalization', 'pca', 'standardization']
+               for preprocess in stg.dataset.preprocess)
     assert 0.0 <= stg.dataset.ratio <= 1.0
     assert stg.dataset.nfeature > 0
     assert stg.dataset.batch_size >= MPI.size
@@ -186,7 +187,7 @@ def assert_settings(stg):
         assert stg.skopt.init_num > 0
         assert stg.skopt.max_num > stg.skopt.init_num
         assert len(stg.skopt.space) > 0
-        assert all(space.name in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta', 'preproc', 'nfeature',
+        assert all(space.name in ['Rc', 'eta', 'Rs', 'lambda_', 'zeta', 'preprocess', 'nfeature',
                                   'epoch', 'batch_size', 'init_lr', 'final_lr', 'lr_decay',
                                   'l1_norm', 'l2_norm', 'mixing_beta', 'node', 'activation']
                    for space in stg.skopt.space)

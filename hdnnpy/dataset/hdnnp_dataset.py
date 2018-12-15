@@ -88,7 +88,9 @@ class HDNNPDataset(object):
     def property_dataset(self):
         return self._property_dataset
 
-    def construct(self, all_elements, preproc=None, shuffle=True):
+    def construct(self, all_elements, preprocesses=None, shuffle=True):
+        if preprocesses is None:
+            preprocesses = []
         if MPI.rank == 0:
             # check compatibility and add info to myself
             self._check_dataset_compatibility()
@@ -100,12 +102,11 @@ class HDNNPDataset(object):
                 old_feature_keys = self._descriptor_dataset.feature_keys
                 new_feature_keys = (self._descriptor_dataset
                                     .generate_feature_keys(all_elements))
-                input_dataset = self._expand_features(
-                    old_feature_keys, new_feature_keys, *input_dataset)
-            if preproc:
-                input_dataset = preproc.decompose(
-                    self._elemental_composition,
-                    self._elements, *input_dataset)
+                input_dataset = self._expand_feature_dims(
+                    input_dataset, old_feature_keys, new_feature_keys)
+            for preprocess in preprocesses:
+                input_dataset = preprocess.apply(
+                    input_dataset, self._elemental_composition)
 
             # merge dataset
             if self._property_dataset:
@@ -236,7 +237,7 @@ Property dataset has following values:
             self._total_size = len(self._descriptor_dataset)
 
     @staticmethod
-    def _expand_features(old_feature_keys, new_feature_keys, dataset):
+    def _expand_feature_dims(dataset, old_feature_keys, new_feature_keys):
         n_pad = len(new_feature_keys) - len(old_feature_keys)
         idx_pad = len(old_feature_keys)
         sort_indices = []
