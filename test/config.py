@@ -5,7 +5,6 @@ from skopt.callbacks import DeltaYStopper
 from skopt.space import (Real, Integer, Categorical)
 
 from hdnnpy.settings import defaults as stg
-from hdnnpy.skopt_callbacks import SamePointStopper
 
 mpl.use('Agg')
 mpl.rc('font', size=20)
@@ -39,7 +38,7 @@ stg.model.layer = [
     {'node': 30, 'activation': 'tanh'},
     {'node': 1, 'activation': 'identity'},
 ]
-# stg.model.metrics = 'validation/main/tot_RMSE'
+# stg.model.metrics = 'validation/main/total_RMSE'
 
 stg.skopt.kfold = 2
 stg.skopt.init_num = 5
@@ -51,6 +50,5 @@ stg.skopt.space = [
 ]
 stg.skopt.acq_func = 'LCB'
 stg.skopt.callback = [
-    SamePointStopper(),
     DeltaYStopper(1.0e-3, n_best=3),
 ]

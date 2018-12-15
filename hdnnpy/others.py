@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'ChainerSafelyTerminate',
+    'SamePointStopper',
     'assert_settings',
     'dump_config',
     'dump_lammps',
@@ -11,51 +11,26 @@ __all__ = [
 
 import csv
 from pathlib import Path
-import pickle
-import signal
-
-import chainer
 import yaml
 
+from skopt.callbacks import EarlyStopper
+
 from hdnnpy.settings import stg
-from hdnnpy.utils import (MPI,
-                          flatten_dict,
-                          pprint,
-                          )
+from hdnnpy.utils import MPI
 
 
-class ChainerSafelyTerminate(object):
-    def __init__(self, tag, trainer, result):
-        self.tag = tag
-        self.trainer = trainer
-        self.result = result
-        self.signum = None
+class SamePointStopper(EarlyStopper):
+    def __init__(self):
+        super(EarlyStopper, self).__init__()
 
-    def __enter__(self):
-        self.old_sigint_handler = signal.signal(signal.SIGINT, self._snapshot)
-        self.old_sigterm_handler = signal.signal(signal.SIGTERM, self._snapshot)
-        MPI.comm.Barrier()
+    def _criterion(self, result):
+        if len(result.x_iters) < 2:
+            return None
 
-    def __exit__(self, type, value, traceback):
-        signal.signal(signal.SIGINT, self.old_sigint_handler)
-        signal.signal(signal.SIGTERM, self.old_sigterm_handler)
-        if not self.signum:
-            self.result['training_time'] += self.trainer.elapsed_time
-            self.result['observation'].append({'tag': self.tag, **flatten_dict(self.trainer.observation)})
-
-    def _snapshot(self, signum, frame):
-        self.signum = signal.Signals(signum)
-        if stg.args.mode == 'train' and MPI.rank == 0:
-            pprint(f'Stop {self.tag} training by signal: '
-                   f'{self.signum.name}!\n'
-                   f'Take trainer snapshot at epoch: '
-                   f'{self.trainer.updater.epoch}')
-            chainer.serializers.save_npz(
-                self.trainer.out/'trainer_snapshot.npz', self.trainer)
-            (self.trainer.out/'interim_result.pickle').write_bytes(pickle.dumps(self.result))
-        # must raise any Exception to stop trainer.run()
-        raise InterruptedError(f'Chainer training loop is interrupted by '
-                               f'{self.signum.name}')
+        last_x = result.x_iters[-1]
+        min_delta_x = min([result.space.distance(last_x, xi)
+                           for xi in result.x_iters[:-1]])
+        return abs(min_delta_x) <= 1e-8  # same criterion with UserWarning
 
 
 def dump_lammps(file_path, preprocess, masters):

@@ -36,7 +36,7 @@ class defaults:
         lr_decay = 0.0e-6
         l1_norm = 0.0e-4
         l2_norm = 0.0e-4
-        metrics = 'validation/main/tot_RMSE'
+        metrics = 'validation/main/total_RMSE'
 
     class skopt:
         pass

@@ -21,10 +21,14 @@ import numpy as np
 from skopt import gp_minimize
 from skopt.utils import use_named_args
 
-from hdnnpy.chainer_extensions import (Evaluator,
-                                       scatter_plot,
-                                       set_log_scale,
-                                       )
+from hdnnpy.chainer import (Evaluator,
+                            HighDimensionalNNP,
+                            Manager,
+                            MasterNNP,
+                            Updater,
+                            scatter_plot,
+                            set_log_scale,
+                            )
 from hdnnpy.dataset import (AtomicStructure,
                             DatasetGenerator,
                             HDNNPDataset,
@@ -32,20 +36,13 @@ from hdnnpy.dataset import (AtomicStructure,
 from hdnnpy.format import (parse_poscars,
                            parse_xyz,
                            )
-from hdnnpy.model import (HDNNP,
-                          SingleNNP,
-                          loss_func,
-                          )
-from hdnnpy.others import (ChainerSafelyTerminate,
-                           assert_settings,
+from hdnnpy.others import (assert_settings,
                            dump_config,
-                           dump_lammps,
                            dump_skopt_result,
                            dump_training_result,
                            )
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.settings import stg
-from hdnnpy.updater import HDUpdater
 from hdnnpy.utils import (MPI,
                           mkdir,
                           pprint,
@@ -147,27 +144,28 @@ def objective_func(**params):
 def train(dataset, elements, comm=None):
     if comm is None:
         comm = chainermn.create_communicator('naive', MPI.comm)
+    is_train = stg.args.mode == 'train'
     result = {'training_time': 0.0, 'observation': []}
 
     # model and optimizer
-    masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
+    masters = MasterNNP(elements, stg.model.layer)
     master_opt = chainer.optimizers.Adam(stg.model.init_lr)
     master_opt = chainermn.create_multi_node_optimizer(master_opt, comm)
     master_opt.setup(masters)
     master_opt.add_hook(chainer.optimizer_hooks.Lasso(stg.model.l1_norm))
     master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(stg.model.l2_norm))
 
-    for train, test in dataset:
-        tag = train.tag
+    for training, test in dataset:
+        tag = training.tag
 
         # iterators
-        train_iter = chainer.iterators.SerialIterator(train, stg.dataset.batch_size // MPI.size,
+        train_iter = chainer.iterators.SerialIterator(training, stg.dataset.batch_size // MPI.size,
                                                       repeat=True, shuffle=True)
         test_iter = chainer.iterators.SerialIterator(test, stg.dataset.batch_size // MPI.size,
                                                      repeat=False, shuffle=False)
 
         # model
-        hdnnp = HDNNP(train.elemental_composition, loss_func)
+        hdnnp = HighDimensionalNNP(training.elemental_composition, stg.model.layer, order=1, mixing_beta=stg.model.mixing_beta)
         hdnnp.sync_param_with(masters)
         main_opt = chainer.Optimizer()
         main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
@@ -177,12 +175,12 @@ def train(dataset, elements, comm=None):
         interval = (stg.model.interval, 'epoch')
         stop_trigger = EarlyStoppingTrigger(check_trigger=interval, monitor=stg.model.metrics,
                                             patients=stg.model.patients, mode='min',
-                                            verbose=stg.args.mode == 'train',
+                                            verbose=is_train,
                                             max_trigger=(stg.model.epoch, 'epoch'))
 
         # updater and trainer
-        updater = HDUpdater(train_iter, optimizer={'main': main_opt, 'master': master_opt})
-        out_dir = stg.file.out_dir/tag if stg.args.mode == 'train' else stg.file.out_dir
+        updater = Updater(train_iter, optimizer={'main': main_opt, 'master': master_opt})
+        out_dir = stg.file.out_dir/tag if is_train else stg.file.out_dir
         trainer = chainer.training.Trainer(updater, stop_trigger, out_dir)
 
         # extensions
@@ -190,18 +188,18 @@ def train(dataset, elements, comm=None):
                                             target=stg.model.final_lr, optimizer=master_opt))
         evaluator = Evaluator(iterator=test_iter, target=hdnnp)
         trainer.extend(chainermn.create_multi_node_evaluator(evaluator, comm))
-        if stg.args.mode == 'train' and MPI.rank == 0:
+        if is_train and MPI.rank == 0:
             trainer.extend(ext.LogReport(log_name='training.log'))
-            trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/RMSE', 'main/d_RMSE', 'main/tot_RMSE',
-                                            'validation/main/RMSE', 'validation/main/d_RMSE',
-                                            'validation/main/tot_RMSE']))
-            trainer.extend(scatter_plot(hdnnp, test), trigger=interval)
+            trainer.extend(ext.PrintReport(['epoch', 'iteration', 'main/0th_RMSE', 'main/1st_RMSE', 'main/total_RMSE',
+                                            'validation/main/0th_RMSE', 'validation/main/1st_RMSE',
+                                            'validation/main/total_RMSE']))
+            trainer.extend(scatter_plot(hdnnp, test, order=1), trigger=interval)
             if stg.args.verbose:
-                trainer.extend(ext.PlotReport(['main/tot_RMSE', 'validation/main/tot_RMSE'], 'epoch',
+                trainer.extend(ext.PlotReport(['main/total_RMSE', 'validation/main/total_RMSE'], 'epoch',
                                               file_name='RMSE.png', marker=None, postprocess=set_log_scale))
 
         # load trainer snapshot and resume training
-        if stg.args.mode == 'train' and stg.args.is_resume:
+        if is_train and stg.args.is_resume:
             if tag != stg.args.resume_dir.name:
                 continue
             pprint(f'Resume training loop from dataset tagged "{tag}"')
@@ -216,19 +214,20 @@ def train(dataset, elements, comm=None):
                 interim_result.unlink()
             stg.args.is_resume = False
 
-        with ChainerSafelyTerminate(tag, trainer, result):
+        with Manager(tag, trainer, result, is_train):
             trainer.run()
 
     return masters, result
 
 
 def predict(dataset, elements):
-    masters = chainer.ChainList(*[SingleNNP(element) for element in elements])
+    masters = MasterNNP(elements, stg.model.layer)
     chainer.serializers.load_npz(stg.args.masters, masters)
-    hdnnp = HDNNP(dataset.elemental_composition, loss_func)
+
+    hdnnp = HighDimensionalNNP(dataset.elemental_composition, stg.model.layer, order=1, mixing_beta=stg.model.mixing_beta)
     hdnnp.sync_param_with(masters)
-    energies, forces = hdnnp.predict(*concat_examples(dataset[:]))
-    return energies.data, forces.data
+    predictions = hdnnp.predict(concat_examples(dataset[:]))
+    return [prediction.data for prediction in predictions]
 
 
 def construct_training_datasets(tag_xyz_map, elements):
@@ -245,7 +244,7 @@ def construct_training_datasets(tag_xyz_map, elements):
                               stg.dataset.lambda_, stg.dataset.zeta)),
         }
     preprocesses = []
-    preprocess_dir_path = stg.file.out_dir.with_name('preprocess')
+    preprocess_dir_path = stg.file.out_dir/'preprocess'
     mkdir(preprocess_dir_path)
     for preprocess_name in stg.dataset.preprocess:
         if preprocess_name == 'pca':
@@ -308,7 +307,7 @@ def construct_test_datasets(tag_xyz_map, elements):
                               stg.dataset.lambda_, stg.dataset.zeta)),
         }
     preprocesses = []
-    preprocess_dir_path = stg.file.out_dir.with_name('preprocess')
+    preprocess_dir_path = stg.file.out_dir / 'preprocess'
     for preprocess_name in stg.dataset.preprocess:
         if preprocess_name == 'pca':
             preprocess = PREPROCESS[preprocess_name](stg.dataset.nfeature)

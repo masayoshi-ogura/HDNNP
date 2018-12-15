@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'HDUpdater',
+    'Updater',
     ]
 
 import chainer
 
 
-class HDUpdater(chainer.training.updaters.StandardUpdater):
+class Updater(chainer.training.updaters.StandardUpdater):
     def __init__(self, *args, **kwargs):
-        super(HDUpdater, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def update_core(self):
         master_opt = self.get_optimizer('master')
@@ -18,11 +18,13 @@ class HDUpdater(chainer.training.updaters.StandardUpdater):
         hdnnp = main_opt.target
 
         batch = self.converter(self.get_iterator('main').next(), self.device)
+        half = len(batch) // 2
+        inputs, labels = batch[:half], batch[half:]
 
         masters.cleargrads()
         hdnnp.cleargrads()
 
-        loss = hdnnp(*batch, train=True)
+        loss = hdnnp(inputs, labels, train=True)
         loss.backward()
 
         hdnnp.reduce_grad_to(masters)

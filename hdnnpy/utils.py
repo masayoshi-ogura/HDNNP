@@ -2,7 +2,6 @@
 
 __all__ = [
     'MPI',
-    'flatten_dict',
     'mkdir',
     'pprint',
     'recv_chunk',
@@ -13,24 +12,16 @@ import pickle
 from pprint import pprint as pretty_print
 import sys
 
-from chainer import Variable
-from mpi4py import MPI as mpi
-import numpy as np
+from mpi4py import MPI as MPI4PY
 
 
 INT_MAX = 2147483647
 
 
 class MPI:
-    comm = mpi.COMM_WORLD
-    rank = mpi.COMM_WORLD.Get_rank()
-    size = mpi.COMM_WORLD.Get_size()
-
-
-def flatten_dict(dic):
-    return {k: v.data.item() if isinstance(v, Variable)
-    else v.item() if isinstance(v, np.float64)
-    else v for k, v in dic.items()}
+    comm = MPI4PY.COMM_WORLD
+    rank = MPI4PY.COMM_WORLD.Get_rank()
+    size = MPI4PY.COMM_WORLD.Get_size()
 
 
 def mkdir(path):
