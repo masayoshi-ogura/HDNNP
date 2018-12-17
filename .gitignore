@@ -31,10 +31,6 @@
 *.po[0-9]*
 *.pe[0-9]*
 
-# configuration files
-config.py
-best_config.py
-
 # python environment files
 .venv/
 .python-version
@@ -47,12 +43,6 @@ best_config.py
 hdnnpy.egg-info/
 build/
 dist/
-
-# test files
-!test/test.sh
-!test/config.py
-!test/data/GaN.xyz
-!test/data/POSCAR
 
 # others
 .ipynb_checkpoints/

@@ -23,7 +23,7 @@ class HighDimensionalNNP(chainer.ChainList):
         if self._order == 0:
             xs, = inputs
             xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-            y_pred = self._predict_y(xs)
+            y_pred = sum(self._predict_y(xs))
             return [y_pred]
 
         elif self._order == 1:
@@ -80,9 +80,10 @@ class HighDimensionalNNP(chainer.ChainList):
                 pred0, = predictions
                 true0, = labels
                 loss0 = F.mean_squared_error(pred0, true0)
-                RMSE0 = F.sqrt(loss0) / len(self),
+                RMSE0 = F.sqrt(loss0) / len(self)
                 chainer.report({
-                    '0th_RMSE': RMSE0,
+                    'RMSE0': RMSE0,
+                    'total_RMSE': RMSE0,
                     }, observer=self)
                 return loss0
 
@@ -104,8 +105,8 @@ class HighDimensionalNNP(chainer.ChainList):
                 total_RMSE = ((1.0 - mixing_beta) * RMSE0
                               + mixing_beta * RMSE1)
                 chainer.report({
-                    '0th_RMSE': RMSE0,
-                    '1st_RMSE': RMSE1,
+                    'RMSE0': RMSE0,
+                    'RMSE1': RMSE1,
                     'total_RMSE': total_RMSE,
                     }, observer=self)
 

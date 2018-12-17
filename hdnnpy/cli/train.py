@@ -68,7 +68,6 @@ class TrainingApplication(Application):
         # temporarily set `resume_dir` configurable
         self.__class__.resume_dir.tag(config=True)
         self.parse_command_line(argv)
-        self.__class__.resume_dir.tag(config=False)
 
         if self.resume_dir is not None:
             self.is_resume = True
@@ -92,6 +91,9 @@ class TrainingApplication(Application):
         dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
         try:
             result = self.train(dataset)
+        except InterruptedError as e:
+            pprint(e)
+        else:
             self.dump_result(result)
         finally:
             if not self.is_resume:
@@ -113,7 +115,8 @@ class TrainingApplication(Application):
             preprocess = PREPROCESS[name](*args, **kwargs)
             if self.is_resume:
                 preprocess.load(preprocess_dir_path
-                                / f'{preprocess.__class__.__name__}.npz')
+                                / f'{preprocess.__class__.__name__}.npz',
+                                verbose=self.verbose)
             preprocesses.append(preprocess)
 
         datasets = []
@@ -154,10 +157,12 @@ class TrainingApplication(Application):
                 dataset.property_dataset.save(
                     property_npz_path, verbose=self.verbose)
 
-            dataset.construct(tc.elements, preprocesses, shuffle=True)
+            dataset.construct(tc.elements, preprocesses,
+                              shuffle=True, verbose=self.verbose)
             for preprocess in preprocesses:
                 preprocess.save(preprocess_dir_path
-                                / f'{preprocess.__class__.__name__}.npz')
+                                / f'{preprocess.__class__.__name__}.npz',
+                                verbose=self.verbose)
 
             dataset.scatter()
             datasets.append(dataset)
@@ -200,7 +205,7 @@ class TrainingApplication(Application):
             # triggers
             interval = (tc.interval, 'epoch')
             stop_trigger = EarlyStoppingTrigger(
-                check_trigger=interval, monitor=tc.metrics,
+                check_trigger=interval, monitor='validation/main/total_RMSE',
                 patients=tc.patients, mode='min',
                 verbose=self.verbose, max_trigger=(tc.epoch, 'epoch'))
 
@@ -222,30 +227,22 @@ class TrainingApplication(Application):
             if MPI.rank == 0:
                 trainer.extend(ext.LogReport(log_name='training.log'))
                 trainer.extend(ext.PrintReport(
-                    ['epoch', 'iteration', 'main/0th_RMSE', 'main/1st_RMSE',
-                     'main/total_RMSE', 'validation/main/0th_RMSE',
-                     'validation/main/1st_RMSE', 'validation/main/total_RMSE'],
-                    ))
+                    ['epoch', 'iteration']
+                    + [f'main/RMSE{i}' for i in range(mc.order + 1)]
+                    + ['main/total_RMSE']
+                    + [f'validation/main/RMSE{i}' for i in range(mc.order + 1)]
+                    + ['validation/main/total_RMSE']))
                 trainer.extend(ext.PlotReport(
                     ['main/total_RMSE', 'validation/main/total_RMSE'],
                     x_key='epoch', postprocess=set_log_scale,
                     file_name='RMSE.png', marker=None))
 
-            # load trainer snapshot and resume training
-            if self.is_resume and tag != self.resume_dir.name:
-                pprint(f'Resume training loop from dataset tagged "{tag}"')
-                trainer_snapshot = self.resume_dir/'trainer_snapshot.npz'
-                interim_result = self.resume_dir/'interim_result.pickle'
-                chainer.serializers.load_npz(trainer_snapshot, trainer)
-                result = pickle.loads(interim_result.read_bytes())
-                # remove snapshot
-                MPI.comm.Barrier()
-                if MPI.rank == 0:
-                    trainer_snapshot.unlink()
-                    interim_result.unlink()
-
-            with Manager(tag, trainer, result, is_snapshot=True):
-                trainer.run()
+            manager = Manager(tag, trainer, result, is_snapshot=True)
+            if self.is_resume:
+                manager.check_resume(self.resume_dir.name)
+            if manager.allow_to_run():
+                with manager:
+                    trainer.run()
 
         chainer.serializers.save_npz(
             tc.out_dir / f'{master_nnp.__class__.__name__}.npz', master_nnp)
@@ -272,3 +269,8 @@ class TrainingApplication(Application):
 
 
 main = TrainingApplication.launch_instance
+
+
+def generate_config_file():
+    training_app = TrainingApplication()
+    pathlib.Path('config.py').write_text(training_app.generate_config_file())

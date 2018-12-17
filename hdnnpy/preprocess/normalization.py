@@ -28,7 +28,8 @@ class Normalization(PreprocessBase):
         return self._min
 
     def apply(self, dataset, elemental_composition, verbose=True):
-        assert len(dataset) < 3
+        order = len(dataset) - 1
+        assert 0 <= order <= 1
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -37,10 +38,10 @@ class Normalization(PreprocessBase):
         min_ = np.array(
             [self._min[element] for element in elemental_composition])
 
-        if len(dataset) >= 0:
+        if order >= 0:
             dataset[0] -= min_
             dataset[0] /= max_ - min_
-        if len(dataset) >= 1:
+        if order >= 1:
             dataset[1] /= (max_ - min_)[..., None, None]
 
         return dataset
@@ -71,9 +72,9 @@ class Normalization(PreprocessBase):
 
     def _initialize_params(self, data, elemental_composition, verbose):
         for element in set(elemental_composition) - self._elements:
-            nfeature = data.shape[2]
+            n_feature = data.shape[2]
             mask = np.array(elemental_composition) == element
-            X = data[:, mask].reshape(-1, nfeature)
+            X = data[:, mask].reshape(-1, n_feature)
             self._elements.add(element)
             self._max[element] = X.max(axis=0, dtype=np.float32)
             self._min[element] = X.min(axis=0, dtype=np.float32)

@@ -10,7 +10,7 @@ from hdnnpy.utils import (MPI,
 
 
 class PCA(PreprocessBase):
-    def __init__(self, n_components):
+    def __init__(self, n_components=None):
         super().__init__()
         self._elements = set()
         self._n_components = n_components
@@ -34,7 +34,8 @@ class PCA(PreprocessBase):
         return self._transform
 
     def apply(self, dataset, elemental_composition, verbose=True):
-        assert len(dataset) < 3
+        order = len(dataset) - 1
+        assert 0 <= order <= 1
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -43,9 +44,9 @@ class PCA(PreprocessBase):
         transform = np.array(
             [self._transform[element] for element in elemental_composition])
 
-        if len(dataset) >= 0:
+        if order >= 0:
             dataset[0] = np.einsum('ijk,jkl->ijl', dataset[0]-mean, transform)
-        if len(dataset) >= 1:
+        if order >= 1:
             dataset[1] = np.einsum('ijkmn,jkl->ijlmn', dataset[1], transform)
 
         return dataset
@@ -81,17 +82,19 @@ class PCA(PreprocessBase):
 
     def _initialize_params(self, data, elemental_composition, verbose):
         for element in set(elemental_composition) - self._elements:
-            nfeature = data.shape[2]
+            n_feature = data.shape[2]
             mask = np.array(elemental_composition) == element
-            X = data[:, mask].reshape(-1, nfeature)
+            X = data[:, mask].reshape(-1, n_feature)
             pca = decomposition.PCA(n_components=self._n_components)
             pca.fit(X)
+            if self._n_components is None:
+                self._n_components = n_feature
             self._elements.add(element)
             self._mean[element] = pca.mean_.astype(np.float32)
             self._transform[element] = pca.components_.T.astype(np.float32)
             if verbose:
                 pprint(f'''
 Initialized PCA parameters for {element}
-    Feature dimension: {nfeature} => {self._n_components}
+    Feature dimension: {n_feature} => {self._n_components}
     Cumulative contribution rate = {np.sum(pca.explained_variance_ratio_)}
 ''')

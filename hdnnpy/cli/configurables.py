@@ -60,7 +60,6 @@ class TrainingConfig(Configurable):
     patients = Integer(5, help='').tag(config=True)
     epoch = Integer(help='configuration is required').tag(config=True)
     batch_size = Integer(help='configuration is required').tag(config=True)
-    metrics = Unicode(help='configuration is required').tag(config=True)
 
 
 class PredictionConfig(Configurable):

@@ -5,6 +5,6 @@ __all__ = [
     'MasterNNP',
     ]
 
-from hdnnpy.model.model import (HighDimensionalNNP,
-                                MasterNNP,
-                                )
+from hdnnpy.model.models import (HighDimensionalNNP,
+                                 MasterNNP,
+                                 )

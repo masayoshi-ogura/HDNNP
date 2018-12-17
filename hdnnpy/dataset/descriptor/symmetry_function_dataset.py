@@ -169,7 +169,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                     n_atom, -1, 3).transpose(1, 0, 2)
 
         if self._order == 0:
-            return symmetry_function_type1
+            return symmetry_function_type1,
         elif self._order == 1:
             return symmetry_function_type1, diff_symmetry_function_type1
 
@@ -195,7 +195,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                     n_atom, -1, 3).transpose(1, 0, 2)
 
         if self._order == 0:
-            return symmetry_function_type2
+            return symmetry_function_type2,
         elif self._order == 1:
             return symmetry_function_type2, diff_symmetry_function_type2
 
@@ -257,6 +257,6 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 yield dGdr
 
         if self._order == 0:
-            return symmetry_function_type4
+            return symmetry_function_type4,
         elif self._order == 1:
             return symmetry_function_type4, diff_symmetry_function_type4
