@@ -39,7 +39,7 @@ class Evaluator(evaluator.Evaluator):
         return summary.compute_mean()
 
 
-def scatter_plot(model, dataset, order):
+def scatter_plot(test_dataset, model, order, comm):
     @chainer.training.make_extension()
     def make_image(trainer):
         def artist(pred, true, title, unit):
@@ -56,19 +56,41 @@ def scatter_plot(model, dataset, order):
                      ha='center', transform=plt.gcf().transFigure)
             fig.savefig(trainer.out/f'{title}.png')
 
-        batch = chainer.dataset.concat_examples(dataset)
-        half = len(batch) // 2
-        inputs, labels = batch[:half], batch[half:]
-        predictions = model.predict(inputs)
+        with chainer.using_config('train', False):
+            batch = chainer.dataset.concat_examples(test_dataset)
+            half = len(batch) // 2
+            inputs, labels = batch[:half], batch[half:]
+            predictions = model.predict(inputs)
+
+        each_size = comm.mpi_comm.gather(len(labels[0]), root=0)
 
         if order >= 0:
-            E_pred = predictions[0].data * 1000 / len(model)
-            E_true = labels[0] * 1000 / len(model)
-            artist(E_pred, E_true, 'Energy', 'meV/atom')
+            pred_send = predictions[0].data * 1000 / len(model)
+            true_send = labels[0] * 1000 / len(model)
+            shape = pred_send.shape[1:]
+            if comm.mpi_comm.Get_rank() == 0:
+                pred = np.empty((sum(each_size),) + shape, dtype=np.float32)
+                true = np.empty((sum(each_size),) + shape, dtype=np.float32)
+                comm.mpi_comm.Gatherv(pred_send, pred, root=0)
+                comm.mpi_comm.Gatherv(true_send, true, root=0)
+                artist(pred, true, 'Energy', 'meV/atom')
+            else:
+                comm.mpi_comm.Gatherv(pred_send, None, root=0)
+                comm.mpi_comm.Gatherv(true_send, None, root=0)
+
         if order >= 1:
-            F_pred = predictions[1].data * 1000
-            F_true = labels[1] * 1000
-            artist(F_pred, F_true, 'Force', 'meV/$\AA$')
+            pred_send = predictions[1].data * 1000
+            true_send = labels[1] * 1000
+            shape = pred_send.shape[1:]
+            if comm.mpi_comm.Get_rank() == 0:
+                pred = np.empty((sum(each_size),) + shape, dtype=np.float32)
+                true = np.empty((sum(each_size),) + shape, dtype=np.float32)
+                comm.mpi_comm.Gatherv(pred_send, pred, root=0)
+                comm.mpi_comm.Gatherv(true_send, true, root=0)
+                artist(pred, true, 'Force', 'meV/$\AA$')
+            else:
+                comm.mpi_comm.Gatherv(pred_send, None, root=0)
+                comm.mpi_comm.Gatherv(true_send, None, root=0)
         plt.close('all')
 
     return make_image

@@ -221,8 +221,7 @@ class TrainingApplication(Application):
                 target=tc.final_lr, optimizer=master_opt))
             trainer.extend(chainermn.create_multi_node_evaluator(
                 Evaluator(test_iter, hdnnp), comm))
-            # todo: enable to gather multi node prediction
-            trainer.extend(scatter_plot(hdnnp, test, mc.order),
+            trainer.extend(scatter_plot(test, hdnnp, mc.order, comm),
                            trigger=interval)
             if MPI.rank == 0:
                 trainer.extend(ext.LogReport(log_name='training.log'))
