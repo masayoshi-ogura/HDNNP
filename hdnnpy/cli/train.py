@@ -5,6 +5,7 @@ import pathlib
 import pickle
 import shutil
 import sys
+import yaml
 
 import ase.io
 import chainer
@@ -19,9 +20,10 @@ from hdnnpy.cli.configurables import (
     )
 from hdnnpy.dataset import (AtomicStructure, DatasetGenerator, HDNNPDataset)
 from hdnnpy.format import parse_xyz
-from hdnnpy.chainer import (
-    Evaluator, HighDimensionalNNP, Manager, MasterNNP, Updater,
-    scatter_plot, set_log_scale,
+from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
+from hdnnpy.preprocess import PREPROCESS
+from hdnnpy.training import (
+    Evaluator, Manager, Updater, scatter_plot, set_log_scale,
     )
 from hdnnpy.utils import (MPI, mkdir, pprint)
 
@@ -85,12 +87,12 @@ class TrainingApplication(Application):
     def start(self):
         tc = self.training_config
         mkdir(tc.out_dir)
+        tag_xyz_map, tc.elements = parse_xyz(tc.data_file)
+        datasets = self.construct_datasets(tag_xyz_map)
+        dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
         try:
-            tag_xyz_map, tc.elements = parse_xyz(tc.data_file)
-            datasets = self.construct_datasets(tag_xyz_map)
-            dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
             result = self.train(dataset)
-            self.dump(result)
+            self.dump_result(result)
         finally:
             if not self.is_resume:
                 shutil.copy(self.config_file,
@@ -106,10 +108,13 @@ class TrainingApplication(Application):
 
         preprocess_dir_path = tc.out_dir / 'preprocess'
         mkdir(preprocess_dir_path)
-        for preprocess in dc.preprocesses:
+        preprocesses = []
+        for (name, args, kwargs) in dc.preprocesses:
+            preprocess = PREPROCESS[name](*args, **kwargs)
             if self.is_resume:
                 preprocess.load(preprocess_dir_path
                                 / f'{preprocess.__class__.__name__}.npz')
+            preprocesses.append(preprocess)
 
         datasets = []
         for tag in included_tags:
@@ -149,8 +154,8 @@ class TrainingApplication(Application):
                 dataset.property_dataset.save(
                     property_npz_path, verbose=self.verbose)
 
-            dataset.construct(tc.elements, dc.preprocesses, shuffle=True)
-            for preprocess in dc.preprocesses:
+            dataset.construct(tc.elements, preprocesses, shuffle=True)
+            for preprocess in preprocesses:
                 preprocess.save(preprocess_dir_path
                                 / f'{preprocess.__class__.__name__}.npz')
 
@@ -167,10 +172,10 @@ class TrainingApplication(Application):
         result = {'training_time': 0.0, 'observation': []}
 
         # model and optimizer
-        master = MasterNNP(tc.elements, mc.layers)
+        master_nnp = MasterNNP(tc.elements, mc.layers)
         master_opt = chainer.optimizers.Adam(tc.init_lr)
         master_opt = chainermn.create_multi_node_optimizer(master_opt, comm)
-        master_opt.setup(master)
+        master_opt.setup(master_nnp)
         master_opt.add_hook(chainer.optimizer_hooks.Lasso(tc.l1_norm))
         master_opt.add_hook(chainer.optimizer_hooks.WeightDecay(tc.l2_norm))
 
@@ -187,7 +192,7 @@ class TrainingApplication(Application):
             hdnnp = HighDimensionalNNP(
                 training.elemental_composition, mc.layers, mc.order,
                 **mc.loss_function_params)
-            hdnnp.sync_param_with(master)
+            hdnnp.sync_param_with(master_nnp)
             main_opt = chainer.Optimizer()
             main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
             main_opt.setup(hdnnp)
@@ -243,14 +248,27 @@ class TrainingApplication(Application):
                 trainer.run()
 
         chainer.serializers.save_npz(
-            tc.out_dir / f'{master.__class__.__name__}.npz', master)
+            tc.out_dir / f'{master_nnp.__class__.__name__}.npz', master_nnp)
 
         return result
 
-    def dump(self, result):
-        # todo: implement
+    def dump_result(self, result):
+        def represent_path(dumper, instance):
+            return dumper.represent_scalar('Path', f'{instance}')
+
+        yaml.add_representer(pathlib.PosixPath, represent_path)
+
         if MPI.rank == 0:
-            pass
+            result_file = self.training_config.out_dir / 'training_result.yaml'
+            with result_file.open('w') as f:
+                yaml.dump({
+                    'dataset': self.dataset_config.dump(),
+                    'model': self.model_config.dump(),
+                    'training': self.training_config.dump(),
+                    }, f, default_flow_style=False)
+                yaml.dump({
+                    'result': result,
+                    }, f, default_flow_style=False)
 
 
 main = TrainingApplication.launch_instance

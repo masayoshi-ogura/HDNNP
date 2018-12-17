@@ -3,7 +3,7 @@
 from copy import copy
 
 import chainer
-from chainer import reporter as reporter_module
+from chainer import (DictSummary, report_scope)
 from chainer.training.extensions import evaluator
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,12 +23,12 @@ class Evaluator(evaluator.Evaluator):
         else:
             it = copy(iterator)
 
-        summary = reporter_module.DictSummary()
+        summary = DictSummary()
 
         for batch in it:
             observation = {}
             # backprop_mode is needed for HDNNP
-            with reporter_module.report_scope(observation):
+            with report_scope(observation):
                 in_arrays = self.converter(batch, self.device)
                 half = len(in_arrays) // 2
                 inputs, labels = in_arrays[:half], in_arrays[half:]

@@ -3,11 +3,9 @@
 import pathlib
 
 from traitlets import (
-    Dict, Float, Instance, Integer, List, TraitType, Tuple, Unicode,
+    Dict, Float, Integer, List, TraitType, Tuple, Unicode,
     )
-from traitlets.config import Configurable
-
-from hdnnpy.preprocess.preprocess_base import PreprocessBase
+import traitlets.config
 
 
 class Path(TraitType):
@@ -23,13 +21,21 @@ class Path(TraitType):
             self.error(obj, value)
 
 
+class Configurable(traitlets.config.Configurable):
+    def dump(self):
+        dic = {key: value for key, value in self._trait_values.items()
+               if key not in ['config', 'parent']}
+        return dic
+
+
 class DatasetConfig(Configurable):
     n_sample = Integer(0, help='')
     descriptor = Unicode(help='configuration is required').tag(config=True)
     parameters = Dict(List, help='configuration is required').tag(config=True)
     property_ = Unicode(help='configuration is required').tag(config=True)
     order = Integer(help='configuration is required').tag(config=True)
-    preprocesses = List(Instance(PreprocessBase), help='').tag(config=True)
+    preprocesses = List(Tuple([Unicode(), Tuple(), Dict()]),
+                        help='').tag(config=True)
 
 
 class ModelConfig(Configurable):
