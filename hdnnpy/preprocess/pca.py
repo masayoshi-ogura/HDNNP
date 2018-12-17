@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'PCA',
-    ]
-
 import numpy as np
 from sklearn import decomposition
 

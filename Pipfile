@@ -4,19 +4,19 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-hdnnpy = {editable = true, path = "."}
-numpy = "*"
+ase = "*"
+chainer = "*"
 matplotlib = "*"
+"mpi4py" = "*"
+numpy = "*"
 pyyaml = "*"
 scipy = "*"
 scikit-learn = "*"
 scikit-optimize = "*"
-"mpi4py" = "*"
-ase = "*"
-chainer = "*"
+traitlets = "*"
 
 [dev-packages]
-jupyter = "*"
+hdnnpy = {editable = true, path = "."}
 
 [requires]
 python_version = "3.6.7"

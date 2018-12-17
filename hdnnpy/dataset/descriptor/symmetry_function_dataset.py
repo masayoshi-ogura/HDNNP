@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'SymmetryFunctionDataset',
-    ]
-
 from itertools import (chain,
                        combinations_with_replacement,
                        )

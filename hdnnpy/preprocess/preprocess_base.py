@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'PreprocessBase',
-    ]
-
 from abc import (ABC,
                  abstractmethod,
                  )

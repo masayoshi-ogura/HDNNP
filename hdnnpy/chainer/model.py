@@ -1,11 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'HighDimensionalNNP',
-    'MasterNNP',
-    'SubNNP',
-    ]
-
 import chainer
 import chainer.functions as F
 import chainer.links as L
@@ -95,18 +89,20 @@ class HighDimensionalNNP(chainer.ChainList):
             self._loss_function = zeroth_order
 
         elif order == 1:
+            mixing_beta = kwargs['mixing_beta']
+
             def first_order(predictions, labels):
                 pred0, pred1 = predictions
                 true0, true1 = labels
                 loss0 = F.mean_squared_error(pred0, true0)
                 loss1 = F.mean_squared_error(pred1, true1)
-                total_loss = ((1.0 - kwargs['mixing_beta']) * loss0
-                              + kwargs['mixing_beta'] * loss1)
+                total_loss = ((1.0 - mixing_beta) * loss0
+                              + mixing_beta * loss1)
 
                 RMSE0 = F.sqrt(loss0) / len(self)
                 RMSE1 = F.sqrt(loss1)
-                total_RMSE = ((1.0 - kwargs['mixing_beta']) * RMSE0
-                              + kwargs['mixing_beta'] * RMSE1)
+                total_RMSE = ((1.0 - mixing_beta) * RMSE0
+                              + mixing_beta * RMSE1)
                 chainer.report({
                     '0th_RMSE': RMSE0,
                     '1st_RMSE': RMSE1,
@@ -128,8 +124,8 @@ class SubNNP(chainer.Chain):
         super().__init__()
         self.add_persistent('element', element)
         self._n_layer = len(layers)
-        nodes = [None] + [layer['node'] for layer in layers]
-        activations = [layer['activation'] for layer in layers]
+        nodes = [None] + [layer[0] for layer in layers]
+        activations = [layer[1] for layer in layers]
         with self.init_scope():
             w = chainer.initializers.HeNormal()
             for i, (insize, outsize, activation) in enumerate(zip(

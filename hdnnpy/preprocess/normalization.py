@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'Normalization',
-    ]
-
 import numpy as np
 
 from hdnnpy.preprocess.preprocess_base import PreprocessBase

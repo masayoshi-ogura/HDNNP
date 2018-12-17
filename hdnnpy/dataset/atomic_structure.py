@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'AtomicStructure',
-    ]
-
 import ase.build
 import ase.neighborlist
 import numpy as np

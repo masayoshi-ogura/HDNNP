@@ -2,4 +2,4 @@
 
 __all__ = []
 
-import hdnnpy.settings
+from ._version import __version__

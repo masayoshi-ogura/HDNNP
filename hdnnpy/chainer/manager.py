@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'Manager',
-    ]
-
 from contextlib import AbstractContextManager
 import pickle
 import signal

@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'InteratomicPotentialDataset',
-    ]
-
 import numpy as np
 
 from hdnnpy.dataset.property.property_dataset_base import PropertyDatasetBase

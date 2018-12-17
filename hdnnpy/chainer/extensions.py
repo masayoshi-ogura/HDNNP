@@ -1,11 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'Evaluator',
-    'scatter_plot',
-    'set_log_scale',
-    ]
-
 from copy import copy
 
 import chainer

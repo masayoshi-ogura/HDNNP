@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'parse_xyz',
-    ]
-
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 

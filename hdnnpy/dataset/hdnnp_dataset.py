@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'HDNNPDataset',
-    ]
-
 import numpy as np
 
 from hdnnpy.dataset.descriptor import DESCRIPTOR_DATASET
@@ -18,18 +14,13 @@ RANDOMSTATE = np.random.get_state()
 
 
 class HDNNPDataset(object):
-    def __init__(self, descriptor, property_=None, order=0,
+    def __init__(self, descriptor, property_, order=0,
                  dataset=None, elemental_composition=None, elements=None,
                  total_size=0, tag=None):
-        assert descriptor is not None
         self._descriptor = descriptor
         self._descriptor_dataset = DESCRIPTOR_DATASET[descriptor](order)
-
         self._property = property_
-        if property_ is None:
-            self._property_dataset = None
-        else:
-            self._property_dataset = PROPERTY_DATASET[property_](order)
+        self._property_dataset = PROPERTY_DATASET[property_](order)
 
         if dataset is None:
             dataset = []
@@ -88,7 +79,8 @@ class HDNNPDataset(object):
     def property_dataset(self):
         return self._property_dataset
 
-    def construct(self, all_elements, preprocesses=None, shuffle=True):
+    def construct(
+            self, all_elements, preprocesses=None, shuffle=True, verbose=True):
         if preprocesses is None:
             preprocesses = []
         if MPI.rank == 0:
@@ -106,10 +98,11 @@ class HDNNPDataset(object):
                     input_dataset, old_feature_keys, new_feature_keys)
             for preprocess in preprocesses:
                 input_dataset = preprocess.apply(
-                    input_dataset, self._elemental_composition)
+                    input_dataset, self._elemental_composition,
+                    verbose=verbose)
 
             # merge dataset
-            if self._property_dataset:
+            if self._property_dataset.has_data:
                 label_dataset = [self._property_dataset[key]
                                  for key in self._property_dataset.properties]
                 self._dataset = input_dataset + label_dataset
@@ -122,7 +115,7 @@ class HDNNPDataset(object):
 
             # delete original datasets
             self._descriptor_dataset.clear()
-            if self._property_dataset:
+            if self._property_dataset.has_data:
                 self._property_dataset.clear()
 
     def scatter(self, root=0, max_buf_len=256 * 1024 * 1024):
@@ -178,21 +171,13 @@ Use `this.descriptor_dataset.make() or load()`
   before constructing HDNNP dataset.
 ''')
 
-        if self._property_dataset is None:
+        if not self._property_dataset.has_data:
             self._elemental_composition = (
                 self._descriptor_dataset.elemental_composition[:])
             self._elements = self._descriptor_dataset.elements[:]
             self._tag = self._descriptor_dataset.tag
             self._total_size = len(self._descriptor_dataset)
             return
-
-        elif not self._property_dataset.has_data:
-            raise ValueError('''
-Cannot construct HDNNP dataset,
-  because property dataset does not have any data.
-Use `this.property_dataset.make() or load()`
-  before constructing HDNNP dataset.
-''')
 
         try:
             assert len(self._descriptor_dataset) \

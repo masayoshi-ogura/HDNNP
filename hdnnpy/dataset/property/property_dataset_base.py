@@ -1,9 +1,5 @@
 # coding: utf-8
 
-__all__ = [
-    'PropertyDatasetBase',
-    ]
-
 from abc import (ABC,
                  abstractmethod,
                  )
