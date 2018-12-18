@@ -1,4 +1,4 @@
-# Configuration file for HDNNP training application.
+# Configuration file for hdnnpy train.
 
 #------------------------------------------------------------------------------
 # Application(SingletonConfigurable) configuration
@@ -18,8 +18,6 @@
 #------------------------------------------------------------------------------
 # TrainingApplication(Application) configuration
 #------------------------------------------------------------------------------
-
-## This is an application.
 
 ## 
 #c.TrainingApplication.verbose = False

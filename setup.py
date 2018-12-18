@@ -15,7 +15,7 @@ setup(
     packages=['hdnnpy'],
     scripts=['scripts/merge_xyz', 'scripts/vasp2xyz'],
     entry_points={
-        'console_scripts': ['hdnnpy = hdnnpy.cli.train:main'],
+        'console_scripts': ['hdnnpy = hdnnpy.cli:main'],
     },
     zip_safe=False,
 )

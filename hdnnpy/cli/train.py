@@ -1,9 +1,7 @@
 # coding=utf-8
 
-import os
 import pathlib
 import shutil
-import sys
 import yaml
 
 import ase.io
@@ -28,14 +26,16 @@ from hdnnpy.utils import (MPI, mkdir, pprint)
 
 
 class TrainingApplication(Application):
-    name = Unicode(u'HDNNP training application')
+    name = Unicode(u'hdnnpy train')
+    description = 'Train a HDNNP to optimize given properties.'
 
-    is_resume = Bool(False, help='')
-    resume_dir = Path(None, allow_none=True, help='')
+    is_resume = Bool(False, help='Resume flag used internally.')
+    resume_dir = Path(None, allow_none=True,
+                      help='This option can be set only by command line.')
     verbose = Bool(False, help='').tag(config=True)
     classes = List([DatasetConfig, ModelConfig, TrainingConfig])
 
-    config_file = Path('config.py', help='Load this config file')
+    config_file = Path('training_config.py', help='Load this config file')
 
     aliases = Dict({
         'resume': 'TrainingApplication.resume_dir',
@@ -62,8 +62,6 @@ class TrainingApplication(Application):
         self.training_config = None
 
     def initialize(self, argv=None):
-        if MPI.rank != 0:
-            sys.stdout = pathlib.Path(os.devnull).open('w')
         # temporarily set `resume_dir` configurable
         self.__class__.resume_dir.tag(config=True)
         self.parse_command_line(argv)
@@ -267,9 +265,6 @@ class TrainingApplication(Application):
                     }, f, default_flow_style=False)
 
 
-main = TrainingApplication.launch_instance
-
-
 def generate_config_file():
     training_app = TrainingApplication()
-    pathlib.Path('config.py').write_text(training_app.generate_config_file())
+    training_app.config_file.write_text(training_app.generate_config_file())

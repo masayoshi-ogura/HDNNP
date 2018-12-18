@@ -1,7 +1,10 @@
 # coding=utf-8
 
 __all__ = [
-    'TrainingApplication',
+    'main',
     ]
 
-from hdnnpy.cli.train import TrainingApplication
+from hdnnpy.cli.main import HDNNPApplication
+
+
+main = HDNNPApplication.launch_instance

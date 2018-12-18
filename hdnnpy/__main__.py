@@ -1,6 +1,6 @@
 # coding=utf-8
 
-from hdnnpy.cli.train import main
+from hdnnpy.cli import main
 
 
 if __name__ == '__main__':
