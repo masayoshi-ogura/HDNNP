@@ -14,6 +14,7 @@ class PropertyDatasetBase(ABC):
         self._elemental_composition = []
         self._elements = []
         self._properties = []
+        self._units = []
         self._tag = None
 
     def __getitem__(self, item):
@@ -52,6 +53,10 @@ class PropertyDatasetBase(ABC):
     @property
     def tag(self):
         return self._tag
+
+    @property
+    def units(self):
+        return self._units
 
     def clear(self):
         self._dataset.clear()

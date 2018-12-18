@@ -10,6 +10,8 @@ from hdnnpy.utils import (MPI,
 
 
 class PCA(PreprocessBase):
+    name = 'pca'
+
     def __init__(self, n_components=None):
         super().__init__()
         self._elements = set()

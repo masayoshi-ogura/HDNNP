@@ -17,10 +17,8 @@ class HDNNPDataset(object):
     def __init__(self, descriptor, property_, order=0,
                  dataset=None, elemental_composition=None, elements=None,
                  total_size=0, tag=None):
-        self._descriptor = descriptor
-        self._descriptor_dataset = DESCRIPTOR_DATASET[descriptor](order)
-        self._property = property_
-        self._property_dataset = PROPERTY_DATASET[property_](order)
+        self._descriptor = DESCRIPTOR_DATASET[descriptor](order)
+        self._property = PROPERTY_DATASET[property_](order)
 
         if dataset is None:
             dataset = []
@@ -72,12 +70,12 @@ class HDNNPDataset(object):
         return self._total_size
 
     @property
-    def descriptor_dataset(self):
-        return self._descriptor_dataset
+    def descriptor(self):
+        return self._descriptor
 
     @property
-    def property_dataset(self):
-        return self._property_dataset
+    def property(self):
+        return self._property
 
     def construct(
             self, all_elements, preprocesses=None, shuffle=True, verbose=True):
@@ -88,35 +86,34 @@ class HDNNPDataset(object):
             self._check_dataset_compatibility()
 
             # apply pre-processing & append my dataset
-            input_dataset = [self._descriptor_dataset[key]
-                             for key in self._descriptor_dataset.descriptors]
-            if all_elements != self._descriptor_dataset.elements:
-                old_feature_keys = self._descriptor_dataset.feature_keys
-                new_feature_keys = (self._descriptor_dataset
+            inputs = [self._descriptor[key]
+                      for key in self._descriptor.descriptors]
+            if all_elements != self._descriptor.elements:
+                old_feature_keys = self._descriptor.feature_keys
+                new_feature_keys = (self._descriptor
                                     .generate_feature_keys(all_elements))
-                input_dataset = self._expand_feature_dims(
-                    input_dataset, old_feature_keys, new_feature_keys)
+                inputs = self._expand_feature_dims(
+                    inputs, old_feature_keys, new_feature_keys)
             for preprocess in preprocesses:
-                input_dataset = preprocess.apply(
-                    input_dataset, self._elemental_composition,
-                    verbose=verbose)
+                inputs = preprocess.apply(inputs, self._elemental_composition,
+                                          verbose=verbose)
 
             # merge dataset
-            if self._property_dataset.has_data:
-                label_dataset = [self._property_dataset[key]
-                                 for key in self._property_dataset.properties]
-                self._dataset = input_dataset + label_dataset
+            if self._property.has_data:
+                labels = [self._property[key]
+                                 for key in self._property.properties]
+                self._dataset = inputs + labels
             else:
-                self._dataset = input_dataset
+                self._dataset = inputs
 
             # shuffle dataset
             if shuffle:
                 self._shuffle()
 
             # delete original datasets
-            self._descriptor_dataset.clear()
-            if self._property_dataset.has_data:
-                self._property_dataset.clear()
+            self._descriptor.clear()
+            if self._property.has_data:
+                self._property.clear()
 
     def scatter(self, root=0, max_buf_len=256 * 1024 * 1024):
         assert 0 <= root < MPI.size
@@ -135,16 +132,16 @@ class HDNNPDataset(object):
                 if i == root:
                     dataset = [data[slc] for data in self._dataset]
                     mine = [
-                        self._descriptor, self._property, self._order,
-                        dataset, self._elemental_composition, self._elements,
-                        self._total_size, self._tag]
+                        self._descriptor.name, self._property.name,
+                        self._order, dataset, self._elemental_composition,
+                        self._elements, self._total_size, self._tag]
 
                 else:
                     dataset = [data[slc] for data in self._dataset]
                     send = [
-                        self._descriptor, self._property, self._order,
-                        dataset, self._elemental_composition, self._elements,
-                        self._total_size, self._tag]
+                        self._descriptor.name, self._property.name,
+                        self._order, dataset, self._elemental_composition,
+                        self._elements, self._total_size, self._tag]
                     send_chunk(send, dest=i, max_buf_len=max_buf_len)
             assert mine is not None
             self.__init__(*mine)
@@ -157,42 +154,36 @@ class HDNNPDataset(object):
     def take(self, index):
         dataset = [data[index] for data in self._dataset]
         new_dataset = self.__class__(
-            self._descriptor, self._property, self._order,
+            self._descriptor.name, self._property.name, self._order,
             dataset, self._elemental_composition, self._elements,
             self._total_size, self._tag)
         return new_dataset
 
     def _check_dataset_compatibility(self):
-        if not self._descriptor_dataset.has_data:
+        if not self._descriptor.has_data:
             raise ValueError('''
 Cannot construct HDNNP dataset,
   because descriptor dataset does not have any data.
-Use `this.descriptor_dataset.make() or load()`
+Use `this.descriptor.make() or load()`
   before constructing HDNNP dataset.
 ''')
 
-        if not self._property_dataset.has_data:
+        if not self._property.has_data:
             self._elemental_composition = (
-                self._descriptor_dataset.elemental_composition[:])
-            self._elements = self._descriptor_dataset.elements[:]
-            self._tag = self._descriptor_dataset.tag
-            self._total_size = len(self._descriptor_dataset)
+                self._descriptor.elemental_composition[:])
+            self._elements = self._descriptor.elements[:]
+            self._tag = self._descriptor.tag
+            self._total_size = len(self._descriptor)
             return
 
         try:
-            assert len(self._descriptor_dataset) \
-                   == len(self._property_dataset)
-            assert self._descriptor_dataset.elemental_composition \
-                   == self._property_dataset.elemental_composition
-            assert self._descriptor_dataset.elements \
-                   == self._property_dataset.elements
-            assert self._descriptor_dataset.order \
-                   == self._property_dataset.order
-            assert self._descriptor_dataset.tag \
-                   == self._property_dataset.tag
+            assert len(self._descriptor) == len(self._property)
+            assert self._descriptor.elemental_composition \
+                   == self._property.elemental_composition
+            assert self._descriptor.elements == self._property.elements
+            assert self._descriptor.order == self._property.order
+            assert self._descriptor.tag == self._property.tag
         except AssertionError:
-            d = self._descriptor_dataset
-            p = self._property_dataset
             raise ValueError(f'''
 Cannot construct HDNNP dataset, because the given descriptor dataset
   and property dataset is not compatible.
@@ -201,28 +192,28 @@ Both datasets must be the same for the following attributes.
     `__len__`, `elemental_composition`, `elements`, `order`, `tag`
     
 Descriptor dataset has following values:
-    `__len__` = {len(d)}
-    `elemental_composition` = {d.elemental_composition}
-    `elements` = {d.elements}
-    `order` = {d.order}
-    `tag` = {d.tag}
+    `__len__` = {len(self._descriptor)}
+    `elemental_composition` = {self._descriptor.elemental_composition}
+    `elements` = {self._descriptor.elements}
+    `order` = {self._descriptor.order}
+    `tag` = {self._descriptor.tag}
     
 Property dataset has following values:
-    `__len__` = {len(p)}
-    `elemental_composition` = {p.elemental_composition}
-    `elements` = {p.elements}
-    `order` = {p.order}
-    `tag` = {p.tag}
+    `__len__` = {len(self._property)}
+    `elemental_composition` = {self._property.elemental_composition}
+    `elements` = {self._property.elements}
+    `order` = {self._property.order}
+    `tag` = {self._property.tag}
 ''')
         else:
             self._elemental_composition = (
-                self._descriptor_dataset.elemental_composition[:])
-            self._elements = self._descriptor_dataset.elements[:]
-            self._tag = self._descriptor_dataset.tag
-            self._total_size = len(self._descriptor_dataset)
+                self._descriptor.elemental_composition[:])
+            self._elements = self._descriptor.elements[:]
+            self._tag = self._descriptor.tag
+            self._total_size = len(self._descriptor)
 
     @staticmethod
-    def _expand_feature_dims(dataset, old_feature_keys, new_feature_keys):
+    def _expand_feature_dims(inputs, old_feature_keys, new_feature_keys):
         n_pad = len(new_feature_keys) - len(old_feature_keys)
         idx_pad = len(old_feature_keys)
         sort_indices = []
@@ -234,12 +225,12 @@ Property dataset has following values:
                 idx_pad += 1
         sort_indices = np.array(sort_indices)
 
-        for i, data in enumerate(dataset):
+        for i, data in enumerate(inputs):
             n_pad = [(0, n_pad) if i == 2 else (0, 0)
                      for i in range(data.ndim)]
             np.pad(data, n_pad, 'constant')
-            dataset[i] = data[:, :, sort_indices]
-        return dataset
+            inputs[i] = data[:, :, sort_indices]
+        return inputs
 
     def _shuffle(self):
         for data in self._dataset:

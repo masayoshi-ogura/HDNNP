@@ -2,7 +2,6 @@
 
 import os
 import pathlib
-import pickle
 import shutil
 import sys
 import yaml
@@ -108,21 +107,20 @@ class TrainingApplication(Application):
         else:
             included_tags = tc.tags
 
-        preprocess_dir_path = tc.out_dir / 'preprocess'
-        mkdir(preprocess_dir_path)
+        preprocess_dir = tc.out_dir / 'preprocess'
+        mkdir(preprocess_dir)
         preprocesses = []
         for (name, args, kwargs) in dc.preprocesses:
             preprocess = PREPROCESS[name](*args, **kwargs)
             if self.is_resume:
-                preprocess.load(preprocess_dir_path
-                                / f'{preprocess.__class__.__name__}.npz',
+                preprocess.load(preprocess_dir / f'{name}.npz',
                                 verbose=self.verbose)
             preprocesses.append(preprocess)
 
         datasets = []
         for tag in included_tags:
             try:
-                xyz_path = tag_xyz_map[tag]
+                tagged_xyz = tag_xyz_map[tag]
             except KeyError:
                 pprint(f'Sub dataset tagged as "{tag}" does not exist.')
                 continue
@@ -132,36 +130,28 @@ class TrainingApplication(Application):
                                    property_=dc.property_,
                                    order=dc.order)
             structures = [AtomicStructure(atoms) for atoms
-                          in ase.io.iread(str(xyz_path),
+                          in ase.io.iread(str(tagged_xyz),
                                           index=':', format='xyz')]
 
-            descriptor_npz_path = xyz_path.with_name(
-                f'{dataset.descriptor_dataset.__class__.__name__}.npz')
-            if descriptor_npz_path.exists():
-                dataset.descriptor_dataset.load(
-                    descriptor_npz_path, verbose=self.verbose)
+            descriptor_npz = tagged_xyz.with_name(f'{dc.descriptor}.npz')
+            if descriptor_npz.exists():
+                dataset.descriptor.load(descriptor_npz, verbose=self.verbose)
             else:
-                dataset.descriptor_dataset.make(
-                    structures, **dc.parameters, verbose=self.verbose)
-                dataset.descriptor_dataset.save(
-                    descriptor_npz_path, verbose=self.verbose)
+                dataset.descriptor.make(structures, verbose=self.verbose,
+                                        **dc.parameters)
+                dataset.descriptor.save(descriptor_npz, verbose=self.verbose)
 
-            property_npz_path = xyz_path.with_name(
-                f'{dataset.property_dataset.__class__.__name__}.npz')
-            if property_npz_path.exists():
-                dataset.property_dataset.load(
-                    property_npz_path, verbose=self.verbose)
+            property_npz = tagged_xyz.with_name(f'{dc.property_}.npz')
+            if property_npz.exists():
+                dataset.property.load(property_npz, verbose=self.verbose)
             else:
-                dataset.property_dataset.make(
-                    structures, verbose=self.verbose)
-                dataset.property_dataset.save(
-                    property_npz_path, verbose=self.verbose)
+                dataset.property.make(structures, verbose=self.verbose)
+                dataset.property.save(property_npz, verbose=self.verbose)
 
             dataset.construct(tc.elements, preprocesses,
                               shuffle=True, verbose=self.verbose)
             for preprocess in preprocesses:
-                preprocess.save(preprocess_dir_path
-                                / f'{preprocess.__class__.__name__}.npz',
+                preprocess.save(preprocess_dir / f'{preprocess.name}.npz',
                                 verbose=self.verbose)
 
             dataset.scatter()
@@ -243,8 +233,7 @@ class TrainingApplication(Application):
                 with manager:
                     trainer.run()
 
-        chainer.serializers.save_npz(
-            tc.out_dir / f'{master_nnp.__class__.__name__}.npz', master_nnp)
+        chainer.serializers.save_npz(tc.out_dir / 'master_nnp.npz', master_nnp)
 
         return result
 

@@ -10,11 +10,14 @@ from hdnnpy.utils import (MPI,
 
 class InteratomicPotentialDataset(PropertyDatasetBase):
     PROPERTIES = ['energy', 'force', 'harmonic', 'third_order']
+    UNITS = ['eV', 'eV/$\AA$']
+    name = 'interatomic_potential'
 
     def __init__(self, order=0):
         assert 0 <= order <= 3
         super().__init__(order)
         self._properties = self.PROPERTIES[: order+1]
+        self._units = self.UNITS[: order+1]
 
     def load(self, file_path, verbose=True):
         if MPI.rank == 0:

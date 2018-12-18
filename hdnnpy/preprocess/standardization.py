@@ -9,6 +9,8 @@ from hdnnpy.utils import (MPI,
 
 
 class Standardization(PreprocessBase):
+    name = 'standardization'
+
     def __init__(self):
         super().__init__()
         self._elements = set()

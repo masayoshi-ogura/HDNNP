@@ -8,5 +8,5 @@ from hdnnpy.dataset.descriptor.symmetry_function_dataset import (
     SymmetryFunctionDataset)
 
 DESCRIPTOR_DATASET = {
-    'symmetry_function': SymmetryFunctionDataset,
+    SymmetryFunctionDataset.name: SymmetryFunctionDataset,
     }

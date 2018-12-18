@@ -8,5 +8,5 @@ from hdnnpy.dataset.property.interatomic_potential_dataset import (
     InteratomicPotentialDataset)
 
 PROPERTY_DATASET = {
-    'interatomic_potential': InteratomicPotentialDataset,
+    InteratomicPotentialDataset.name: InteratomicPotentialDataset,
     }

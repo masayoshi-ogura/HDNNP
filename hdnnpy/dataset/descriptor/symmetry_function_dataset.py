@@ -16,6 +16,7 @@ from hdnnpy.utils import (MPI,
 
 class SymmetryFunctionDataset(DescriptorDatasetBase):
     DESCRIPTORS = ['sym_func', 'derivative']
+    name = 'symmetry_function'
 
     def __init__(self, order=0):
         assert 0 <= order <= 1

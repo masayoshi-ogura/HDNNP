@@ -9,7 +9,7 @@ from hdnnpy.preprocess.pca import PCA
 from hdnnpy.preprocess.standardization import Standardization
 
 PREPROCESS = {
-    'normalization': Normalization,
-    'pca': PCA,
-    'standardization': Standardization,
+    Normalization.name: Normalization,
+    PCA.name: PCA,
+    Standardization.name: Standardization,
     }
