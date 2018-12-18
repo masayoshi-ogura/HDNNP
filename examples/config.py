@@ -50,9 +50,6 @@
 ## configuration is required
 #c.ModelConfig.layers = []
 
-## 
-#c.ModelConfig.loss_function_params = {}
-
 ## configuration is required
 #c.ModelConfig.order = 0
 
@@ -84,6 +81,12 @@
 ## 
 #c.TrainingConfig.l2_norm = 0.0
 
+## Set chainer extension `LogReport`
+#c.TrainingConfig.log_report = False
+
+## configuration is required
+#c.TrainingConfig.loss_function = ()
+
 ## 
 #c.TrainingConfig.lr_decay = 1e-06
 
@@ -92,6 +95,15 @@
 
 ## 
 #c.TrainingConfig.patients = 5
+
+## Set chainer extension `PlotReport`
+#c.TrainingConfig.plot_report = False
+
+## Set chainer extension `PrintReport`
+#c.TrainingConfig.print_report = False
+
+## Set chainer extension `ScatterPlot`
+#c.TrainingConfig.scatter_plot = False
 
 ## 
 #c.TrainingConfig.tags = ['all']

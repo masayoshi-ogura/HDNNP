@@ -3,7 +3,7 @@
 import pathlib
 
 from traitlets import (
-    Dict, Float, Integer, List, TraitType, Tuple, Unicode,
+    Bool, Dict, Float, Integer, List, TraitType, Tuple, Unicode,
     )
 import traitlets.config
 
@@ -61,6 +61,19 @@ class TrainingConfig(Configurable):
     patients = Integer(5, help='').tag(config=True)
     epoch = Integer(help='configuration is required').tag(config=True)
     batch_size = Integer(help='configuration is required').tag(config=True)
+    # extensions
+    scatter_plot = Bool(False,
+                        help='Set chainer extension `ScatterPlot`'
+                        ).tag(config=True)
+    log_report = Bool(False,
+                      help='Set chainer extension `LogReport`'
+                      ).tag(config=True)
+    print_report = Bool(False,
+                        help='Set chainer extension `PrintReport`'
+                        ).tag(config=True)
+    plot_report = Bool(False,
+                       help='Set chainer extension `PlotReport`'
+                       ).tag(config=True)
 
 
 class PredictionConfig(Configurable):

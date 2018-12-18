@@ -219,19 +219,23 @@ class TrainingApplication(Application):
             evaluator = chainermn.create_multi_node_evaluator(
                 Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
-            trainer.extend(ScatterPlot(test, hdnnp, mc.order, comm),
-                           trigger=interval)
+            if tc.scatter_plot:
+                trainer.extend(ScatterPlot(test, hdnnp, mc.order, comm),
+                               trigger=interval)
             if MPI.rank == 0:
-                trainer.extend(ext.LogReport(log_name='training.log'))
-                trainer.extend(ext.PrintReport(
-                    ['epoch', 'iteration']
-                    + [f'main/{key}' for key in observation_keys]
-                    + [f'val/main/{key}' for key in observation_keys]))
-                trainer.extend(ext.PlotReport(
-                    [f'main/{observation_keys[-1]}',
-                     f'val/main/{observation_keys[-1]}'],
-                    x_key='epoch', postprocess=set_log_scale,
-                    file_name='RMSE.png', marker=None))
+                if tc.log_report:
+                    trainer.extend(ext.LogReport(log_name='training.log'))
+                if tc.print_report:
+                    trainer.extend(ext.PrintReport(
+                        ['epoch', 'iteration']
+                        + [f'main/{key}' for key in observation_keys]
+                        + [f'val/main/{key}' for key in observation_keys]))
+                if tc.plot_report:
+                    trainer.extend(ext.PlotReport(
+                        [f'main/{observation_keys[-1]}',
+                         f'val/main/{observation_keys[-1]}'],
+                        x_key='epoch', postprocess=set_log_scale,
+                        file_name='RMSE.png', marker=None))
 
             manager = Manager(tag, trainer, result, is_snapshot=True)
             if self.is_resume:
