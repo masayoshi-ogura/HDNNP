@@ -14,7 +14,7 @@ RANDOMSTATE = np.random.get_state()
 
 
 class HDNNPDataset(object):
-    def __init__(self, descriptor, property_, order=0,
+    def __init__(self, descriptor, property_, order,
                  dataset=None, elemental_composition=None, elements=None,
                  total_size=0, tag=None):
         self._descriptor = DESCRIPTOR_DATASET[descriptor](order)

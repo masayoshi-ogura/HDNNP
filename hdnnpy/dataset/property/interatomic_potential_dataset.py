@@ -13,7 +13,7 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     UNITS = ['eV', 'eV/$\AA$']
     name = 'interatomic_potential'
 
-    def __init__(self, order=0):
+    def __init__(self, order):
         assert 0 <= order <= 3
         super().__init__(order)
         self._properties = self.PROPERTIES[: order+1]

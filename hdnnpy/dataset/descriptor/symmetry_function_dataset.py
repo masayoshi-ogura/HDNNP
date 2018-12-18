@@ -18,7 +18,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     DESCRIPTORS = ['sym_func', 'derivative']
     name = 'symmetry_function'
 
-    def __init__(self, order=0):
+    def __init__(self, order):
         assert 0 <= order <= 1
         super().__init__(order)
         self._descriptors = self.DESCRIPTORS[: order+1]

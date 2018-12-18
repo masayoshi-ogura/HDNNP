@@ -96,7 +96,7 @@ class PredictionApplication(Application):
                 continue
 
             pprint(f'Construct sub dataset tagged as "{tag}"')
-            dataset = HDNNPDataset(dc.descriptor, dc.property_, order=pc.order)
+            dataset = HDNNPDataset(dc.descriptor, dc.property_, pc.order)
             structures = [AtomicStructure(atoms) for atoms
                           in ase.io.iread(str(tagged_xyz),
                                           index=':', format='xyz')]
