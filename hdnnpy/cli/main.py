@@ -7,6 +7,7 @@ import sys
 from traitlets import Unicode
 from traitlets.config import Application
 
+from hdnnpy.cli.predict import PredictionApplication
 from hdnnpy.cli.train import TrainingApplication
 from hdnnpy.utils import MPI
 
@@ -14,9 +15,10 @@ from hdnnpy.utils import MPI
 class HDNNPApplication(Application):
     name = Unicode(u'hdnnpy')
 
-    classes = [TrainingApplication]
+    classes = [PredictionApplication, TrainingApplication]
 
     subcommands = {
+        'predict': (PredictionApplication, PredictionApplication.description),
         'train': (TrainingApplication, TrainingApplication.description),
         }
 

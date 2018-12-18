@@ -3,7 +3,8 @@
 import pathlib
 
 from traitlets import (
-    Bool, Dict, Float, Integer, List, TraitType, Tuple, Unicode,
+    Bool, CaselessStrEnum, Dict, Float,
+    Integer, List, TraitType, Tuple, Unicode,
     )
 import traitlets.config
 
@@ -33,7 +34,6 @@ class DatasetConfig(Configurable):
     descriptor = Unicode(help='configuration is required').tag(config=True)
     parameters = Dict(List, help='configuration is required').tag(config=True)
     property_ = Unicode(help='configuration is required').tag(config=True)
-    order = Integer(help='configuration is required').tag(config=True)
     preprocesses = List(Tuple(Unicode(), Tuple(), Dict()),
                         help='').tag(config=True)
 
@@ -41,7 +41,6 @@ class DatasetConfig(Configurable):
 class ModelConfig(Configurable):
     layers = List(Tuple(Integer, Unicode),
                   help='configuration is required').tag(config=True)
-    order = Integer(help='configuration is required').tag(config=True)
 
 
 class TrainingConfig(Configurable):
@@ -49,6 +48,7 @@ class TrainingConfig(Configurable):
     data_file = Path(help='configuration is required').tag(config=True)
     tags = List(Unicode, ('all',), help='').tag(config=True)
     out_dir = Path('output', help='').tag(config=True)
+    order = Integer(help='configuration is required').tag(config=True)
     train_test_ratio = Float(0.9, help='').tag(config=True)
     loss_function = Tuple(Unicode(), Dict(),
                           help='configuration is required').tag(config=True)
@@ -77,4 +77,11 @@ class TrainingConfig(Configurable):
 
 
 class PredictionConfig(Configurable):
+    elements = List(Unicode, help='')
+    data_file = Path(help='configuration is required').tag(config=True)
+    tags = List(Unicode, ('all',), help='').tag(config=True)
     load_dir = Path('output', help='').tag(config=True)
+    order = Integer(help='configuration is required').tag(config=True)
+    dump_format = CaselessStrEnum(['.npz'],
+                                  default_value='.npz',
+                                  help='').tag(config=True)

@@ -13,7 +13,7 @@ Error: args should have 3 but has {len(args)-1}
 
 The format should be
 
-$ vasp2xyz [PREFIX] [OUTCAR] [XYZFILE]
+$ outcar2xyz [PREFIX] [OUTCAR] [XYZFILE]
 """)
     sys.exit(1)
 

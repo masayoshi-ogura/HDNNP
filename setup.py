@@ -13,9 +13,9 @@ setup(
     url='https://github.com/ogura-edu/HDNNP',
     license='MIT',
     packages=['hdnnpy'],
-    scripts=['scripts/merge_xyz', 'scripts/vasp2xyz'],
+    scripts=['scripts/merge_xyz', 'scripts/outcar2xyz', 'scripts/poscars2xyz'],
     entry_points={
         'console_scripts': ['hdnnpy = hdnnpy.cli:main'],
-    },
+        },
     zip_safe=False,
-)
+    )

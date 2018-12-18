@@ -77,9 +77,6 @@ class TrainingApplication(Application):
         if self.is_resume:
             self.training_config.out_dir = self.resume_dir.parent
 
-        # assertion
-        assert self.dataset_config.order == self.model_config.order
-
     def start(self):
         tc = self.training_config
         mkdir(tc.out_dir)
@@ -124,9 +121,7 @@ class TrainingApplication(Application):
                 continue
 
             pprint(f'Construct sub dataset tagged as "{tag}"')
-            dataset = HDNNPDataset(descriptor=dc.descriptor,
-                                   property_=dc.property_,
-                                   order=dc.order)
+            dataset = HDNNPDataset(dc.descriptor, dc.property_, order=tc.order)
             structures = [AtomicStructure(atoms) for atoms
                           in ase.io.iread(str(tagged_xyz),
                                           index=':', format='xyz')]
@@ -184,7 +179,7 @@ class TrainingApplication(Application):
 
             # model
             hdnnp = HighDimensionalNNP(
-                training.elemental_composition, mc.layers, mc.order)
+                training.elemental_composition, mc.layers, tc.order)
             hdnnp.sync_param_with(master_nnp)
             main_opt = chainer.Optimizer()
             main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
@@ -218,7 +213,7 @@ class TrainingApplication(Application):
                 Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
             if tc.scatter_plot:
-                trainer.extend(ScatterPlot(test, hdnnp, mc.order, comm),
+                trainer.extend(ScatterPlot(test, hdnnp, tc.order, comm),
                                trigger=interval)
             if MPI.rank == 0:
                 if tc.log_report:

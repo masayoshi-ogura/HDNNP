@@ -30,9 +30,6 @@
 #c.DatasetConfig.descriptor = ''
 
 ## configuration is required
-#c.DatasetConfig.order = 0
-
-## configuration is required
 #c.DatasetConfig.parameters = {}
 
 ## 
@@ -47,9 +44,6 @@
 
 ## configuration is required
 #c.ModelConfig.layers = []
-
-## configuration is required
-#c.ModelConfig.order = 0
 
 #------------------------------------------------------------------------------
 # TrainingConfig(Configurable) configuration
@@ -87,6 +81,9 @@
 
 ## 
 #c.TrainingConfig.lr_decay = 1e-06
+
+## configuration is required
+#c.TrainingConfig.order = 0
 
 ## 
 #c.TrainingConfig.out_dir = 'output'

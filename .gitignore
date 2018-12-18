@@ -1,52 +1,6 @@
-# input file formats
-*POSCAR*
-*OUTCAR*
-*.xml
-*.xyz
-
-# intermediate file formats
 *.pyc
-*.pickle
-*.npz
-
-# output file formats
-*.log
-*.png
-*.yaml
-*.dot
-*.nnp
-
-# other file formats
-*.sh
-*.gif
-*.pdf
-*.dat
-*.txt
-*.csv
-*.ipynb
-
-# job queue system output files
-*.o[0-9]*
-*.e[0-9]*
-*.po[0-9]*
-*.pe[0-9]*
-
-# python environment files
-.venv/
-.python-version
-!Pipfile
-!Pipfile.lock
-!condaenv.yaml
-!condaenv.*.yaml
 
 # created by `pip install --editable .`
 hdnnpy.egg-info/
 build/
 dist/
-
-# others
-.ipynb_checkpoints/
-
-# Editor config
-.idea/
-.vscode/

@@ -1,0 +1,27 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import sys
+
+import ase.io
+
+args = sys.argv
+
+if len(args) < 4:
+    print(f"""
+Error: args should have 4 or more but has {len(args)-1}
+
+The format should be
+
+$ poscars2xyz [PREFIX] [POSCARs]+ [XYZFILE]
+""")
+    sys.exit(1)
+
+prefix = args[1]
+poscars = args[2:-1]
+xyz = args[-1]
+
+for poscar in poscars:
+    atoms = ase.io.read(poscar, format='vasp')
+    atoms.info['tag'] = prefix + atoms.get_chemical_formula()
+    ase.io.write(xyz, atoms, format='xyz', append=True)
