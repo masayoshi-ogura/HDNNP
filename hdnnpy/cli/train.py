@@ -195,7 +195,7 @@ class TrainingApplication(Application):
             # triggers
             interval = (tc.interval, 'epoch')
             stop_trigger = EarlyStoppingTrigger(
-                check_trigger=interval, monitor='validation/main/total_RMSE',
+                check_trigger=interval, monitor='val/main/total_RMSE',
                 patients=tc.patients, mode='min',
                 verbose=self.verbose, max_trigger=(tc.epoch, 'epoch'))
 
@@ -209,8 +209,9 @@ class TrainingApplication(Application):
             trainer.extend(ext.ExponentialShift(
                 'alpha', 1 - tc.lr_decay,
                 target=tc.final_lr, optimizer=master_opt))
-            trainer.extend(chainermn.create_multi_node_evaluator(
-                Evaluator(test_iter, hdnnp), comm))
+            evaluator = chainermn.create_multi_node_evaluator(
+                Evaluator(test_iter, hdnnp), comm)
+            trainer.extend(evaluator, name='val')
             trainer.extend(scatter_plot(test, hdnnp, mc.order, comm),
                            trigger=interval)
             if MPI.rank == 0:
@@ -219,10 +220,10 @@ class TrainingApplication(Application):
                     ['epoch', 'iteration']
                     + [f'main/RMSE{i}' for i in range(mc.order + 1)]
                     + ['main/total_RMSE']
-                    + [f'validation/main/RMSE{i}' for i in range(mc.order + 1)]
-                    + ['validation/main/total_RMSE']))
+                    + [f'val/main/RMSE{i}' for i in range(mc.order + 1)]
+                    + ['val/main/total_RMSE']))
                 trainer.extend(ext.PlotReport(
-                    ['main/total_RMSE', 'validation/main/total_RMSE'],
+                    ['main/total_RMSE', 'val/main/total_RMSE'],
                     x_key='epoch', postprocess=set_log_scale,
                     file_name='RMSE.png', marker=None))
 
