@@ -15,7 +15,8 @@ class Updater(chainer.training.updaters.StandardUpdater):
 
         batch = self.converter(self.get_iterator('main').next(), self.device)
         half = len(batch) // 2
-        inputs, labels = batch[:half], batch[half:]
+        inputs = batch[:half]
+        labels = batch[half:]
 
         masters.cleargrads()
         hdnnp.cleargrads()

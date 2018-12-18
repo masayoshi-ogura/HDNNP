@@ -22,7 +22,7 @@ from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
-    LOSS_FUNCTION, Evaluator, Manager, Updater, scatter_plot, set_log_scale,
+    LOSS_FUNCTION, Evaluator, Manager, Updater, ScatterPlot, set_log_scale,
     )
 from hdnnpy.utils import (MPI, mkdir, pprint)
 
@@ -219,7 +219,7 @@ class TrainingApplication(Application):
             evaluator = chainermn.create_multi_node_evaluator(
                 Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
-            trainer.extend(scatter_plot(test, hdnnp, mc.order, comm),
+            trainer.extend(ScatterPlot(test, hdnnp, mc.order, comm),
                            trigger=interval)
             if MPI.rank == 0:
                 trainer.extend(ext.LogReport(log_name='training.log'))
