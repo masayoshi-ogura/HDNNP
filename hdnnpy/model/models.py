@@ -7,17 +7,18 @@ from chainer import Variable
 
 
 class HighDimensionalNNP(chainer.ChainList):
-    def __init__(self, elemental_composition, layers, order, **kwargs):
+    def __init__(self, elemental_composition, layers, order):
         assert 0 <= order <= 1
         super().__init__(
             *[SubNNP(element, layers) for element in elemental_composition])
-        self._set_loss_function(order, **kwargs)
         self._order = order
 
-    def __call__(self, inputs, labels, train=False):
-        predictions = self.predict(inputs, train)
-        loss = self._loss_function(predictions, labels)
-        return loss
+    @property
+    def order(self):
+        return self._order
+
+    def __call__(self, *args, **kwargs):
+        return self.predict(*args, **kwargs)
 
     def predict(self, inputs, train=False):
         if self._order == 0:
@@ -73,46 +74,6 @@ class HighDimensionalNNP(chainer.ChainList):
                               axis=1)
                         for dx, dy in zip(dxs, dys)]).reshape(dy_shape)
         return forces
-
-    def _set_loss_function(self, order, **kwargs):
-        if order == 0:
-            def zeroth_order(predictions, labels):
-                pred0, = predictions
-                true0, = labels
-                loss0 = F.mean_squared_error(pred0, true0)
-                RMSE0 = F.sqrt(loss0) / len(self)
-                chainer.report({
-                    'RMSE0': RMSE0,
-                    'total_RMSE': RMSE0,
-                    }, observer=self)
-                return loss0
-
-            self._loss_function = zeroth_order
-
-        elif order == 1:
-            mixing_beta = kwargs['mixing_beta']
-
-            def first_order(predictions, labels):
-                pred0, pred1 = predictions
-                true0, true1 = labels
-                loss0 = F.mean_squared_error(pred0, true0)
-                loss1 = F.mean_squared_error(pred1, true1)
-                total_loss = ((1.0 - mixing_beta) * loss0
-                              + mixing_beta * loss1)
-
-                RMSE0 = F.sqrt(loss0) / len(self)
-                RMSE1 = F.sqrt(loss1)
-                total_RMSE = ((1.0 - mixing_beta) * RMSE0
-                              + mixing_beta * RMSE1)
-                chainer.report({
-                    'RMSE0': RMSE0,
-                    'RMSE1': RMSE1,
-                    'total_RMSE': total_RMSE,
-                    }, observer=self)
-
-                return total_loss
-
-            self._loss_function = first_order
 
 
 class MasterNNP(chainer.ChainList):

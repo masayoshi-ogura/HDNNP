@@ -20,7 +20,7 @@ class Updater(chainer.training.updaters.StandardUpdater):
         masters.cleargrads()
         hdnnp.cleargrads()
 
-        loss = hdnnp(inputs, labels, train=True)
+        loss = self.loss_func(inputs, labels, train=True)
         loss.backward()
 
         hdnnp.reduce_grad_to(masters)

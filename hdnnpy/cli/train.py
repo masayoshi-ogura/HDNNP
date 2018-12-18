@@ -22,7 +22,7 @@ from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
-    Evaluator, Manager, Updater, scatter_plot, set_log_scale,
+    LOSS_FUNCTION, Evaluator, Manager, Updater, scatter_plot, set_log_scale,
     )
 from hdnnpy.utils import (MPI, mkdir, pprint)
 
@@ -176,6 +176,7 @@ class TrainingApplication(Application):
 
         for training, test in dataset:
             tag = training.tag
+            properties = training.property.properties
 
             # iterators
             train_iter = chainer.iterators.SerialIterator(
@@ -185,32 +186,38 @@ class TrainingApplication(Application):
 
             # model
             hdnnp = HighDimensionalNNP(
-                training.elemental_composition, mc.layers, mc.order,
-                **mc.loss_function_params)
+                training.elemental_composition, mc.layers, mc.order)
             hdnnp.sync_param_with(master_nnp)
             main_opt = chainer.Optimizer()
             main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
             main_opt.setup(hdnnp)
 
+            # loss function
+            name, kwargs = tc.loss_function
+            loss_function, observation_keys = (
+                LOSS_FUNCTION[name](hdnnp, properties, **kwargs))
+
             # triggers
             interval = (tc.interval, 'epoch')
             stop_trigger = EarlyStoppingTrigger(
-                check_trigger=interval, monitor='val/main/total_RMSE',
+                check_trigger=interval,
+                monitor=f'val/main/{observation_keys[-1]}',
                 patients=tc.patients, mode='min',
                 verbose=self.verbose, max_trigger=(tc.epoch, 'epoch'))
 
             # updater and trainer
-            updater = Updater(
-                train_iter, optimizer={'main': main_opt, 'master': master_opt})
+            updater = Updater(train_iter,
+                              {'main': main_opt, 'master': master_opt},
+                              loss_func=loss_function)
             out_dir = tc.out_dir / tag
             trainer = chainer.training.Trainer(updater, stop_trigger, out_dir)
 
             # extensions
-            trainer.extend(ext.ExponentialShift(
-                'alpha', 1 - tc.lr_decay,
-                target=tc.final_lr, optimizer=master_opt))
+            trainer.extend(ext.ExponentialShift('alpha', 1 - tc.lr_decay,
+                                                target=tc.final_lr,
+                                                optimizer=master_opt))
             evaluator = chainermn.create_multi_node_evaluator(
-                Evaluator(test_iter, hdnnp), comm)
+                Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
             trainer.extend(scatter_plot(test, hdnnp, mc.order, comm),
                            trigger=interval)
@@ -218,12 +225,11 @@ class TrainingApplication(Application):
                 trainer.extend(ext.LogReport(log_name='training.log'))
                 trainer.extend(ext.PrintReport(
                     ['epoch', 'iteration']
-                    + [f'main/RMSE{i}' for i in range(mc.order + 1)]
-                    + ['main/total_RMSE']
-                    + [f'val/main/RMSE{i}' for i in range(mc.order + 1)]
-                    + ['val/main/total_RMSE']))
+                    + [f'main/{key}' for key in observation_keys]
+                    + [f'val/main/{key}' for key in observation_keys]))
                 trainer.extend(ext.PlotReport(
-                    ['main/total_RMSE', 'val/main/total_RMSE'],
+                    [f'main/{observation_keys[-1]}',
+                     f'val/main/{observation_keys[-1]}'],
                     x_key='epoch', postprocess=set_log_scale,
                     file_name='RMSE.png', marker=None))
 

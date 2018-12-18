@@ -34,7 +34,7 @@ class DatasetConfig(Configurable):
     parameters = Dict(List, help='configuration is required').tag(config=True)
     property_ = Unicode(help='configuration is required').tag(config=True)
     order = Integer(help='configuration is required').tag(config=True)
-    preprocesses = List(Tuple([Unicode(), Tuple(), Dict()]),
+    preprocesses = List(Tuple(Unicode(), Tuple(), Dict()),
                         help='').tag(config=True)
 
 
@@ -42,7 +42,6 @@ class ModelConfig(Configurable):
     layers = List(Tuple(Integer, Unicode),
                   help='configuration is required').tag(config=True)
     order = Integer(help='configuration is required').tag(config=True)
-    loss_function_params = Dict(help='').tag(config=True)
 
 
 class TrainingConfig(Configurable):
@@ -51,6 +50,8 @@ class TrainingConfig(Configurable):
     tags = List(Unicode, ('all',), help='').tag(config=True)
     out_dir = Path('output', help='').tag(config=True)
     train_test_ratio = Float(0.9, help='').tag(config=True)
+    loss_function = Tuple(Unicode(), Dict(),
+                          help='configuration is required').tag(config=True)
     init_lr = Float(1.0e-3, help='').tag(config=True)
     final_lr = Float(1.0e-6, help='').tag(config=True)
     lr_decay = Float(1.0e-6, help='').tag(config=True)

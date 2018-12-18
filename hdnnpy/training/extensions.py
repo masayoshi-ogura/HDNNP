@@ -12,7 +12,7 @@ import numpy as np
 class Evaluator(evaluator.Evaluator):
     def evaluate(self):
         iterator = self._iterators['main']
-        eval_func = self.eval_func or self._targets['main']
+        eval_func = self.eval_func
 
         if self.eval_hook:
             self.eval_hook(self)
