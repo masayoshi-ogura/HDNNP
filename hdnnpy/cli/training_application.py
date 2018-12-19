@@ -274,17 +274,19 @@ class TrainingApplication(Application):
 
         yaml.add_representer(pathlib.PosixPath, represent_path)
 
-        if MPI.rank == 0:
-            result_file = self.training_config.out_dir / 'training_result.yaml'
-            with result_file.open('w') as f:
-                yaml.dump({
-                    'dataset': self.dataset_config.dump(),
-                    'model': self.model_config.dump(),
-                    'training': self.training_config.dump(),
-                    }, f, default_flow_style=False)
-                yaml.dump({
-                    'result': result,
-                    }, f, default_flow_style=False)
+        if MPI.rank != 0:
+            return
+
+        result_file = self.training_config.out_dir / 'training_result.yaml'
+        with result_file.open('w') as f:
+            yaml.dump({
+                'dataset': self.dataset_config.dump(),
+                'model': self.model_config.dump(),
+                'training': self.training_config.dump(),
+                }, f, default_flow_style=False)
+            yaml.dump({
+                'result': result,
+                }, f, default_flow_style=False)
 
 
 def generate_config_file():

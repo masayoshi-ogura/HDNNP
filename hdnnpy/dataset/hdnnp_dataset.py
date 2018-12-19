@@ -101,7 +101,6 @@ class HDNNPDataset(object):
 
     def scatter(self, root=0, max_buf_len=256 * 1024 * 1024):
         assert 0 <= root < MPI.size
-        MPI.comm.Barrier()
 
         if MPI.rank == root:
             mine = None

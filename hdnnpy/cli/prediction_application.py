@@ -17,7 +17,7 @@ from hdnnpy.dataset.property import PROPERTY_DATASET
 from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
-from hdnnpy.utils import pprint
+from hdnnpy.utils import (MPI, pprint)
 
 
 class PredictionApplication(Application):
@@ -159,6 +159,9 @@ class PredictionApplication(Application):
         return results
 
     def dump_result(self, results):
+        if MPI.rank != 0:
+            return
+
         pc = self.prediction_config
         result_file = pc.load_dir / f'prediction_result{pc.dump_format}'
         if pc.dump_format == '.npz':

@@ -29,7 +29,6 @@ class Manager(AbstractContextManager):
             signal.SIGINT, self._snapshot)
         self._old_sigterm_handler = signal.signal(
             signal.SIGTERM, self._snapshot)
-        MPI.comm.Barrier()
 
     def __exit__(self, type_, value, traceback):
         signal.signal(signal.SIGINT, self._old_sigint_handler)
@@ -63,10 +62,11 @@ class Manager(AbstractContextManager):
         self._result['training_time'] += interim_result['training_time']
         self._result['observation'].extend(interim_result['observation'])
         # remove snapshot
-        MPI.comm.Barrier()
-        if MPI.rank == 0:
-            self._trainer_snapshot.unlink()
-            self._interim_result.unlink()
+        if MPI.rank != 0:
+            return
+
+        self._trainer_snapshot.unlink()
+        self._interim_result.unlink()
 
     def _snapshot(self, signum, _):
         self._signum = signal.Signals(signum)

@@ -5,14 +5,20 @@ from tempfile import NamedTemporaryFile
 
 import ase.io
 
-from hdnnpy.utils import (mkdir,
-                          pprint,
-                          )
+from hdnnpy.utils import (MPI, mkdir, pprint)
 
 
 def parse_xyz(file_path, save=True, verbose=True):
     tag_xyz_map = {}
     elements = set()
+
+    # non root process
+    if MPI.rank != 0:
+        tag_xyz_map = MPI.comm.bcast(tag_xyz_map, root=0)
+        elements = MPI.comm.bcast(elements, root=0)
+        return tag_xyz_map, sorted(elements)
+
+    # root process
     info_file = file_path.with_name(f'{file_path.name}.dat')
     if info_file.exists():
         elements, *tags = info_file.read_text().strip().split('\n')
@@ -46,4 +52,7 @@ def parse_xyz(file_path, save=True, verbose=True):
         if save:
             info_file.write_text(' '.join(sorted(elements)) + '\n'
                                  + '\n'.join(sorted(tag_xyz_map)) + '\n')
+
+    tag_xyz_map = MPI.comm.bcast(tag_xyz_map, root=0)
+    elements = MPI.comm.bcast(elements, root=0)
     return tag_xyz_map, sorted(elements)
