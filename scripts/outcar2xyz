@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import sys
+
+import ase.io
+
+args = sys.argv
+
+if len(args) != 4:
+    print(f"""
+Error: args should have 3 but has {len(args)-1}
+
+The format should be
+
+$ outcar2xyz [PREFIX] [OUTCAR] [XYZFILE]
+""")
+    sys.exit(1)
+
+prefix = args[1]
+infile = args[2]
+outfile = args[3]
+
+for atoms in ase.io.iread(infile, index=':', format='vasp-out'):
+    # stress = atoms.get_stress(voigt=False)
+    # atoms.set_param_value('stress', stress)
+    atoms.info['tag'] = prefix + atoms.get_chemical_formula()
+    ase.io.write(outfile, atoms, format='xyz', append=True)

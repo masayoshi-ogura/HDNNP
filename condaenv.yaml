@@ -5,13 +5,15 @@ channels:
   - conda-forge
 dependencies:
   - python==3.6.7
-  - numpy
-  - matplotlib
-  - pyyaml
-  - scikit-learn
-  - scikit-optimize
-  - mpi4py
   - ase
   - chainer
+  - matplotlib
+  - mpi4py
+  - numpy
+  - pyyaml
+  - scipy
+  - scikit-learn
+  - scikit-optimize
+  - traitlets
   - pip:
     - chainermn==1.3.1
