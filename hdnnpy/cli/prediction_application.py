@@ -2,7 +2,6 @@
 
 import shutil
 
-import ase.io
 import chainer
 import numpy as np
 from traitlets import (Bool, Dict, List, Unicode)
@@ -11,7 +10,7 @@ from traitlets.config import Application
 from hdnnpy.cli.configurables import (
     DatasetConfig, ModelConfig, Path, PredictionConfig,
     )
-from hdnnpy.cli.train import TrainingApplication
+from hdnnpy.cli.training_application import TrainingApplication
 from hdnnpy.dataset import (AtomicStructure, DatasetGenerator, HDNNPDataset)
 from hdnnpy.dataset.descriptor import DESCRIPTOR_DATASET
 from hdnnpy.dataset.property import PROPERTY_DATASET

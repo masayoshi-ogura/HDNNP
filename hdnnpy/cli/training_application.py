@@ -4,7 +4,6 @@ import pathlib
 import shutil
 import yaml
 
-import ase.io
 import chainer
 import chainer.training.extensions as ext
 from chainer.training.triggers import EarlyStoppingTrigger
