@@ -114,9 +114,7 @@ class PredictionApplication(Application):
                 if self.verbose:
                     pprint(f'Construct sub dataset tagged as "{tag}"')
 
-            structures = [
-                AtomicStructure(atoms) for atoms
-                in ase.io.iread(str(tagged_xyz), index=':', format='xyz')]
+            structures = AtomicStructure.read_xyz(tagged_xyz)
 
             # prepare descriptor dataset
             descriptor = DESCRIPTOR_DATASET[dc.descriptor](

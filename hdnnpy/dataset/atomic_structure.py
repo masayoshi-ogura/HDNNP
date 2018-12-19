@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import ase.build
+import ase.io
 import ase.neighborlist
 import numpy as np
 
@@ -48,6 +49,11 @@ class AtomicStructure(object):
                     self._calculate_diff_cosine(cutoff_distance)
             ret.append(self._cache[cutoff_distance][key])
         return zip(*ret)
+
+    @classmethod
+    def read_xyz(cls, file_path):
+        return [cls(atoms) for atoms
+                in ase.io.iread(str(file_path), index=':', format='xyz')]
 
     def _calculate_cosine(self, cutoff_distance):
         cosine = []
