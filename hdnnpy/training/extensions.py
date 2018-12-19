@@ -58,21 +58,12 @@ class ScatterPlot(Extension):
         with chainer.using_config('train', False):
             predictions = self._model.predict(self._inputs, train=False)
 
-        if self._order >= 0:
-            pred_send = predictions[0].data * 1000 / len(self._model)
+        for i in range(self._order + 1):
+            pred_send = predictions[i].data
             if self._comm.Get_rank() == 0:
-                self._comm.Gatherv(pred_send, self._predictions[0], root=0)
-                self._plot(trainer, self._predictions[0], self._labels[0],
-                           self._properties[0], self._units[0])
-            else:
-                self._comm.Gatherv(pred_send, None, root=0)
-
-        if self._order >= 1:
-            pred_send = predictions[1].data * 1000
-            if self._comm.Get_rank() == 0:
-                self._comm.Gatherv(pred_send, self._predictions[1], root=0)
-                self._plot(trainer, self._predictions[1], self._labels[1],
-                           self._properties[1], self._units[1])
+                self._comm.Gatherv(pred_send, self._predictions[i], root=0)
+                self._plot(trainer, self._predictions[i], self._labels[i],
+                           self._properties[i], self._units[i])
             else:
                 self._comm.Gatherv(pred_send, None, root=0)
 
@@ -85,30 +76,20 @@ class ScatterPlot(Extension):
         half = len(batch) // 2
         self._inputs = batch[:half]
         labels = batch[half:]
-        size = sum(self._comm.gather(len(labels[0]), root=0))
+        self._count = np.array(self._comm.gather(len(labels[0]), root=0))
 
-        if self._order >= 0:
-            label_send = labels[0] * 1000 / len(self._model)
+        for i in range(self._order + 1):
+            label_send = labels[i]
             if self._comm.Get_rank() == 0:
-                prediction = np.empty((size,) + label_send.shape[1:],
+                total_size = sum(self._count)
+                prediction = np.empty((total_size,) + label_send[0].shape,
                                       dtype=np.float32)
-                label = np.empty((size,) + label_send.shape[1:],
-                                 dtype=np.float32)
-                self._comm.Gatherv(label_send, label, root=0)
                 self._predictions.append(prediction)
-                self._labels.append(label)
-            else:
-                self._comm.Gatherv(label_send, None, root=0)
 
-        if self._order >= 1:
-            label_send = labels[1] * 1000
-            if self._comm.Get_rank() == 0:
-                prediction = np.empty((size,) + label_send.shape[1:],
-                                      dtype=np.float32)
-                label = np.empty((size,) + label_send.shape[1:],
+                label = np.empty((total_size,) + label_send[0].shape,
                                  dtype=np.float32)
-                self._comm.Gatherv(label_send, label, root=0)
-                self._predictions.append(prediction)
+                label_recv = (label, self._count * label_send[0].size)
+                self._comm.Gatherv(label_send, label_recv, root=0)
                 self._labels.append(label)
             else:
                 self._comm.Gatherv(label_send, None, root=0)

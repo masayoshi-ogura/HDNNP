@@ -3,50 +3,29 @@
 import numpy as np
 
 from hdnnpy.dataset.property.property_dataset_base import PropertyDatasetBase
-from hdnnpy.utils import (MPI,
-                          pprint,
-                          )
+from hdnnpy.utils import (MPI, pprint)
 
 
 class InteratomicPotentialDataset(PropertyDatasetBase):
     PROPERTIES = ['energy', 'force', 'harmonic', 'third_order']
-    UNITS = ['eV', 'eV/$\AA$']
+    UNITS = ['eV/atom', 'eV/$\AA$']
     name = 'interatomic_potential'
 
-    def __init__(self, order):
+    def __init__(self, order, structures):
         assert 0 <= order <= 3
-        super().__init__(order)
-        self._properties = self.PROPERTIES[: order+1]
-        self._units = self.UNITS[: order+1]
+        super().__init__(order, structures)
 
-    def load(self, file_path, verbose=True):
-        if MPI.rank == 0:
-            ndarray = np.load(file_path)
-            for i in range(self._order + 1):
-                self._dataset.append(ndarray[self._properties[i]])
-            self._elemental_composition = list(
-                ndarray['elemental_composition'])
-            self._elements = list(ndarray['elements'])
-            self._tag = ndarray['tag'].item()
-            if verbose:
-                pprint(
-                    f'Loaded interatomic potential dataset from {file_path}.')
-
-    def make(self, structures, verbose=True):
-        self._elemental_composition = structures[0].get_chemical_symbols()
-        self._elements = sorted(set(self._elemental_composition))
-        self._tag = structures[0].info['tag']
-        n_sample = len(structures)
-        n_atom = len(structures[0])
-
+    def make(self, verbose=True):
+        n_sample = len(self._structures)
+        n_atom = len(self._structures[0])
         count = np.array([(n_sample + i) // MPI.size
-                          for i in range(MPI.size)[::-1]], dtype=np.int32)
+                          for i in range(MPI.size)[::-1]],
+                         dtype=np.int32)
         s = count[: MPI.rank].sum()
         e = count[: MPI.rank+1].sum()
-        structures = structures[s:e]
+        structures = self._structures[s:e]
 
         for i, send_data in enumerate(self._calculate_properties(structures)):
-            recv_data = None
             if MPI.rank == 0:
                 shape = (n_sample, 1, *(n_atom, 3) * i)
                 data = np.empty(shape, dtype=np.float32)
@@ -54,26 +33,10 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
                 MPI.comm.Gatherv(send_data, recv_data, root=0)
                 self._dataset.append(data)
             else:
-                MPI.comm.Gatherv(send_data, recv_data, root=0)
+                MPI.comm.Gatherv(send_data, None, root=0)
 
         if verbose:
-            pprint('Calculated interatomic potential dataset.')
-
-    def save(self, file_path, verbose=True):
-        if MPI.rank == 0:
-            if not self.has_data:
-                raise RuntimeError('This dataset does not have any data.')
-
-            data = {property_: data for property_, data
-                    in zip(self._properties, self._dataset)}
-            info = {
-                'elemental_composition': self._elemental_composition,
-                'elements': self._elements,
-                'tag': self._tag,
-                }
-            np.savez(file_path, **data, **info)
-            if verbose:
-                pprint(f'Saved interatomic potential dataset to {file_path}.')
+            pprint(f'Calculated {self.name} dataset.')
 
     def _calculate_properties(self, structures):
         if self._order >= 0:
@@ -87,7 +50,7 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
 
     @staticmethod
     def _calculate_energy(structures):
-        return np.array([structure.get_potential_energy()
+        return np.array([structure.get_potential_energy() / len(structure)
                          for structure in structures],
                         dtype=np.float32)
 

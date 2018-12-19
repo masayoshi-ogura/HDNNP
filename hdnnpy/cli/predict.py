@@ -13,6 +13,8 @@ from hdnnpy.cli.configurables import (
     )
 from hdnnpy.cli.train import TrainingApplication
 from hdnnpy.dataset import (AtomicStructure, DatasetGenerator, HDNNPDataset)
+from hdnnpy.dataset.descriptor import DESCRIPTOR_DATASET
+from hdnnpy.dataset.property import PROPERTY_DATASET
 from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
@@ -24,10 +26,16 @@ class PredictionApplication(Application):
     description = ('Predict properties for atomic structures using trained'
                    ' HDNNP.')
 
-    verbose = Bool(False, help='').tag(config=True)
+    verbose = Bool(
+        False,
+        help='Set verbose mode'
+        ).tag(config=True)
+
     classes = List([PredictionConfig])
 
-    config_file = Path('prediction_config.py', help='Load this config file')
+    config_file = Path(
+        'prediction_config.py',
+        help='Load this config file')
 
     aliases = Dict({
         'log_level': 'Application.log_level',
@@ -38,7 +46,12 @@ class PredictionApplication(Application):
             'PredictionApplication': {
                 'verbose': True,
                 },
-            }, 'set verbose mode'),
+            }, 'Set verbose mode'),
+        'v': ({
+            'PredictionApplication': {
+                'verbose': True,
+                },
+            }, 'Set verbose mode'),
         'debug': ({
             'Application': {
                 'log_level': 10,
@@ -65,7 +78,8 @@ class PredictionApplication(Application):
 
     def start(self):
         pc = self.prediction_config
-        tag_xyz_map, pc.elements = parse_xyz(pc.data_file)
+        tag_xyz_map, pc.elements = parse_xyz(
+            pc.data_file, save=False, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
         datasets = DatasetGenerator(*datasets).all()
         results = self.predict(datasets)
@@ -83,8 +97,9 @@ class PredictionApplication(Application):
         preprocesses = []
         for (name, args, kwargs) in dc.preprocesses:
             preprocess = PREPROCESS[name](*args, **kwargs)
-            preprocess.load(pc.load_dir / 'preprocess' / f'{name}.npz',
-                            verbose=self.verbose)
+            preprocess.load(
+                pc.load_dir / 'preprocess' / f'{name}.npz',
+                verbose=self.verbose)
             preprocesses.append(preprocess)
 
         datasets = []
@@ -92,23 +107,32 @@ class PredictionApplication(Application):
             try:
                 tagged_xyz = tag_xyz_map[tag]
             except KeyError:
-                pprint(f'Sub dataset tagged as "{tag}" does not exist.')
+                if self.verbose:
+                    pprint(f'Sub dataset tagged as "{tag}" does not exist.')
                 continue
+            else:
+                if self.verbose:
+                    pprint(f'Construct sub dataset tagged as "{tag}"')
 
-            pprint(f'Construct sub dataset tagged as "{tag}"')
-            dataset = HDNNPDataset(dc.descriptor, dc.property_, pc.order)
-            structures = [AtomicStructure(atoms) for atoms
-                          in ase.io.iread(str(tagged_xyz),
-                                          index=':', format='xyz')]
+            structures = [
+                AtomicStructure(atoms) for atoms
+                in ase.io.iread(str(tagged_xyz), index=':', format='xyz')]
 
-            dataset.descriptor.make(structures, verbose=self.verbose,
-                                    **dc.parameters)
+            # prepare descriptor dataset
+            descriptor = DESCRIPTOR_DATASET[dc.descriptor](
+                pc.order, structures, **dc.parameters)
+            descriptor.make(verbose=self.verbose)
 
-            dataset.construct(pc.elements, preprocesses,
-                              shuffle=False, verbose=self.verbose)
+            # prepare empty property dataset
+            property_ = PROPERTY_DATASET[dc.property_](pc.order, structures)
 
+            # construct test dataset from descriptor & property datasets
+            dataset = HDNNPDataset(descriptor, property_)
+            dataset.construct(
+                pc.elements, preprocesses, shuffle=False, verbose=self.verbose)
             datasets.append(dataset)
             dc.n_sample += dataset.total_size
+
         return datasets
 
     def predict(self, datasets):

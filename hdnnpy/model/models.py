@@ -24,7 +24,7 @@ class HighDimensionalNNP(chainer.ChainList):
         if self._order == 0:
             xs, = inputs
             xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-            y_pred = sum(self._predict_y(xs))
+            y_pred = sum(self._predict_y(xs)) / len(self)
             return [y_pred]
 
         elif self._order == 1:
@@ -33,7 +33,7 @@ class HighDimensionalNNP(chainer.ChainList):
             dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3, 4)]
             y_pred = self._predict_y(xs)
             dy_pred = self._predict_dy(dxs, y_pred, xs, train)
-            y_pred = sum(y_pred)
+            y_pred = sum(y_pred) / len(self)
             return [y_pred, dy_pred]
 
     def get_by_element(self, element):

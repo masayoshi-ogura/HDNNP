@@ -16,6 +16,8 @@ from hdnnpy.cli.configurables import (
     DatasetConfig, ModelConfig, Path, TrainingConfig,
     )
 from hdnnpy.dataset import (AtomicStructure, DatasetGenerator, HDNNPDataset)
+from hdnnpy.dataset.descriptor import DESCRIPTOR_DATASET
+from hdnnpy.dataset.property import PROPERTY_DATASET
 from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
@@ -29,13 +31,23 @@ class TrainingApplication(Application):
     name = Unicode(u'hdnnpy train')
     description = 'Train a HDNNP to optimize given properties.'
 
-    is_resume = Bool(False, help='Resume flag used internally.')
-    resume_dir = Path(None, allow_none=True,
-                      help='This option can be set only by command line.')
-    verbose = Bool(False, help='').tag(config=True)
+    is_resume = Bool(
+        False,
+        help='Resume flag used internally.')
+    resume_dir = Path(
+        None,
+        allow_none=True,
+        help='This option can be set only by command line.')
+    verbose = Bool(
+        False,
+        help='Set verbose mode'
+        ).tag(config=True)
+
     classes = List([DatasetConfig, ModelConfig, TrainingConfig])
 
-    config_file = Path('training_config.py', help='Load this config file')
+    config_file = Path(
+        'training_config.py',
+        help='Load this config file')
 
     aliases = Dict({
         'resume': 'TrainingApplication.resume_dir',
@@ -47,7 +59,12 @@ class TrainingApplication(Application):
             'TrainingApplication': {
                 'verbose': True,
                 },
-            }, 'set verbose mode'),
+            }, 'Set verbose mode'),
+        'v': ({
+            'TrainingApplication': {
+                'verbose': True,
+                },
+            }, 'Set verbose mode'),
         'debug': ({
             'Application': {
                 'log_level': 10,
@@ -80,7 +97,8 @@ class TrainingApplication(Application):
     def start(self):
         tc = self.training_config
         mkdir(tc.out_dir)
-        tag_xyz_map, tc.elements = parse_xyz(tc.data_file)
+        tag_xyz_map, tc.elements = parse_xyz(
+            tc.data_file, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
         dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
         try:
@@ -108,8 +126,8 @@ class TrainingApplication(Application):
         for (name, args, kwargs) in dc.preprocesses:
             preprocess = PREPROCESS[name](*args, **kwargs)
             if self.is_resume:
-                preprocess.load(preprocess_dir / f'{name}.npz',
-                                verbose=self.verbose)
+                preprocess.load(
+                    preprocess_dir / f'{name}.npz', verbose=self.verbose)
             preprocesses.append(preprocess)
 
         datasets = []
@@ -117,39 +135,51 @@ class TrainingApplication(Application):
             try:
                 tagged_xyz = tag_xyz_map[tag]
             except KeyError:
-                pprint(f'Sub dataset tagged as "{tag}" does not exist.')
+                if self.verbose:
+                    pprint(f'Sub dataset tagged as "{tag}" does not exist.')
                 continue
+            else:
+                if self.verbose:
+                    pprint(f'Construct sub dataset tagged as "{tag}"')
 
-            pprint(f'Construct sub dataset tagged as "{tag}"')
-            dataset = HDNNPDataset(dc.descriptor, dc.property_, tc.order)
-            structures = [AtomicStructure(atoms) for atoms
-                          in ase.io.iread(str(tagged_xyz),
-                                          index=':', format='xyz')]
+            structures = [
+                AtomicStructure(atoms) for atoms
+                in ase.io.iread(str(tagged_xyz), index=':', format='xyz')]
 
+            # prepare descriptor dataset
+            descriptor = DESCRIPTOR_DATASET[dc.descriptor](
+                tc.order, structures, **dc.parameters)
             descriptor_npz = tagged_xyz.with_name(f'{dc.descriptor}.npz')
             if descriptor_npz.exists():
-                dataset.descriptor.load(descriptor_npz, verbose=self.verbose)
+                descriptor.load(
+                    descriptor_npz, verbose=self.verbose, remake=dc.remake)
             else:
-                dataset.descriptor.make(structures, verbose=self.verbose,
-                                        **dc.parameters)
-                dataset.descriptor.save(descriptor_npz, verbose=self.verbose)
+                descriptor.make(verbose=self.verbose)
+                descriptor.save(descriptor_npz, verbose=self.verbose)
 
+            # prepare property dataset
+            property_ = PROPERTY_DATASET[dc.property_](tc.order, structures)
             property_npz = tagged_xyz.with_name(f'{dc.property_}.npz')
             if property_npz.exists():
-                dataset.property.load(property_npz, verbose=self.verbose)
+                property_.load(
+                    property_npz, verbose=self.verbose, remake=dc.remake)
             else:
-                dataset.property.make(structures, verbose=self.verbose)
-                dataset.property.save(property_npz, verbose=self.verbose)
+                property_.make(verbose=self.verbose)
+                property_.save(property_npz, verbose=self.verbose)
 
-            dataset.construct(tc.elements, preprocesses,
-                              shuffle=True, verbose=self.verbose)
-            for preprocess in preprocesses:
-                preprocess.save(preprocess_dir / f'{preprocess.name}.npz',
-                                verbose=self.verbose)
-
+            # construct training dataset from descriptor & property datasets
+            dataset = HDNNPDataset(descriptor, property_)
+            dataset.construct(
+                tc.elements, preprocesses, shuffle=True, verbose=self.verbose)
             dataset.scatter()
             datasets.append(dataset)
             dc.n_sample += dataset.total_size
+
+        for preprocess in preprocesses:
+            preprocess.save(
+                preprocess_dir / f'{preprocess.name}.npz',
+                verbose=self.verbose)
+
         return datasets
 
     def train(self, dataset, comm=None):

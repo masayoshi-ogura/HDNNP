@@ -21,7 +21,7 @@ def zeroth_only(model, properties, **kwargs):
         pred0, *_ = predictions
         true0, *_ = labels
         loss0 = F.mean_squared_error(pred0, true0)
-        RMSE0 = F.sqrt(loss0) / len(model)
+        RMSE0 = F.sqrt(loss0)
 
         observation = {
             observation_keys[0]: RMSE0,
@@ -72,7 +72,7 @@ def mix(model, properties, **kwargs):
         total_loss = ((1.0 - mixing_beta) * loss0
                       + mixing_beta * loss1)
 
-        RMSE0 = F.sqrt(loss0) / len(model)
+        RMSE0 = F.sqrt(loss0)
         RMSE1 = F.sqrt(loss1)
         total_RMSE = ((1.0 - mixing_beta) * RMSE0
                       + mixing_beta * RMSE1)

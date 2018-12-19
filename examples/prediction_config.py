@@ -19,24 +19,28 @@
 # PredictionApplication(Application) configuration
 #------------------------------------------------------------------------------
 
-## 
+## Set verbose mode
 #c.PredictionApplication.verbose = False
 
 #------------------------------------------------------------------------------
 # PredictionConfig(Configurable) configuration
 #------------------------------------------------------------------------------
 
-## configuration is required
+## Path to a data file used for HDNNP prediction. Only .xyz file format is
+#  supported.
 #c.PredictionConfig.data_file = '.'
 
-## 
+## File format to output HDNNP predition result
 #c.PredictionConfig.dump_format = '.npz'
 
-## 
+## Path to directory to load training output files
 #c.PredictionConfig.load_dir = 'output'
 
-## configuration is required
+## Order of differentiation used for calculation of descriptor & property
+#  datasets and HDNNP prediction. ex.) 0: energy, 1: force, for interatomic
+#  potential
 #c.PredictionConfig.order = 0
 
-## 
+## List of data tags used for HDNNP prediction. If you set "all", all data
+#  contained in the data file is used.
 #c.PredictionConfig.tags = ['all']

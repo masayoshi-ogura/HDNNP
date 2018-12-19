@@ -1,28 +1,25 @@
 # coding: utf-8
 
-from itertools import (chain,
-                       combinations_with_replacement,
-                       )
+from itertools import (chain, combinations_with_replacement)
 
 import numpy as np
 from scipy.linalg import block_diag
 
 from hdnnpy.dataset.descriptor.descriptor_dataset_base import (
     DescriptorDatasetBase)
-from hdnnpy.utils import (MPI,
-                          pprint,
-                          )
+from hdnnpy.utils import (MPI, pprint)
 
 
 class SymmetryFunctionDataset(DescriptorDatasetBase):
     DESCRIPTORS = ['sym_func', 'derivative']
     name = 'symmetry_function'
 
-    def __init__(self, order):
+    def __init__(self, order, structures, **func_param_map):
         assert 0 <= order <= 1
-        super().__init__(order)
-        self._descriptors = self.DESCRIPTORS[: order+1]
-        self._func_param_map = {}
+        assert func_param_map
+        super().__init__(order, structures)
+        self._func_param_map = func_param_map.copy()
+        self._feature_keys = self.generate_feature_keys(self._elements)
 
     @property
     def function_names(self):
@@ -31,14 +28,6 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     @property
     def params(self):
         return self._func_param_map
-
-    def clear(self):
-        super().clear()
-        self._func_param_map.clear()
-
-    def dump_params(self):
-        # todo
-        pass
 
     def generate_feature_keys(self, elements):
         feature_keys = []
@@ -58,38 +47,17 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                         feature_keys.append(key)
         return feature_keys
 
-    def load(self, file_path, verbose=True):
-        if MPI.rank == 0:
-            ndarray = np.load(file_path)
-            for i in range(self._order + 1):
-                self._dataset.append(ndarray[self._descriptors[i]])
-            self._elemental_composition = list(
-                ndarray['elemental_composition'])
-            self._elements = list(ndarray['elements'])
-            self._feature_keys = list(ndarray['feature_keys'])
-            self._func_param_map = ndarray['func_param_map'].item()
-            self._tag = ndarray['tag'].item()
-            if verbose:
-                pprint(f'Loaded symmetry function dataset from {file_path}.')
-
-    def make(self, structures, verbose=True, **func_param_map):
-        assert func_param_map
-        self._elemental_composition = structures[0].get_chemical_symbols()
-        self._tag = structures[0].info['tag']
-        self._elements = sorted(set(self._elemental_composition))
-        self._func_param_map = func_param_map.copy()
-        self._feature_keys = self.generate_feature_keys(self._elements)
-
-        n_sample = len(structures)
-        n_atom = len(structures[0])
+    def make(self, verbose=True):
+        n_sample = len(self._structures)
+        n_atom = len(self._structures[0])
         count = np.array([(n_sample + i) // MPI.size
-                          for i in range(MPI.size)[::-1]], dtype=np.int32)
+                          for i in range(MPI.size)[::-1]],
+                         dtype=np.int32)
         s = count[: MPI.rank].sum()
         e = count[: MPI.rank+1].sum()
-        structures = structures[s:e]
+        structures = self._structures[s:e]
 
         for i, send_data in enumerate(self._calculate_descriptors(structures)):
-            recv_data = None
             if MPI.rank == 0:
                 shape = (n_sample, n_atom, self.n_feature, *(n_atom, 3) * i)
                 data = np.empty(shape, dtype=np.float32)
@@ -97,28 +65,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 MPI.comm.Gatherv(send_data, recv_data, root=0)
                 self._dataset.append(data)
             else:
-                MPI.comm.Gatherv(send_data, recv_data, root=0)
+                MPI.comm.Gatherv(send_data, None, root=0)
 
         if verbose:
-            pprint('Calculated symmetry function dataset.')
-
-    def save(self, file_path, verbose=True):
-        if MPI.rank == 0:
-            if not self.has_data:
-                raise RuntimeError('This dataset does not have any data.')
-
-            data = {property_: data for property_, data
-                    in zip(self._descriptors, self._dataset)}
-            info = {
-                'elemental_composition': self._elemental_composition,
-                'elements': self._elements,
-                'feature_keys': self._feature_keys,
-                'func_param_map': self._func_param_map,
-                'tag': self._tag,
-                }
-            np.savez(file_path, **data, **info)
-            if verbose:
-                pprint(f'Saved symmetry function dataset to {file_path}.')
+            pprint(f'Calculated {self.name} dataset.')
 
     def _calculate_descriptors(self, structures):
         n_sample = len(structures)

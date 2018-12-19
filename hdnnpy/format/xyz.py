@@ -10,7 +10,7 @@ from hdnnpy.utils import (mkdir,
                           )
 
 
-def parse_xyz(file_path, save=True):
+def parse_xyz(file_path, save=True, verbose=True):
     tag_xyz_map = {}
     elements = set()
     info_file = file_path.with_name(f'{file_path.name}.dat')
@@ -29,20 +29,21 @@ def parse_xyz(file_path, save=True):
                 if save:
                     mkdir(file_path.with_name(tag))
                     xyz_path = file_path.with_name(tag)/'structure.xyz'
-                    pprint(f'Sub dataset tagged as "{tag}" is saved to '
-                           f'{xyz_path}.')
+                    if verbose:
+                        pprint(f'Sub dataset tagged as "{tag}" is saved to'
+                               f' {xyz_path}.')
 
                 else:
                     xyz_path = Path(NamedTemporaryFile('w', delete=False).name)
-                    pprint(f'Sub dataset tagged as "{tag}" is temporarily '
-                           f'saved to {xyz_path}.\n'
-                           f'If ABEND and this file remains, delete it '
-                           f'manually.')
+                    if verbose:
+                        pprint(f'Sub dataset tagged as "{tag}" is temporarily'
+                               f' saved to {xyz_path}.\n'
+                               'If ABEND and this file remains, delete it'
+                               ' manually.')
                 tag_xyz_map[tag] = xyz_path
             ase.io.write(str(xyz_path), atoms, format='xyz', append=True)
             elements.update(atoms.get_chemical_symbols())
         if save:
             info_file.write_text(' '.join(sorted(elements)) + '\n'
                                  + '\n'.join(sorted(tag_xyz_map)) + '\n')
-    pprint()
     return tag_xyz_map, sorted(elements)
