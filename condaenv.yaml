@@ -13,7 +13,6 @@ dependencies:
   - pyyaml
   - scipy
   - scikit-learn
-  - scikit-optimize
   - traitlets
   - pip:
     - chainermn==1.3.1

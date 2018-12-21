@@ -35,15 +35,14 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             for params in params_set:
                 param_key = '/'.join(map(str, params))
                 if function_name in ['type1', 'type2']:
-                    for element in elements:
-                        key = ':'.join([function_name, param_key, element])
+                    for element_key in elements:
+                        key = ':'.join([function_name, param_key, element_key])
                         feature_keys.append(key)
 
                 elif function_name in ['type4']:
-                    for elements in combinations_with_replacement(elements, 2):
-                        element_key = '/'.join(elements)
-                        key = ':'.join(
-                            [function_name, param_key, element_key])
+                    for combo in combinations_with_replacement(elements, 2):
+                        element_key = '/'.join(combo)
+                        key = ':'.join([function_name, param_key, element_key])
                         feature_keys.append(key)
         return feature_keys
 

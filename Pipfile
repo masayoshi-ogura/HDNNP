@@ -12,7 +12,6 @@ numpy = "*"
 pyyaml = "*"
 scipy = "*"
 scikit-learn = "*"
-scikit-optimize = "*"
 traitlets = "*"
 
 [dev-packages]
