@@ -1,0 +1,679 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>hdnnpy.cli package &mdash; HDNNP dev documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> HDNNP
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">hdnnpy.cli package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-hdnnpy.cli.configurables">hdnnpy.cli.configurables module</a></li>
+<li><a class="reference internal" href="#module-hdnnpy.cli.main">hdnnpy.cli.main module</a></li>
+<li><a class="reference internal" href="#module-hdnnpy.cli.prediction_application">hdnnpy.cli.prediction_application module</a></li>
+<li><a class="reference internal" href="#module-hdnnpy.cli.training_application">hdnnpy.cli.training_application module</a></li>
+<li><a class="reference internal" href="#module-hdnnpy.cli">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">HDNNP</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>hdnnpy.cli package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/hdnnpy.cli.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="hdnnpy-cli-package">
+<h1>hdnnpy.cli package<a class="headerlink" href="#hdnnpy-cli-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-hdnnpy.cli.configurables">
+<span id="hdnnpy-cli-configurables-module"></span><h2>hdnnpy.cli.configurables module<a class="headerlink" href="#module-hdnnpy.cli.configurables" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="hdnnpy.cli.configurables.Configurable">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.configurables.</code><code class="descname">Configurable</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#Configurable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.Configurable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">traitlets.config.configurable.Configurable</span></code></p>
+<dl class="method">
+<dt id="hdnnpy.cli.configurables.Configurable.dump">
+<code class="descname">dump</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#Configurable.dump"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.Configurable.dump" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="hdnnpy.cli.configurables.DatasetConfig">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.configurables.</code><code class="descname">DatasetConfig</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#DatasetConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#hdnnpy.cli.configurables.Configurable" title="hdnnpy.cli.configurables.Configurable"><code class="xref py py-class docutils literal notranslate"><span class="pre">hdnnpy.cli.configurables.Configurable</span></code></a></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.DatasetConfig.descriptor">
+<code class="descname">descriptor</code><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig.descriptor" title="Permalink to this definition">¶</a></dt>
+<dd><p>An enum of strings where the case should be ignored.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.DatasetConfig.n_sample">
+<code class="descname">n_sample</code><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig.n_sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.DatasetConfig.parameters">
+<code class="descname">parameters</code><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig.parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python dict.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.DatasetConfig.preprocesses">
+<code class="descname">preprocesses</code><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig.preprocesses" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.DatasetConfig.property_">
+<code class="descname">property_</code><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig.property_" title="Permalink to this definition">¶</a></dt>
+<dd><p>An enum of strings where the case should be ignored.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.DatasetConfig.remake">
+<code class="descname">remake</code><a class="headerlink" href="#hdnnpy.cli.configurables.DatasetConfig.remake" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="hdnnpy.cli.configurables.ModelConfig">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.configurables.</code><code class="descname">ModelConfig</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#ModelConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.ModelConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#hdnnpy.cli.configurables.Configurable" title="hdnnpy.cli.configurables.Configurable"><code class="xref py py-class docutils literal notranslate"><span class="pre">hdnnpy.cli.configurables.Configurable</span></code></a></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.ModelConfig.layers">
+<code class="descname">layers</code><a class="headerlink" href="#hdnnpy.cli.configurables.ModelConfig.layers" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="hdnnpy.cli.configurables.Path">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.configurables.</code><code class="descname">Path</code><span class="sig-paren">(</span><em>default_value=traitlets.Undefined</em>, <em>allow_none=False</em>, <em>read_only=None</em>, <em>help=None</em>, <em>config=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#Path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.Path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">traitlets.traitlets.TraitType</span></code></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.Path.default_value">
+<code class="descname">default_value</code><em class="property"> = '.'</em><a class="headerlink" href="#hdnnpy.cli.configurables.Path.default_value" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.Path.info_text">
+<code class="descname">info_text</code><em class="property"> = 'a pathlib.Path instance'</em><a class="headerlink" href="#hdnnpy.cli.configurables.Path.info_text" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.configurables.Path.validate">
+<code class="descname">validate</code><span class="sig-paren">(</span><em>obj</em>, <em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#Path.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.Path.validate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="hdnnpy.cli.configurables.PredictionConfig">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.configurables.</code><code class="descname">PredictionConfig</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#PredictionConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#hdnnpy.cli.configurables.Configurable" title="hdnnpy.cli.configurables.Configurable"><code class="xref py py-class docutils literal notranslate"><span class="pre">hdnnpy.cli.configurables.Configurable</span></code></a></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.PredictionConfig.data_file">
+<code class="descname">data_file</code><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig.data_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.PredictionConfig.dump_format">
+<code class="descname">dump_format</code><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig.dump_format" title="Permalink to this definition">¶</a></dt>
+<dd><p>An enum of strings where the case should be ignored.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.PredictionConfig.elements">
+<code class="descname">elements</code><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig.elements" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.PredictionConfig.load_dir">
+<code class="descname">load_dir</code><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig.load_dir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.PredictionConfig.order">
+<code class="descname">order</code><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig.order" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.PredictionConfig.tags">
+<code class="descname">tags</code><a class="headerlink" href="#hdnnpy.cli.configurables.PredictionConfig.tags" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="hdnnpy.cli.configurables.TrainingConfig">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.configurables.</code><code class="descname">TrainingConfig</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/configurables.html#TrainingConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#hdnnpy.cli.configurables.Configurable" title="hdnnpy.cli.configurables.Configurable"><code class="xref py py-class docutils literal notranslate"><span class="pre">hdnnpy.cli.configurables.Configurable</span></code></a></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.batch_size">
+<code class="descname">batch_size</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.batch_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.data_file">
+<code class="descname">data_file</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.data_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.elements">
+<code class="descname">elements</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.elements" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.epoch">
+<code class="descname">epoch</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.epoch" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.final_lr">
+<code class="descname">final_lr</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.final_lr" title="Permalink to this definition">¶</a></dt>
+<dd><p>A float trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.init_lr">
+<code class="descname">init_lr</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.init_lr" title="Permalink to this definition">¶</a></dt>
+<dd><p>A float trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.interval">
+<code class="descname">interval</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.interval" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.l1_norm">
+<code class="descname">l1_norm</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.l1_norm" title="Permalink to this definition">¶</a></dt>
+<dd><p>A float trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.l2_norm">
+<code class="descname">l2_norm</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.l2_norm" title="Permalink to this definition">¶</a></dt>
+<dd><p>A float trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.log_report">
+<code class="descname">log_report</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.log_report" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.loss_function">
+<code class="descname">loss_function</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.loss_function" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python tuple.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.lr_decay">
+<code class="descname">lr_decay</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.lr_decay" title="Permalink to this definition">¶</a></dt>
+<dd><p>A float trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.order">
+<code class="descname">order</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.order" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.out_dir">
+<code class="descname">out_dir</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.out_dir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.patients">
+<code class="descname">patients</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.patients" title="Permalink to this definition">¶</a></dt>
+<dd><p>An int trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.plot_report">
+<code class="descname">plot_report</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.plot_report" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.print_report">
+<code class="descname">print_report</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.print_report" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.scatter_plot">
+<code class="descname">scatter_plot</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.scatter_plot" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.tags">
+<code class="descname">tags</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.tags" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.configurables.TrainingConfig.train_test_ratio">
+<code class="descname">train_test_ratio</code><a class="headerlink" href="#hdnnpy.cli.configurables.TrainingConfig.train_test_ratio" title="Permalink to this definition">¶</a></dt>
+<dd><p>A float trait.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-hdnnpy.cli.main">
+<span id="hdnnpy-cli-main-module"></span><h2>hdnnpy.cli.main module<a class="headerlink" href="#module-hdnnpy.cli.main" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="hdnnpy.cli.main.HDNNPApplication">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.main.</code><code class="descname">HDNNPApplication</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/main.html#HDNNPApplication"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.main.HDNNPApplication" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">traitlets.config.application.Application</span></code></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.main.HDNNPApplication.classes">
+<code class="descname">classes</code><em class="property"> = [&lt;class 'hdnnpy.cli.prediction_application.PredictionApplication'&gt;, &lt;class 'hdnnpy.cli.training_application.TrainingApplication'&gt;]</em><a class="headerlink" href="#hdnnpy.cli.main.HDNNPApplication.classes" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.main.HDNNPApplication.initialize">
+<code class="descname">initialize</code><span class="sig-paren">(</span><em>argv=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/main.html#HDNNPApplication.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.main.HDNNPApplication.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do the basic steps to configure me.</p>
+<p>Override in subclasses.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.main.HDNNPApplication.name">
+<code class="descname">name</code><a class="headerlink" href="#hdnnpy.cli.main.HDNNPApplication.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>A trait for unicode strings.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.main.HDNNPApplication.subcommands">
+<code class="descname">subcommands</code><em class="property"> = {'predict': (&lt;class 'hdnnpy.cli.prediction_application.PredictionApplication'&gt;, 'Predict properties for atomic structures using trained HDNNP.'), 'train': (&lt;class 'hdnnpy.cli.training_application.TrainingApplication'&gt;, 'Train a HDNNP to optimize given properties.')}</em><a class="headerlink" href="#hdnnpy.cli.main.HDNNPApplication.subcommands" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-hdnnpy.cli.prediction_application">
+<span id="hdnnpy-cli-prediction-application-module"></span><h2>hdnnpy.cli.prediction_application module<a class="headerlink" href="#module-hdnnpy.cli.prediction_application" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.prediction_application.</code><code class="descname">PredictionApplication</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#PredictionApplication"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">traitlets.config.application.Application</span></code></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.aliases">
+<code class="descname">aliases</code><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.aliases" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python dict.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.classes">
+<code class="descname">classes</code><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.classes" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.config_file">
+<code class="descname">config_file</code><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.config_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.construct_datasets">
+<code class="descname">construct_datasets</code><span class="sig-paren">(</span><em>tag_xyz_map</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#PredictionApplication.construct_datasets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.construct_datasets" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.description">
+<code class="descname">description</code><em class="property"> = 'Predict properties for atomic structures using trained HDNNP.'</em><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.description" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.dump_result">
+<code class="descname">dump_result</code><span class="sig-paren">(</span><em>results</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#PredictionApplication.dump_result"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.dump_result" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.flags">
+<code class="descname">flags</code><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.flags" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python dict.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.initialize">
+<code class="descname">initialize</code><span class="sig-paren">(</span><em>argv=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#PredictionApplication.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do the basic steps to configure me.</p>
+<p>Override in subclasses.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.name">
+<code class="descname">name</code><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>A trait for unicode strings.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.predict">
+<code class="descname">predict</code><span class="sig-paren">(</span><em>datasets</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#PredictionApplication.predict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.predict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.start">
+<code class="descname">start</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#PredictionApplication.start"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start the app mainloop.</p>
+<p>Override in subclasses.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.prediction_application.PredictionApplication.verbose">
+<code class="descname">verbose</code><a class="headerlink" href="#hdnnpy.cli.prediction_application.PredictionApplication.verbose" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="hdnnpy.cli.prediction_application.generate_config_file">
+<code class="descclassname">hdnnpy.cli.prediction_application.</code><code class="descname">generate_config_file</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/prediction_application.html#generate_config_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.prediction_application.generate_config_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-hdnnpy.cli.training_application">
+<span id="hdnnpy-cli-training-application-module"></span><h2>hdnnpy.cli.training_application module<a class="headerlink" href="#module-hdnnpy.cli.training_application" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="hdnnpy.cli.training_application.TrainingApplication">
+<em class="property">class </em><code class="descclassname">hdnnpy.cli.training_application.</code><code class="descname">TrainingApplication</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#TrainingApplication"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">traitlets.config.application.Application</span></code></p>
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.aliases">
+<code class="descname">aliases</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.aliases" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python dict.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.classes">
+<code class="descname">classes</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.classes" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python list.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.config_file">
+<code class="descname">config_file</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.config_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.construct_datasets">
+<code class="descname">construct_datasets</code><span class="sig-paren">(</span><em>tag_xyz_map</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#TrainingApplication.construct_datasets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.construct_datasets" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.description">
+<code class="descname">description</code><em class="property"> = 'Train a HDNNP to optimize given properties.'</em><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.description" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.dump_result">
+<code class="descname">dump_result</code><span class="sig-paren">(</span><em>result</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#TrainingApplication.dump_result"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.dump_result" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.flags">
+<code class="descname">flags</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.flags" title="Permalink to this definition">¶</a></dt>
+<dd><p>An instance of a Python dict.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.initialize">
+<code class="descname">initialize</code><span class="sig-paren">(</span><em>argv=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#TrainingApplication.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do the basic steps to configure me.</p>
+<p>Override in subclasses.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.is_resume">
+<code class="descname">is_resume</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.is_resume" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.name">
+<code class="descname">name</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>A trait for unicode strings.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.resume_dir">
+<code class="descname">resume_dir</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.resume_dir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.start">
+<code class="descname">start</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#TrainingApplication.start"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start the app mainloop.</p>
+<p>Override in subclasses.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.train">
+<code class="descname">train</code><span class="sig-paren">(</span><em>dataset</em>, <em>comm=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#TrainingApplication.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.train" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="hdnnpy.cli.training_application.TrainingApplication.verbose">
+<code class="descname">verbose</code><a class="headerlink" href="#hdnnpy.cli.training_application.TrainingApplication.verbose" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean (True, False) trait.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="hdnnpy.cli.training_application.generate_config_file">
+<code class="descclassname">hdnnpy.cli.training_application.</code><code class="descname">generate_config_file</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/hdnnpy/cli/training_application.html#generate_config_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hdnnpy.cli.training_application.generate_config_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-hdnnpy.cli">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-hdnnpy.cli" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, masayoshi.ogura
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

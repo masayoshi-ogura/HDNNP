@@ -1,0 +1,496 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Execution example &mdash; HDNNP 0.3.0.dev documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Module documentation" href="modules.html" />
+    <link rel="prev" title="How to use HDNNP" href="usage.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> HDNNP
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3.0.dev
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="description.html">What is HDNNP?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">How to install HDNNP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">How to use HDNNP</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Execution example</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#gan-interatomic-potential">GaN interatomic potential</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#data-file">Data file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#config-file">Config file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#command-line-log">command line log</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#directory-tree">Directory tree</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Module documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extend.html">How to extend HDNNP</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">HDNNP</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Execution example</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/example.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="execution-example">
+<h1>Execution example<a class="headerlink" href="#execution-example" title="Permalink to this headline">¶</a></h1>
+<div class="contents local topic" id="contents">
+<ul class="simple">
+<li><a class="reference internal" href="#gan-interatomic-potential" id="id1">GaN interatomic potential</a><ul>
+<li><a class="reference internal" href="#data-file" id="id2">Data file</a></li>
+<li><a class="reference internal" href="#config-file" id="id3">Config file</a></li>
+<li><a class="reference internal" href="#command-line-log" id="id4">command line log</a></li>
+<li><a class="reference internal" href="#directory-tree" id="id5">Directory tree</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="gan-interatomic-potential">
+<h2><a class="toc-backref" href="#id1">GaN interatomic potential</a><a class="headerlink" href="#gan-interatomic-potential" title="Permalink to this headline">¶</a></h2>
+<div class="line-block">
+<div class="line">In this section, show you an execution example of HDNNP training
+using 1st order differentiation of interatomic potential
+(e.g. interatomic forces) of GaN</div>
+</div>
+<div class="section" id="data-file">
+<h3><a class="toc-backref" href="#id2">Data file</a><a class="headerlink" href="#data-file" title="Permalink to this headline">¶</a></h3>
+<p>Prepare a .xyz format file which have some structures with energy and force data.</p>
+<p><code class="docutils literal notranslate"><span class="pre">GaN.xyz</span></code></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>32
+Lattice=&quot;6.46474316 0.0 0.0 -3.23237159 5.5986318 0.0 0.0 0.0 10.53232454&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-194.5164333 tag=CrystalGa16N16 pbc=&quot;T T T&quot;
+Ga       1.61619000       0.93311000       2.62845000       0.00000300       0.00001200      -0.00570900
+Ga       3.23237000       3.73242000       2.62845000       0.00003900      -0.00004700      -0.00571500
+Ga       4.84856000       0.93311000       2.62845000       0.00000400      -0.00001100      -0.00563600
+Ga      -0.00000000       3.73242000       7.89461000      -0.00003800       0.00003200      -0.00564200
+Ga       1.61619000       0.93311000       7.89461000       0.00006100      -0.00001800      -0.00571100
+Ga       3.23237000       3.73242000       7.89461000       0.00002100      -0.00006400      -0.00572000
+Ga       4.84856000       0.93311000       7.89461000      -0.00003200      -0.00002300      -0.00565600
+Ga      -0.00000000       3.73242000       2.62845000       0.00002100      -0.00002000      -0.00565100
+Ga      -0.00000000       1.86621000       5.26153000      -0.00006900       0.00005900      -0.00572300
+Ga       1.61619000       4.66553000       5.26153000      -0.00002700       0.00008200      -0.00571900
+Ga       3.23237000       1.86621000       5.26153000       0.00001800      -0.00001400      -0.00566500
+Ga      -1.61619000       4.66553000      10.52769000      -0.00002700      -0.00002600      -0.00566900
+Ga      -0.00000000       1.86621000      10.52769000      -0.00002200       0.00008500      -0.00568700
+Ga       1.61619000       4.66553000      10.52769000       0.00000600      -0.00002400      -0.00574300
+Ga       3.23237000       1.86621000      10.52769000       0.00000100       0.00007600      -0.00564000
+Ga      -1.61619000       4.66553000       5.26153000       0.00002200      -0.00000200      -0.00568800
+N       1.61619000       0.93311000       4.61253000       0.00005500      -0.00002000      -0.00041000
+N       3.23237000       3.73242000       4.61253000       0.00003600      -0.00000900      -0.00037900
+N       4.84856000       0.93311000       4.61253000      -0.00004100       0.00000700      -0.00041100
+N      -0.00000000       3.73242000       9.87869000      -0.00001300      -0.00003500      -0.00042500
+N       1.61619000       0.93311000       9.87869000       0.00001200       0.00002900      -0.00040900
+N       3.23237000       3.73242000       9.87869000       0.00002700      -0.00006200      -0.00041700
+N       4.84856000       0.93311000       9.87869000      -0.00000400       0.00002500      -0.00041500
+N      -0.00000000       3.73242000       4.61253000      -0.00004500      -0.00000400      -0.00041800
+N      -0.00000000       1.86621000       1.97945000       0.00000000      -0.00000800      -0.00034400
+N       1.61619000       4.66553000       1.97945000      -0.00000200       0.00000500      -0.00033700
+N       3.23237000       1.86621000       1.97945000       0.00001700       0.00001600      -0.00036100
+N      -1.61619000       4.66553000       7.24561000       0.00002800      -0.00002300      -0.00036000
+N      -0.00000000       1.86621000       7.24561000      -0.00008200       0.00001500      -0.00043200
+N       1.61619000       4.66553000       7.24561000      -0.00002200       0.00004200      -0.00040100
+N       3.23237000       1.86621000       7.24561000       0.00001900      -0.00001200      -0.00039500
+N      -1.61619000       4.66553000       1.97945000       0.00000400      -0.00001800      -0.00046000
+32
+Lattice=&quot;6.46474316 0.0 0.0 -3.23237159 5.5986318 0.0 0.0 0.0 10.53232454&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-169.96635976 tag=CrystalGa16N16 pbc=&quot;T T T&quot;
+Ga       1.44265000       1.46790000       2.04947000      -0.95595000      -3.56110800       2.54045000
+Ga       2.88538000       4.34404000       2.89380000       4.75932000      -2.04809500      -1.43108200
+Ga       4.38372000       0.68215000       2.61606000       0.15090500       6.97113700       2.40537400
+Ga       0.47836000       3.95213000       7.90284000      -3.31821700      -0.13409600      -0.21437100
+Ga       1.82415000       1.43420000       8.18380000      -0.78327100      -2.70531000      -3.50469000
+Ga       3.49351000       3.96284000       7.92622000       1.84595600      -0.42627100      -0.16593100
+Ga       5.17229000       0.83662000       7.71745000      -0.46937900       1.21688400       1.11923500
+Ga      -0.04508000       3.95689000       2.71946000      -3.88117900      -1.84159800       0.64959300
+Ga      -0.96518000       1.98086000       5.22137000       1.12890800      -1.31857500      -0.37168600
+Ga       1.18573000       3.20454000       5.22045000       1.58317800       1.58466500       0.77557000
+Ga       2.91073000       1.45415000       5.60119000      -0.29420600      -1.79185700      -2.55652100
+Ga      -0.99634000       4.45389000       0.07004000      -2.39983600       3.43545000       1.27018200
+Ga       0.17764000       1.60544000      10.36435000       6.30208700       4.30252400       2.73199900
+Ga       2.35420000       4.13573000       0.39168000      -1.28509600      -0.64262000      -3.92936300
+...
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.3605335 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.60815000       0.92846000       2.61537000       0.00057000      -0.00032400      -0.00131800
+Ga       0.00000000       1.85693000       5.23535000      -0.00055000       0.00030900      -0.00128000
+N       1.60815000       0.92846000       4.58958000       0.00038300      -0.00020300       0.00049500
+N       0.00000000       1.85693000       1.96960000      -0.00030900       0.00021200       0.00050600
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.04284841 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.56998000       1.01961000       2.64712000       0.37879200      -0.65345000      -0.84588100
+Ga       0.00233000       1.78610000       5.21359000       1.53422400       0.01126800       0.83092200
+N       1.80998000       0.78162000       4.55671000      -1.91098000       0.49960800      -0.07141600
+N      -0.02338000       1.90257000       1.95274000       0.00855700       0.14604000       0.09234500
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.07370026 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.68022000       0.78468000       2.59601000      -0.77026300       1.15126700       0.71828100
+Ga      -0.04831000       1.97869000       0.01593000      -1.05203000       0.42443800      -0.31339000
+N       1.47544000       1.12447000       4.57171000       1.50854300      -1.32922700      -0.04524600
+N       0.01431000       1.77059000       1.98155000       0.31937700      -0.24596800      -0.35639000
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.06789171 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.55216000       1.03346000       2.59780000       1.76477100      -1.33788800       0.62275500
+Ga       0.04645000       1.78043000       0.02483000      -0.39888700      -0.84820500      -0.84426800
+N       1.59299000       0.75442000       4.54056000       0.36047300       1.45854900       0.51138400
+N       0.06265000       1.88907000       1.95951000      -1.73396900       0.72932900      -0.27762300
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.10933618 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.62285000       0.92354000       2.56898000      -0.87387700       0.84344000       1.29437700
+Ga      -0.00655000       1.82730000       0.04373000       0.63633100       1.10065300      -1.07564600
+N       1.65007000       1.03662000       4.56438000      -0.83168500      -1.16592600       0.26072300
+N      -0.08253000       1.92082000       1.98507000       1.07124400      -0.78418500      -0.47994500
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.15961153 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.61929000       0.86275000       2.60668000       0.91655600       0.12884500       0.02524600
+Ga      -0.02746000       1.90759000       0.02534000      -0.00425900       0.48361500      -1.32527900
+N       1.57325000       1.05930000       4.54898000       0.29235100      -0.94998800       0.25695700
+N       0.11613000       1.80106000       1.90435000      -1.21017800       0.33509300       1.05032200
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-23.90497111 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.57753000       1.01962000       2.53889000      -0.58498700       0.38561600       1.95812800
+Ga       0.05221000       1.77667000       0.06084000      -0.50913400      -1.39207300      -1.16507600
+N       1.60109000       0.71987000       4.62834000       0.25821000       2.35785600      -0.69708500
+N      -0.10050000       2.01120000       1.98576000       0.83273600      -1.35617800      -0.10520400
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-24.17936965 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+Ga       1.65588000       0.84325000       2.61391000      -0.48280700       0.58352400      -0.06140200
+Ga      -0.05236000       1.91994000       0.00989000       1.13163900       0.73695700      -0.46324400
+N       1.63413000       1.09260000       4.55873000      -1.08709100      -1.30806300       0.05205700
+N      -0.00295000       1.80336000       1.93549000       0.44154800      -0.01662100       0.47920500
+4
+Lattice=&quot;3.21629013 0.0 0.0 -1.60814507 2.78538896 0.0 0.0 0.0 5.23996246&quot; Properties=species:S:1:pos:R:3:forces:R:3 energy=-23.82707164 tag=CrystalGa2N2 pbc=&quot;T T T&quot;
+...
+</pre></div>
+</div>
+</div>
+<div class="section" id="config-file">
+<h3><a class="toc-backref" href="#id3">Config file</a><a class="headerlink" href="#config-file" title="Permalink to this headline">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">training_config.py</span></code>
+(necessary parts picked up)</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">c</span><span class="o">.</span><span class="n">TrainingApplication</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="bp">True</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">DatasetConfig</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="s1">&#39;type1&#39;</span><span class="p">:</span> <span class="p">[</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,),</span>
+       <span class="p">],</span>
+   <span class="s1">&#39;type2&#39;</span><span class="p">:</span> <span class="p">[</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">3.8</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">3.8</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">3.8</span><span class="p">),</span>
+       <span class="p">],</span>
+   <span class="s1">&#39;type4&#39;</span><span class="p">:</span> <span class="p">[</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+       <span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+       <span class="p">],</span>
+   <span class="p">}</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">DatasetConfig</span><span class="o">.</span><span class="n">preprocesses</span> <span class="o">=</span> <span class="p">[</span>
+   <span class="p">(</span><span class="s1">&#39;pca&#39;</span><span class="p">,</span> <span class="p">(),</span> <span class="p">{}),</span>
+   <span class="p">]</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">ModelConfig</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="p">[</span>
+   <span class="p">(</span><span class="mi">90</span><span class="p">,</span> <span class="s1">&#39;tanh&#39;</span><span class="p">),</span>
+   <span class="p">(</span><span class="mi">90</span><span class="p">,</span> <span class="s1">&#39;tanh&#39;</span><span class="p">),</span>
+   <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;identity&#39;</span><span class="p">),</span>
+   <span class="p">]</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">100</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">data_file</span> <span class="o">=</span> <span class="s1">&#39;data/GaN.xyz&#39;</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">epoch</span> <span class="o">=</span> <span class="mi">1000</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">interval</span> <span class="o">=</span> <span class="mi">10</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">loss_function</span> <span class="o">=</span> <span class="p">(</span>
+   <span class="s1">&#39;first_only&#39;</span><span class="p">,</span>
+   <span class="p">{}</span>
+   <span class="p">)</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">lr_decay</span> <span class="o">=</span> <span class="mf">1.0e-6</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="mi">1</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">=</span> <span class="s1">&#39;output&#39;</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">patients</span> <span class="o">=</span> <span class="mi">5</span>
+
+<span class="n">c</span><span class="o">.</span><span class="n">TrainingConfig</span><span class="o">.</span><span class="n">scatter_plot</span> <span class="o">=</span> <span class="bp">True</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="command-line-log">
+<h3><a class="toc-backref" href="#id4">command line log</a><a class="headerlink" href="#command-line-log" title="Permalink to this headline">¶</a></h3>
+<p>Once edited configuration file <code class="docutils literal notranslate"><span class="pre">training_config.py</span></code>, you just do one command <code class="docutils literal notranslate"><span class="pre">hdnnpy</span> <span class="pre">trian</span></code>.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>$ hdnnpy train
+
+Construct sub dataset tagged as &quot;CrystalGa16N16&quot;
+Successfully loaded &amp; made needed symmetry_function dataset from &lt;workdir&gt;/data/CrystalGa16N16/symmetry_function.npz
+Successfully loaded &amp; made needed interatomic_potential dataset from &lt;workdir&gt;/data/CrystalGa16N16/interatomic_potential.npz
+
+Initialized PCA parameters for Ga
+    Feature dimension: 74 =&gt; 74
+    Cumulative contribution rate = 0.9999999403953552
+
+
+Initialized PCA parameters for N
+    Feature dimension: 74 =&gt; 74
+    Cumulative contribution rate = 1.0000001192092896
+
+Construct sub dataset tagged as &quot;CrystalGa2N2&quot;
+Successfully loaded &amp; made needed symmetry_function dataset from &lt;workdir&gt;/data/CrystalGa2N2/symmetry_function.npz
+Successfully loaded &amp; made needed interatomic_potential dataset from &lt;workdir&gt;/data/CrystalGa2N2/interatomic_potential.npz
+Saved PCA parameters to &lt;workdir&gt;/output/preprocess/pca.npz.
+early stopping: operator is less
+epoch       iteration   main/RMSE/force  main/RMSE/total  val/main/RMSE/force  val/main/RMSE/total
+1           14          1.20575          1.20575          1.21576              1.21576
+2           28          1.08758          1.08758          1.06121              1.06121
+3           42          0.895798         0.895798         0.865482             0.865482
+4           55          0.685623         0.685623         0.694789             0.694789
+5           69          0.560702         0.560702         0.603832             0.603832
+6           83          0.509542         0.509542         0.570984             0.570984
+7           97          0.486743         0.486743         0.552533             0.552533
+8           110         0.468966         0.468966         0.540375             0.540375
+9           124         0.458917         0.458917         0.531327             0.531327
+10          138         0.448132         0.448132         0.524466             0.524466
+...
+</pre></div>
+</div>
+</div>
+<div class="section" id="directory-tree">
+<h3><a class="toc-backref" href="#id5">Directory tree</a><a class="headerlink" href="#directory-tree" title="Permalink to this headline">¶</a></h3>
+<p>After training, directory tree becomes as follows:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>workdir
+├── data
+│   └── GaN.xyz
+├── output
+│   ├── CrystalGa16N16
+│   │   ├── energy.png
+│   │   ├── force.png
+│   │   └── training.log
+│   ├── CrystalGa2N2
+│   │   ├── energy.png
+│   │   ├── force.png
+│   │   └── training.log
+│   ├── master_nnp.npz
+│   ├── preprocess
+│   │   └── pca.npz
+│   ├── training_config.py
+│   └── training_result.yaml
+└── training_config.py
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="modules.html" class="btn btn-neutral float-right" title="Module documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="usage.html" class="btn btn-neutral" title="How to use HDNNP" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, masayoshi.ogura
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
