@@ -1,6 +1,6 @@
 *.pyc
 
 # created by `pip install --editable .`
-hdnnpy.egg-info/
-build/
-dist/
+/hdnnpy.egg-info/
+/build/
+/dist/

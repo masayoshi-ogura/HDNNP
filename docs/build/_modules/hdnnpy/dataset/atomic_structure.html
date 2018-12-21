@@ -1,0 +1,334 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>hdnnpy.dataset.atomic_structure &mdash; HDNNP 0.3.0.dev documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> HDNNP
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3.0.dev
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../description.html">What is HDNNP?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">How to install HDNNP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../usage.html">How to use HDNNP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../example.html">Execution example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Module documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../extend.html">How to extend HDNNP</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">HDNNP</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>hdnnpy.dataset.atomic_structure</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for hdnnpy.dataset.atomic_structure</h1><div class="highlight"><pre>
+<span></span><span class="c1"># coding: utf-8</span>
+
+<span class="kn">import</span> <span class="nn">ase.build</span>
+<span class="kn">import</span> <span class="nn">ase.io</span>
+<span class="kn">import</span> <span class="nn">ase.neighborlist</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<div class="viewcode-block" id="AtomicStructure"><a class="viewcode-back" href="../../../hdnnpy.dataset.html#hdnnpy.dataset.atomic_structure.AtomicStructure">[docs]</a><span class="k">class</span> <span class="nc">AtomicStructure</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">):</span>
+        <span class="n">sorted_atoms</span> <span class="o">=</span> <span class="n">ase</span><span class="o">.</span><span class="n">build</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+        <span class="n">sorted_atoms</span><span class="o">.</span><span class="n">set_calculator</span><span class="p">(</span><span class="n">atoms</span><span class="o">.</span><span class="n">get_calculator</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span> <span class="o">=</span> <span class="n">sorted_atoms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span> <span class="o">=</span> <span class="n">state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">elements</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span><span class="o">.</span><span class="n">get_chemical_symbols</span><span class="p">()))</span>
+
+<div class="viewcode-block" id="AtomicStructure.clear_cache"><a class="viewcode-back" href="../../../hdnnpy.dataset.html#hdnnpy.dataset.atomic_structure.AtomicStructure.clear_cache">[docs]</a>    <span class="k">def</span> <span class="nf">clear_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">cutoff_distance</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">]</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AtomicStructure.get_neighbor_info"><a class="viewcode-back" href="../../../hdnnpy.dataset.html#hdnnpy.dataset.atomic_structure.AtomicStructure.get_neighbor_info">[docs]</a>    <span class="k">def</span> <span class="nf">get_neighbor_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="p">,</span> <span class="n">geometry_keys</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">geometry_keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">cutoff_distance</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span>
+                    <span class="ow">or</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">]):</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;distance&#39;</span><span class="p">,</span> <span class="s1">&#39;distance_vector&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;j2elem&#39;</span><span class="p">,</span> <span class="s1">&#39;neigh2elem&#39;</span><span class="p">,</span> <span class="s1">&#39;neigh2j&#39;</span><span class="p">]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_distance</span><span class="p">(</span><span class="n">cutoff_distance</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;diff_distance&#39;</span><span class="p">]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_diff_distance</span><span class="p">(</span><span class="n">cutoff_distance</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;cosine&#39;</span><span class="p">]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_cosine</span><span class="p">(</span><span class="n">cutoff_distance</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;diff_cosine&#39;</span><span class="p">]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_diff_cosine</span><span class="p">(</span><span class="n">cutoff_distance</span><span class="p">)</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">][</span><span class="n">key</span><span class="p">])</span>
+        <span class="k">return</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">ret</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AtomicStructure.read_xyz"><a class="viewcode-back" href="../../../hdnnpy.dataset.html#hdnnpy.dataset.atomic_structure.AtomicStructure.read_xyz">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">read_xyz</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">file_path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">cls</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span> <span class="k">for</span> <span class="n">atoms</span>
+                <span class="ow">in</span> <span class="n">ase</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">iread</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">file_path</span><span class="p">),</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;xyz&#39;</span><span class="p">)]</span></div>
+
+    <span class="k">def</span> <span class="nf">_calculate_cosine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="p">):</span>
+        <span class="n">cosine</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">dRdr</span><span class="p">,</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_neighbor_info</span><span class="p">(</span>
+                <span class="n">cutoff_distance</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;diff_distance&#39;</span><span class="p">]):</span>
+            <span class="n">cosine</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">dRdr</span><span class="p">,</span> <span class="n">dRdr</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;cosine&#39;</span><span class="p">:</span> <span class="n">cosine</span><span class="p">,</span>
+            <span class="p">})</span>
+
+    <span class="k">def</span> <span class="nf">_calculate_diff_cosine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="p">):</span>
+        <span class="n">diff_cosine</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">R</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">dRdr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_neighbor_info</span><span class="p">(</span>
+                <span class="n">cutoff_distance</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;distance&#39;</span><span class="p">,</span> <span class="s1">&#39;cosine&#39;</span><span class="p">,</span> <span class="s1">&#39;diff_distance&#39;</span><span class="p">]):</span>
+            <span class="n">dcosdr</span> <span class="o">=</span> <span class="p">((</span><span class="n">dRdr</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
+                       <span class="o">-</span> <span class="n">dRdr</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> <span class="n">cos</span><span class="p">[:,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">])</span>
+                      <span class="o">/</span> <span class="n">R</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
+            <span class="n">diff_cosine</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dcosdr</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;diff_cosine&#39;</span><span class="p">:</span> <span class="n">diff_cosine</span><span class="p">,</span>
+            <span class="p">})</span>
+
+    <span class="k">def</span> <span class="nf">_calculate_diff_distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="p">):</span>
+        <span class="n">diff_distance</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">R</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_neighbor_info</span><span class="p">(</span>
+                <span class="n">cutoff_distance</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;distance_vector&#39;</span><span class="p">,</span> <span class="s1">&#39;distance&#39;</span><span class="p">]):</span>
+            <span class="n">diff_distance</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span> <span class="o">/</span> <span class="n">R</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;diff_distance&#39;</span><span class="p">:</span> <span class="n">diff_distance</span><span class="p">,</span>
+            <span class="p">})</span>
+
+    <span class="k">def</span> <span class="nf">_calculate_distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="p">):</span>
+        <span class="n">symbols</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span><span class="o">.</span><span class="n">get_chemical_symbols</span><span class="p">()</span>
+        <span class="n">elements</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">symbols</span><span class="p">))</span>
+        <span class="n">index_element_map</span> <span class="o">=</span> <span class="p">[</span><span class="n">elements</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">element</span><span class="p">)</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">symbols</span><span class="p">]</span>
+
+        <span class="n">i_list</span><span class="p">,</span> <span class="n">j_list</span><span class="p">,</span> <span class="n">d_list</span><span class="p">,</span> <span class="n">D_list</span> <span class="o">=</span> <span class="n">ase</span><span class="o">.</span><span class="n">neighborlist</span><span class="o">.</span><span class="n">neighbor_list</span><span class="p">(</span>
+            <span class="s1">&#39;ijdD&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span><span class="p">,</span> <span class="n">cutoff_distance</span><span class="p">)</span>
+
+        <span class="n">sort_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">((</span><span class="n">j_list</span><span class="p">,</span> <span class="n">i_list</span><span class="p">))</span>
+        <span class="n">i_list</span> <span class="o">=</span> <span class="n">i_list</span><span class="p">[</span><span class="n">sort_indices</span><span class="p">]</span>
+        <span class="n">j_list</span> <span class="o">=</span> <span class="n">j_list</span><span class="p">[</span><span class="n">sort_indices</span><span class="p">]</span>
+        <span class="n">d_list</span> <span class="o">=</span> <span class="n">d_list</span><span class="p">[</span><span class="n">sort_indices</span><span class="p">]</span>
+        <span class="n">D_list</span> <span class="o">=</span> <span class="n">D_list</span><span class="p">[</span><span class="n">sort_indices</span><span class="p">]</span>
+        <span class="n">elem_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">index_element_map</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">j_list</span><span class="p">])</span>
+
+        <span class="n">i_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">i_list</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">j_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">j_list</span><span class="p">,</span> <span class="n">i_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">d_list</span><span class="p">,</span> <span class="n">i_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">distance_vector</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">D_list</span><span class="p">,</span> <span class="n">i_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">elem_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">elem_list</span><span class="p">,</span> <span class="n">i_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+        <span class="n">j2elem</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">neigh2elem</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">neigh2j</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">j_list</span><span class="p">,</span> <span class="n">elem_list</span><span class="p">):</span>
+            <span class="n">j2elem</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_atoms</span><span class="o">.</span><span class="n">get_chemical_symbols</span><span class="p">(),</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">neigh2j</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">symbols</span><span class="p">))))</span>
+            <span class="n">neigh2elem</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">elements</span><span class="p">))))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cutoff_distance</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;distance&#39;</span><span class="p">:</span> <span class="n">distance</span><span class="p">,</span>
+            <span class="s1">&#39;distance_vector&#39;</span><span class="p">:</span> <span class="n">distance_vector</span><span class="p">,</span>
+            <span class="s1">&#39;j2elem&#39;</span><span class="p">:</span> <span class="n">j2elem</span><span class="p">,</span>
+            <span class="s1">&#39;neigh2elem&#39;</span><span class="p">:</span> <span class="n">neigh2elem</span><span class="p">,</span>
+            <span class="s1">&#39;neigh2j&#39;</span><span class="p">:</span> <span class="n">neigh2j</span><span class="p">,</span>
+            <span class="p">}</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, masayoshi.ogura
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

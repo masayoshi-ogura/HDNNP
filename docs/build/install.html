@@ -1,0 +1,325 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>How to install HDNNP &mdash; HDNNP 0.3.0.dev documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="How to use HDNNP" href="usage.html" />
+    <link rel="prev" title="What is HDNNP?" href="description.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> HDNNP
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3.0.dev
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="description.html">What is HDNNP?</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">How to install HDNNP</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#python-installation">Python installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#get-source-code">Get source code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-dependencies-and-this-program">Install dependencies and this program</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#via-pipenv">Via pipenv</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#via-anaconda">Via anaconda</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#via-raw-pip">Via raw pip</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">How to use HDNNP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Execution example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Module documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extend.html">How to extend HDNNP</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">HDNNP</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>How to install HDNNP</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/install.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="how-to-install-hdnnp">
+<h1>How to install HDNNP<a class="headerlink" href="#how-to-install-hdnnp" title="Permalink to this headline">¶</a></h1>
+<div class="contents local topic" id="contents">
+<ul class="simple">
+<li><a class="reference internal" href="#python-installation" id="id1">Python installation</a></li>
+<li><a class="reference internal" href="#get-source-code" id="id2">Get source code</a></li>
+<li><a class="reference internal" href="#install-dependencies-and-this-program" id="id3">Install dependencies and this program</a><ul>
+<li><a class="reference internal" href="#via-pipenv" id="id4">Via pipenv</a></li>
+<li><a class="reference internal" href="#via-anaconda" id="id5">Via anaconda</a></li>
+<li><a class="reference internal" href="#via-raw-pip" id="id6">Via raw pip</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="python-installation">
+<h2><a class="toc-backref" href="#id1">Python installation</a><a class="headerlink" href="#python-installation" title="Permalink to this headline">¶</a></h2>
+<div class="line-block">
+<div class="line">We recommend that you install python using pyenv,
+because non-sudo user can install any python version on any computer.</div>
+<div class="line">We confirmed that this program works only with python 3.6.7.</div>
+</div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>on Linux<span class="o">)</span>
+$ git clone https://github.com/yyuu/pyenv.git ~/.pyenv
+<span class="o">(</span>on MacOS<span class="o">)</span>
+$ brew install pyenv
+
+$ <span class="nb">echo</span> <span class="s1">&#39;export PYENV_ROOT=&quot;$HOME/.pyenv&quot;&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">echo</span> <span class="s1">&#39;export PATH=&quot;$PYENV_ROOT/bin:$PATH&quot;&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">echo</span> <span class="s1">&#39;eval &quot;$(pyenv init -)&quot;&#39;</span> &gt;&gt; ~/.bash_profile
+$ <span class="nb">source</span> ~/.bash_profile
+
+$ pyenv install <span class="m">3</span>.6.7
+</pre></div>
+</div>
+</div>
+<div class="section" id="get-source-code">
+<h2><a class="toc-backref" href="#id2">Get source code</a><a class="headerlink" href="#get-source-code" title="Permalink to this headline">¶</a></h2>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<div class="last line-block">
+<div class="line">This program is now under development, not uploaded to PyPI.</div>
+<div class="line">You have to get source code and install it manually.</div>
+</div>
+</div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$ git clone https://github.com/ogura-edu/HDNNP.git
+</pre></div>
+</div>
+</div>
+<div class="section" id="install-dependencies-and-this-program">
+<h2><a class="toc-backref" href="#id3">Install dependencies and this program</a><a class="headerlink" href="#install-dependencies-and-this-program" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="via-pipenv">
+<h3><a class="toc-backref" href="#id4">Via pipenv</a><a class="headerlink" href="#via-pipenv" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> HDNNP/
+$ pyenv <span class="nb">local</span> <span class="m">3</span>.6.7
+$ pip install pipenv
+$ pipenv install --dev
+
+<span class="o">(</span>activate<span class="o">)</span>
+$ pipenv shell
+
+<span class="o">(</span><span class="k">for</span> example:<span class="o">)</span>
+<span class="o">(</span>HDNNP<span class="o">)</span> $ hdnnpy train
+
+<span class="o">(</span>deactivate<span class="o">)</span>
+<span class="o">(</span>HDNNP<span class="o">)</span> $ <span class="nb">exit</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="via-anaconda">
+<h3><a class="toc-backref" href="#id5">Via anaconda</a><a class="headerlink" href="#via-anaconda" title="Permalink to this headline">¶</a></h3>
+<p>Anaconda also can be installed by pyenv.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> HDNNP/
+$ pyenv install anaconda3-xxx
+$ pyenv <span class="nb">local</span> anaconda3-xxx
+$ conda env create -n HDNNP --file condaenv.yaml
+
+<span class="o">(</span>activate<span class="o">)</span>
+$ conda activate HDNNP
+
+<span class="o">(</span><span class="k">for</span> example:<span class="o">)</span>
+<span class="o">(</span>HDNNP<span class="o">)</span> $ hdnnpy train
+
+<span class="o">(</span>deactivate<span class="o">)</span>
+<span class="o">(</span>HDNNP<span class="o">)</span> $ conda deactivate
+</pre></div>
+</div>
+</div>
+<div class="section" id="via-raw-pip">
+<h3><a class="toc-backref" href="#id6">Via raw pip</a><a class="headerlink" href="#via-raw-pip" title="Permalink to this headline">¶</a></h3>
+<p>You can install all dependent packages manually.
+The dependent packages are written in <code class="docutils literal notranslate"><span class="pre">Pipfile</span></code>, <code class="docutils literal notranslate"><span class="pre">condaenv.yaml</span></code> or <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> HDNNP/
+$ pip install PKG1 PKG2 ...
+$ pip install --editable .
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="usage.html" class="btn btn-neutral float-right" title="How to use HDNNP" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="description.html" class="btn btn-neutral" title="What is HDNNP?" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, masayoshi.ogura
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

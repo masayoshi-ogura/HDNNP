@@ -1,0 +1,312 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>hdnnpy.model.models &mdash; HDNNP 0.3.0.dev documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> HDNNP
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3.0.dev
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../description.html">What is HDNNP?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">How to install HDNNP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../usage.html">How to use HDNNP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../example.html">Execution example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Module documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../extend.html">How to extend HDNNP</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">HDNNP</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>hdnnpy.model.models</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for hdnnpy.model.models</h1><div class="highlight"><pre>
+<span></span><span class="c1"># coding: utf-8</span>
+
+<span class="kn">import</span> <span class="nn">chainer</span>
+<span class="kn">import</span> <span class="nn">chainer.functions</span> <span class="k">as</span> <span class="nn">F</span>
+<span class="kn">import</span> <span class="nn">chainer.links</span> <span class="k">as</span> <span class="nn">L</span>
+<span class="kn">from</span> <span class="nn">chainer</span> <span class="k">import</span> <span class="n">Variable</span>
+
+
+<div class="viewcode-block" id="HighDimensionalNNP"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.HighDimensionalNNP">[docs]</a><span class="k">class</span> <span class="nc">HighDimensionalNNP</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">ChainList</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">elemental_composition</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">order</span> <span class="o">&lt;=</span> <span class="mi">1</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">[</span><span class="n">SubNNP</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">layers</span><span class="p">)</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">elemental_composition</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_order</span> <span class="o">=</span> <span class="n">order</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="HighDimensionalNNP.predict"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.HighDimensionalNNP.predict">[docs]</a>    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">xs</span><span class="p">,</span> <span class="o">=</span> <span class="n">inputs</span>
+            <span class="n">xs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Variable</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+            <span class="n">y_pred</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_predict_y</span><span class="p">(</span><span class="n">xs</span><span class="p">))</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">y_pred</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">xs</span><span class="p">,</span> <span class="n">dxs</span> <span class="o">=</span> <span class="n">inputs</span>
+            <span class="n">xs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Variable</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+            <span class="n">dxs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Variable</span><span class="p">(</span><span class="n">dx</span><span class="p">)</span> <span class="k">for</span> <span class="n">dx</span> <span class="ow">in</span> <span class="n">dxs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span>
+            <span class="n">y_pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_predict_y</span><span class="p">(</span><span class="n">xs</span><span class="p">)</span>
+            <span class="n">dy_pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_predict_dy</span><span class="p">(</span><span class="n">dxs</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">train</span><span class="p">)</span>
+            <span class="n">y_pred</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">y_pred</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">y_pred</span><span class="p">,</span> <span class="n">dy_pred</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="HighDimensionalNNP.get_by_element"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.HighDimensionalNNP.get_by_element">[docs]</a>    <span class="k">def</span> <span class="nf">get_by_element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">nnp</span> <span class="k">for</span> <span class="n">nnp</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">nnp</span><span class="o">.</span><span class="n">element</span> <span class="o">==</span> <span class="n">element</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="HighDimensionalNNP.reduce_grad_to"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.HighDimensionalNNP.reduce_grad_to">[docs]</a>    <span class="k">def</span> <span class="nf">reduce_grad_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">masters</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">master</span> <span class="ow">in</span> <span class="n">masters</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">nnp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_by_element</span><span class="p">(</span><span class="n">master</span><span class="o">.</span><span class="n">element</span><span class="p">):</span>
+                <span class="n">master</span><span class="o">.</span><span class="n">addgrads</span><span class="p">(</span><span class="n">nnp</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="HighDimensionalNNP.sync_param_with"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.HighDimensionalNNP.sync_param_with">[docs]</a>    <span class="k">def</span> <span class="nf">sync_param_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">masters</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">master</span> <span class="ow">in</span> <span class="n">masters</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">nnp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_by_element</span><span class="p">(</span><span class="n">master</span><span class="o">.</span><span class="n">element</span><span class="p">):</span>
+                <span class="n">nnp</span><span class="o">.</span><span class="n">copyparams</span><span class="p">(</span><span class="n">master</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_predict_y</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">nnp</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">nnp</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xs</span><span class="p">)]</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_predict_dy</span><span class="p">(</span><span class="n">dxs</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">train</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;INPUT</span>
+<span class="sd">        dxs: list of Variable [natom, (nsample, nfeature, natom, 3)]</span>
+<span class="sd">        y:   list of Variable [natom, (nsample, 1)]</span>
+<span class="sd">        xs:  list of Variable [natom, (nsample, nfeature)]</span>
+<span class="sd">        train: boolean</span>
+<span class="sd">        OUTPUT</span>
+<span class="sd">        forces: Variable (nsample, 1, natom, 3)</span>
+
+<span class="sd">        natom, which is length of the list, is the atom energy</span>
+<span class="sd">         or energy change of which will be computed</span>
+<span class="sd">        natom, which is shape[2] of ndarray of y, is the atom</span>
+<span class="sd">         that forces you want to compute acting on.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n_atom</span> <span class="o">=</span> <span class="n">dxs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">dy_shape</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">n_atom</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">dys</span> <span class="o">=</span> <span class="n">chainer</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">enable_double_backprop</span><span class="o">=</span><span class="n">train</span><span class="p">)</span>
+        <span class="n">forces</span> <span class="o">=</span> <span class="o">-</span> <span class="nb">sum</span><span class="p">([</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dx</span> <span class="o">*</span> <span class="n">F</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">dy</span><span class="p">,</span> <span class="n">n_atom</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dx</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span>
+                              <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dxs</span><span class="p">,</span> <span class="n">dys</span><span class="p">)])</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dy_shape</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">forces</span></div>
+
+
+<div class="viewcode-block" id="MasterNNP"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.MasterNNP">[docs]</a><span class="k">class</span> <span class="nc">MasterNNP</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">ChainList</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">elements</span><span class="p">,</span> <span class="n">layers</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">SubNNP</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">layers</span><span class="p">)</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">elements</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="SubNNP"><a class="viewcode-back" href="../../../hdnnpy.model.html#hdnnpy.model.models.SubNNP">[docs]</a><span class="k">class</span> <span class="nc">SubNNP</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">Chain</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">,</span> <span class="n">layers</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_persistent</span><span class="p">(</span><span class="s1">&#39;element&#39;</span><span class="p">,</span> <span class="n">element</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_n_layer</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">layers</span><span class="p">)</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">layer</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">]</span>
+        <span class="n">activations</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">]</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_scope</span><span class="p">():</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">chainer</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">HeNormal</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">insize</span><span class="p">,</span> <span class="n">outsize</span><span class="p">,</span> <span class="n">activation</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">nodes</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">nodes</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">activations</span><span class="p">)):</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;activation_function</span><span class="si">{i}</span><span class="s1">&#39;</span><span class="p">,</span>
+                        <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;F.</span><span class="si">{activation}</span><span class="s1">&#39;</span><span class="p">))</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;fc_layer</span><span class="si">{i}</span><span class="s1">&#39;</span><span class="p">,</span>
+                        <span class="n">L</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">insize</span><span class="p">,</span> <span class="n">outsize</span><span class="p">,</span> <span class="n">initialW</span><span class="o">=</span><span class="n">w</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_layer</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_n_layer</span><span class="p">):</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;self.activation_function</span><span class="si">{i}</span><span class="s1">(self.fc_layer</span><span class="si">{i}</span><span class="s1">(h))&#39;</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">h</span>
+        <span class="k">return</span> <span class="n">y</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, masayoshi.ogura
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

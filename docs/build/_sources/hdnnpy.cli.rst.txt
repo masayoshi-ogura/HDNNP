@@ -1,0 +1,46 @@
+hdnnpy.cli package
+==================
+
+Submodules
+----------
+
+hdnnpy.cli.configurables module
+-------------------------------
+
+.. automodule:: hdnnpy.cli.configurables
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hdnnpy.cli.main module
+----------------------
+
+.. automodule:: hdnnpy.cli.main
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hdnnpy.cli.prediction\_application module
+-----------------------------------------
+
+.. automodule:: hdnnpy.cli.prediction_application
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hdnnpy.cli.training\_application module
+---------------------------------------
+
+.. automodule:: hdnnpy.cli.training_application
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: hdnnpy.cli
+    :members:
+    :undoc-members:
+    :show-inheritance:
