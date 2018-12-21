@@ -15,6 +15,9 @@ scikit-learn = "*"
 traitlets = "*"
 
 [dev-packages]
+sphinx = "*"
+sphinx-rtd-theme = "*"
+sphinx-autobuild = "*"
 hdnnpy = {editable = true, path = "."}
 
 [requires]
