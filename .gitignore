@@ -4,3 +4,6 @@
 /hdnnpy.egg-info/
 /build/
 /dist/
+
+# html built by sphinx
+/docs/build/

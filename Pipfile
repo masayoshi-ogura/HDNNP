@@ -10,8 +10,8 @@ matplotlib = "*"
 "mpi4py" = "*"
 numpy = "*"
 pyyaml = "*"
-scipy = "*"
 scikit-learn = "*"
+scipy = "*"
 traitlets = "*"
 
 [dev-packages]

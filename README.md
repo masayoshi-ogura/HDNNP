@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/hdnnp/badge/?version=latest)](https://hdnnp.readthedocs.io/en/latest/?badge=latest)
+
 # High Dimensional Neural Network Potential(HDNNP)
 
 > This is a implementation of High Dimensional Neural Network Potential(HDNNP) designed to reproduce Density Function Theory(DFT) calculation *effectively* with high *flexibility*, *reactivity*.
