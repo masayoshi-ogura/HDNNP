@@ -35,8 +35,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
 
         Args:
             order (int): passed to super class.
-            structures (list [~hdnnpy.dataset.AtomicStructure]):
-                passed to super class.
+            structures (list [AtomicStructure]): passed to super class.
             **func_param_map (list [tuple]):
                 parameter sets for each type of symmetry function.
 
@@ -71,7 +70,8 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
 
         | parameters given at initialization are used.
         | This method is used to initialize instance and expand feature
-          dimension in :class:`~hdnnpy.dataset.HDNNPDataset`.
+          dimension in
+          :class:`~hdnnpy.dataset.hdnnp_dataset.HDNNPDataset`.
 
         Args:
             elements (list [str]): Unique list of elements. It should be

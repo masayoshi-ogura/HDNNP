@@ -29,7 +29,7 @@ class PropertyDatasetBase(ABC):
 
         Args:
             order (int): Derivative order of property to calculate.
-            structures (list [~hdnnpy.dataset.AtomicStructure]):
+            structures (list [AtomicStructure]):
                 Properties are calculated for these atomic structures.
         """
         self._order = order
@@ -138,7 +138,7 @@ class PropertyDatasetBase(ABC):
             AssertionError: If loaded dataset is incompatible with
                 atomic structures given at initialization.
             ValueError: If loaded dataset is lacking in any property and
-            ``remake=False``.
+                ``remake=False``.
         """
         if MPI.rank != 0:
             return

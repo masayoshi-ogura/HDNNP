@@ -28,7 +28,7 @@ class DescriptorDatasetBase(ABC):
 
         Args:
             order (int): Derivative order of descriptor to calculate.
-            structures (list [~hdnnpy.dataset.AtomicStructure]):
+            structures (list [AtomicStructure]):
                 Descriptors are calculated for these atomic structures.
         """
         self._order = order

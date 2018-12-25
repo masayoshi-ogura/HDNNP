@@ -28,8 +28,7 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
 
         Args:
             order (int): passed to super class.
-            structures (list [~hdnnpy.dataset.AtomicStructure]):
-                passed to super class.
+            structures (list [AtomicStructure]): passed to super class.
         """
         assert 0 <= order <= 3
         super().__init__(order, structures)
