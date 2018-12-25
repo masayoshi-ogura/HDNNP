@@ -3,12 +3,12 @@
 import numpy as np
 
 from hdnnpy.dataset.property.property_dataset_base import PropertyDatasetBase
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class InteratomicPotentialDataset(PropertyDatasetBase):
     PROPERTIES = ['energy', 'force', 'harmonic', 'third_order']
-    UNITS = ['eV/atom', 'eV/$\AA$']
+    UNITS = ['eV/atom', 'eV/$\\AA$']
     name = 'interatomic_potential'
 
     def __init__(self, order, structures):
@@ -18,22 +18,20 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     def make(self, verbose=True):
         n_sample = len(self._structures)
         n_atom = len(self._structures[0])
-        count = np.array([(n_sample + i) // MPI.size
-                          for i in range(MPI.size)[::-1]],
-                         dtype=np.int32)
-        s = count[: MPI.rank].sum()
-        e = count[: MPI.rank+1].sum()
-        structures = self._structures[s:e]
+        slices = [slice(i[0], i[-1]+1)
+                  for i in np.array_split(range(n_sample), MPI.size)]
+        structures = self._structures[slices[MPI.rank]]
 
         for i, send_data in enumerate(self._calculate_properties(structures)):
             if MPI.rank == 0:
                 shape = (n_sample, 1, *(n_atom, 3) * i)
                 data = np.empty(shape, dtype=np.float32)
-                recv_data = (data, count * data[0].size)
-                MPI.comm.Gatherv(send_data, recv_data, root=0)
+                data[slices[0]] = send_data
+                for j in range(1, MPI.size):
+                    data[slices[j]] = recv_chunk(source=j)
                 self._dataset.append(data)
             else:
-                MPI.comm.Gatherv(send_data, None, root=0)
+                send_chunk(send_data, dest=0)
 
         if verbose:
             pprint(f'Calculated {self.name} dataset.')
