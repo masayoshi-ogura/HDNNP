@@ -4,10 +4,11 @@ from itertools import (chain, combinations_with_replacement)
 
 import numpy as np
 from scipy.linalg import block_diag
+from tqdm import tqdm
 
 from hdnnpy.dataset.descriptor.descriptor_dataset_base import (
     DescriptorDatasetBase)
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class SymmetryFunctionDataset(DescriptorDatasetBase):
@@ -49,22 +50,21 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def make(self, verbose=True):
         n_sample = len(self._structures)
         n_atom = len(self._structures[0])
-        count = np.array([(n_sample + i) // MPI.size
-                          for i in range(MPI.size)[::-1]],
-                         dtype=np.int32)
-        s = count[: MPI.rank].sum()
-        e = count[: MPI.rank+1].sum()
-        structures = self._structures[s:e]
+        slices = [slice(i[0], i[-1]+1)
+                  for i in np.array_split(range(n_sample), MPI.size)]
+        structures = self._structures[slices[MPI.rank]]
 
         for i, send_data in enumerate(self._calculate_descriptors(structures)):
+            shape = (n_atom, self.n_feature, *(n_atom, 3) * i)
+            send_data = send_data.reshape((-1,) + shape)
             if MPI.rank == 0:
-                shape = (n_sample, n_atom, self.n_feature, *(n_atom, 3) * i)
-                data = np.empty(shape, dtype=np.float32)
-                recv_data = (data, count * data[0].size)
-                MPI.comm.Gatherv(send_data, recv_data, root=0)
+                data = np.empty((n_sample,) + shape, dtype=np.float32)
+                data[slices[0]] = send_data
+                for j in range(1, MPI.size):
+                    data[slices[j]] = recv_chunk(source=j)
                 self._dataset.append(data)
             else:
-                MPI.comm.Gatherv(send_data, None, root=0)
+                send_chunk(send_data, dest=0)
 
         if verbose:
             pprint(f'Calculated {self.name} dataset.')
@@ -82,23 +82,28 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         if self._order >= 0:
             G = np.zeros((n_sample, n_atom, self.n_feature),
                          dtype=np.float32)
-            for i, structure in enumerate(structures):
-                for j, g in enumerate(zip(*[func[0](structure)
-                                            for func in functions])):
+            for i, structure in enumerate(tqdm(
+                    structures, ascii=True, desc=f'Process #{MPI.rank}',
+                    leave=False, position=MPI.rank)):
+                for j, g in enumerate(zip(
+                        *[func[0](structure) for func in functions])):
                     G[i, j] = list(chain.from_iterable(g))
+                if self._order == 0:
+                    structure.clear_cache()
             yield G
 
         if self._order >= 1:
             dGdr = np.zeros((n_sample, n_atom, self.n_feature, n_atom, 3),
                             dtype=np.float32)
-            for i, structure in enumerate(structures):
-                for j, dgdr in enumerate(zip(*[func[1](structure)
-                                               for func in functions])):
+            for i, structure in enumerate(tqdm(
+                    structures, ascii=True, desc=f'Process #{MPI.rank}',
+                    leave=False, position=MPI.rank)):
+                for j, dgdr in enumerate(zip(
+                        *[func[1](structure) for func in functions])):
                     dGdr[i, j] = list(chain.from_iterable(dgdr))
+                if self._order == 1:
+                    structure.clear_cache()
             yield dGdr
-
-        for structure in structures:
-            structure.clear_cache()
 
     def _make_symmetry_function_type1(self, Rc):
         def symmetry_function_type1(structure):

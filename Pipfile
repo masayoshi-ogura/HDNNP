@@ -12,6 +12,7 @@ numpy = "*"
 pyyaml = "*"
 scikit-learn = "*"
 scipy = "*"
+tqdm = "*"
 traitlets = "*"
 
 [dev-packages]
