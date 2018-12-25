@@ -6,4 +6,5 @@ numpy
 PyYAML
 scikit-learn
 scipy
+tqdm
 traitlets

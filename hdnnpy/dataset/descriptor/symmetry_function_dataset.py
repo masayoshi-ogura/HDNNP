@@ -55,9 +55,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         structures = self._structures[slices[MPI.rank]]
 
         for i, send_data in enumerate(self._calculate_descriptors(structures)):
+            shape = (n_atom, self.n_feature, *(n_atom, 3) * i)
+            send_data = send_data.reshape((-1,) + shape)
             if MPI.rank == 0:
-                shape = (n_sample, n_atom, self.n_feature, *(n_atom, 3) * i)
-                data = np.empty(shape, dtype=np.float32)
+                data = np.empty((n_sample,) + shape, dtype=np.float32)
                 data[slices[0]] = send_data
                 for j in range(1, MPI.size):
                     data[slices[j]] = recv_chunk(source=j)
