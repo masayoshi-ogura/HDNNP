@@ -1,6 +1,6 @@
 # coding: utf-8
 
-"""Descriptor dataset classes and their base class."""
+"""Descriptor dataset subpackage."""
 
 __all__ = [
     'DESCRIPTOR_DATASET',

@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Dataset tools subpackage for HDNNP."""
+
 __all__ = [
     'AtomicStructure',
     'DatasetGenerator',
