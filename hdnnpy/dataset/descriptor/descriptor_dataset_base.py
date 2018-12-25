@@ -21,8 +21,7 @@ class DescriptorDatasetBase(ABC):
     """str: Name of this descriptor class."""
 
     def __init__(self, order, structures):
-        """Initialize descriptor dataset base class.
-
+        """
         Common instance variables for descriptor datasets are
         initialized.
 

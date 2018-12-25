@@ -18,8 +18,7 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     """str: Name of this property class."""
 
     def __init__(self, order, structures):
-        """Initialize interatomic potential dataset class.
-
+        """
         It accepts 0 or 3 for ``order``.
 
         Notes:

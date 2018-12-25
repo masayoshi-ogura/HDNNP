@@ -10,8 +10,7 @@ from hdnnpy.dataset.hdnnp_dataset import HDNNPDataset
 class DatasetGenerator(object):
     """Deal out datasets as needed."""
     def __init__(self, *datasets):
-        """Initialize dataset generator class.
-
+        """
         Args:
             *datasets (HDNNPDataset): What you want to unite.
         """

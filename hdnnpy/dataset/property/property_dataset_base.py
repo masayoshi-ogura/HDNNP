@@ -23,8 +23,7 @@ class PropertyDatasetBase(ABC):
     """str: Name of this property class."""
 
     def __init__(self, order, structures):
-        """Initialize property dataset base class.
-
+        """
         Common instance variables for property datasets are initialized.
 
         Args:

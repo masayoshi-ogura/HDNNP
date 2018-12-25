@@ -21,8 +21,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     """str: Name of this descriptor class."""
 
     def __init__(self, order, structures, **func_param_map):
-        """Initialize symmetry function dataset class.
-
+        """
         It accepts 0 or 1 for ``order``.
 
         | Each symmetry function requires following parameters.

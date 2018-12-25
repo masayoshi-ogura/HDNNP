@@ -11,8 +11,7 @@ import numpy as np
 class AtomicStructure(object):
     """Wrapper class of ase.Atoms."""
     def __init__(self, atoms):
-        """Initialize atomic structure dataset class.
-
+        """
         | It wraps :obj:`ase.Atoms` object to define additional methods
           and attributes.
         | Before wrapping, it sorts atoms by element alphabetically.
