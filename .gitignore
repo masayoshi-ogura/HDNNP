@@ -7,3 +7,5 @@
 
 # html built by sphinx
 /docs/build/
+# autosummary generated rst files
+/docs/source/modules/**/generated

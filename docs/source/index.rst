@@ -15,7 +15,7 @@ Welcome to HDNNP's documentation!
    install
    usage
    example
-   modules
+   modules/index
    extend
 
 

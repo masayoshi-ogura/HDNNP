@@ -1,5 +1,11 @@
 # coding: utf-8
 
+"""Base class of atomic structure based property dataset.
+
+If you want to add new property to extend HDNNP, inherits this base
+class.
+"""
+
 from abc import (ABC, abstractmethod)
 
 import numpy as np
@@ -8,11 +14,24 @@ from hdnnpy.utils import (MPI, pprint)
 
 
 class PropertyDatasetBase(ABC):
+    """Base class of atomic structure based property dataset."""
     PROPERTIES = []
+    """list [str]: Names of properties for each derivative order."""
     UNITS = []
+    """list [str]: Units of properties for each derivative order."""
     name = ''
+    """str: Name of this property class."""
 
     def __init__(self, order, structures):
+        """Initialize property dataset base class.
+
+        Common instance variables for property datasets are initialized.
+
+        Args:
+            order (int): Derivative order of property to calculate.
+            structures (list [~hdnnpy.dataset.AtomicStructure]):
+                Properties are calculated for these atomic structures.
+        """
         self._order = order
         self._properties = self.PROPERTIES[: order+1]
         self._elemental_composition = structures[0].get_chemical_symbols()
@@ -23,6 +42,12 @@ class PropertyDatasetBase(ABC):
         self._dataset = []
 
     def __getitem__(self, item):
+        """Return property data this instance has.
+
+        If ``item`` is string, it returns corresponding property.
+        Available keys can be obtained by ``properties`` attribute.
+        Otherwise, it returns a list of property sliced by ``item``.
+        """
         if isinstance(item, str):
             try:
                 index = self._properties.index(item)
@@ -33,40 +58,88 @@ class PropertyDatasetBase(ABC):
             return [data[item] for data in self._dataset]
 
     def __len__(self):
-            return len(self._structures)
+        """Number of atomic structures given at initialization."""
+        return len(self._structures)
 
     @property
     def elemental_composition(self):
+        """list [str]: Elemental composition of atomic structures given
+        at initialization."""
         return self._elemental_composition
 
     @property
     def elements(self):
+        """list [str]: Elements of atomic structures given at
+        initialization."""
         return self._elements
 
     @property
     def has_data(self):
+        """bool: True if success to load or make dataset,
+        False otherwise."""
         return len(self._dataset) != 0
 
     @property
     def order(self):
+        """int: Derivative order of property to calculate."""
         return self._order
 
     @property
     def properties(self):
+        """list [str]: Names of properties this instance have."""
         return self._properties
 
     @property
     def tag(self):
+        """str: Unique tag of atomic structures given at
+        initialization.
+
+        Usually, it is a form like ``<any prefix> <chemical formula>``.
+        (ex. ``CrystalGa2N2``)
+        """
         return self._tag
 
     @property
     def units(self):
+        """list [str]: Units of properties this instance have."""
         return self._units
 
     def clear(self):
+        """Clear up instance variables to initial state."""
         self._dataset.clear()
 
     def load(self, file_path, verbose=True, remake=False):
+        """Load dataset from .npz format file.
+
+        Only root MPI process load dataset.
+
+        It validates following compatibility between loaded dataset and
+        atomic structures given at initialization.
+
+            * length of data
+            * elemental composition
+            * elements
+            * tag
+
+        It also validates that loaded dataset satisfies requirements.
+
+            * order
+
+        Args:
+            file_path (~pathlib.Path): File path to load dataset.
+            verbose (bool, optional): Print log to stdout.
+            remake (bool, optional): If loaded dataset is lacking in
+                any property, recalculate dataset from scratch and
+                overwrite it to ``file_path``. Otherwise, it raises
+                ValueError.
+
+        Raises:
+            RuntimeError: If this instance already has data.
+            AssertionError: If loaded dataset is incompatible with
+                atomic structures given at initialization.
+            ValueError: If loaded dataset is lacking in any property and
+            ``remake=False``.
+        """
         if MPI.rank != 0:
             return
 
@@ -109,6 +182,17 @@ class PropertyDatasetBase(ABC):
                    f' from {file_path}')
 
     def save(self, file_path, verbose=True):
+        """Save dataset to .npz format file.
+
+        Only root MPI process save dataset.
+
+        Args:
+            file_path (~pathlib.Path): File path to save dataset.
+            verbose (bool, optional): Print log to stdout.
+
+        Raises:
+            RuntimeError: If this instance do not have any data.
+        """
         if MPI.rank != 0:
             return
 
@@ -130,4 +214,9 @@ class PropertyDatasetBase(ABC):
 
     @abstractmethod
     def make(self, *args, **kwargs):
+        """Calculate & retain property dataset.
+
+        This is abstract method.
+        Subclass of this base class have to override.
+        """
         pass

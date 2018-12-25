@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Property dataset classes and their base class."""
+
 __all__ = [
     'PROPERTY_DATASET',
     ]
