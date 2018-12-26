@@ -126,7 +126,8 @@ class PredictionApplication(Application):
             # construct test dataset from descriptor & property datasets
             dataset = HDNNPDataset(descriptor, property_)
             dataset.construct(
-                pc.elements, preprocesses, shuffle=False, verbose=self.verbose)
+                all_elements=pc.elements, preprocesses=preprocesses,
+                shuffle=False, verbose=self.verbose)
             datasets.append(dataset)
             dc.n_sample += dataset.total_size
 

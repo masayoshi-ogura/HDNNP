@@ -167,7 +167,8 @@ class TrainingApplication(Application):
             # construct training dataset from descriptor & property datasets
             dataset = HDNNPDataset(descriptor, property_)
             dataset.construct(
-                tc.elements, preprocesses, shuffle=True, verbose=self.verbose)
+                all_elements=tc.elements, preprocesses=preprocesses,
+                shuffle=True, verbose=self.verbose)
             dataset.scatter()
             datasets.append(dataset)
             dc.n_sample += dataset.total_size
