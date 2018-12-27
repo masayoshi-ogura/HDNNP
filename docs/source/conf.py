@@ -14,6 +14,7 @@
 #
 import os
 import sys
+from hdnnpy import __version__
 sys.path.insert(0, os.path.abspath('../..'))
 
 
@@ -24,9 +25,9 @@ copyright = '2018, masayoshi.ogura'
 author = 'masayoshi.ogura'
 
 # The short X.Y version
-version = '0.3.0.dev'
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = '0.3.0.dev'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
