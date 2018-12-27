@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Pre-processing of input dataset subpackage."""
+
 __all__ = [
     'PREPROCESS',
     ]

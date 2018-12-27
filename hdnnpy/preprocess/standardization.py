@@ -13,13 +13,8 @@ class Standardization(PreprocessBase):
 
     def __init__(self):
         super().__init__()
-        self._elements = set()
         self._mean = {}
         self._std = {}
-
-    @property
-    def elements(self):
-        return sorted(self._elements)
 
     @property
     def mean(self):
@@ -47,10 +42,6 @@ class Standardization(PreprocessBase):
             dataset[1] /= std[..., None, None]
 
         return dataset
-
-    def dump_params(self):
-        # todo
-        return
 
     def load(self, file_path, verbose=True):
         if MPI.rank == 0:

@@ -14,14 +14,9 @@ class PCA(PreprocessBase):
 
     def __init__(self, n_components=None):
         super().__init__()
-        self._elements = set()
         self._n_components = n_components
         self._mean = {}
         self._transform = {}
-
-    @property
-    def elements(self):
-        return sorted(self._elements)
 
     @property
     def n_components(self):
@@ -52,10 +47,6 @@ class PCA(PreprocessBase):
             dataset[1] = np.einsum('ijkmn,jkl->ijlmn', dataset[1], transform)
 
         return dataset
-
-    def dump_params(self):
-        # todo
-        return
 
     def load(self, file_path, verbose=True):
         if MPI.rank == 0:

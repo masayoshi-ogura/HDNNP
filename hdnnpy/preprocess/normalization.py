@@ -13,13 +13,8 @@ class Normalization(PreprocessBase):
 
     def __init__(self):
         super().__init__()
-        self._elements = set()
         self._max = {}
         self._min = {}
-
-    @property
-    def elements(self):
-        return sorted(self._elements)
 
     @property
     def max(self):
@@ -47,10 +42,6 @@ class Normalization(PreprocessBase):
             dataset[1] /= (max_ - min_)[..., None, None]
 
         return dataset
-
-    def dump_params(self):
-        # todo
-        return
 
     def load(self, file_path, verbose=True):
         if MPI.rank == 0:

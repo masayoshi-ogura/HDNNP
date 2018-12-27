@@ -206,7 +206,6 @@ autodoc_member_order = 'groupwise'
 autodoc_default_options = {
     'show-inheritance': None,
     'members': None,
-    'inherited-members': None,
 }
 
 # -- Options for intersphinx extension ---------------------------------------

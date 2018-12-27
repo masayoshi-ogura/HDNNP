@@ -8,4 +8,5 @@
     :no-inherited-members:
 {% else %}
 .. autoclass:: {{ objname }}
+    :inherited-members:
 {% endif %}

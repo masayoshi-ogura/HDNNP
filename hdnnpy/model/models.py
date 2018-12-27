@@ -224,7 +224,7 @@ class SubNNP(chainer.Chain):
                         L.Linear(insize, outsize, initialW=w))
 
     def __len__(self):
-        """int: Number of layers."""
+        """Return the number of layers."""
         return self._n_layer
 
     def feedforward(self, x):
