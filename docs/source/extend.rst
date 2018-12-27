@@ -58,8 +58,8 @@ In addition, override the following abstract method.
 Preprocess
 -------------------
 
-* Normalization
 * PCA
+* Scaling
 * Standardization
 
 

@@ -22,6 +22,8 @@ class PreprocessBase(ABC):
 
     @property
     def elements(self):
+        """list [str]: List of elements whose parameters have already
+        been initialized."""
         return sorted(self._elements)
 
     @abstractmethod
@@ -44,7 +46,7 @@ class PreprocessBase(ABC):
 
     @abstractmethod
     def save(self, *args, **kwargs):
-        """Load internal parameters for each element.
+        """Save internal parameters for each element.
 
         This is abstract method.
         Subclass of this base class have to override.

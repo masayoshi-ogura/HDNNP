@@ -214,6 +214,7 @@ intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
     'chainer': ('https://docs.chainer.org/en/stable/', None),
     'ase': ('https://wiki.fysik.dtu.dk/ase/', None),
+    'sklearn': ('https://scikit-learn.org/stable/', None),
 }
 
 # -- Options for autosummary extension ---------------------------------------

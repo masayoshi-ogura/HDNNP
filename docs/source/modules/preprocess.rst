@@ -7,8 +7,8 @@ Pre-processing of dataset
     :toctree: generated/
     :nosignatures:
 
-    ~normalization.Normalization
     ~pca.PCA
+    ~scaling.Scaling
     ~standardization.Standardization
 
 Pre-processing base class
