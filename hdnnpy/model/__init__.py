@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Neural network structure models subpackage."""
+
 __all__ = [
     'HighDimensionalNNP',
     'MasterNNP',

@@ -16,8 +16,8 @@ def zeroth_only(model, properties, **kwargs):
                       ' keyword arguments are ignored.')
     observation_keys = [f'RMSE/{properties[0]}', 'RMSE/total']
 
-    def loss_function(inputs, labels, train=True):
-        predictions = model.predict(inputs, train=train)
+    def loss_function(inputs, labels):
+        predictions = model.predict(inputs)
         pred0, *_ = predictions
         true0, *_ = labels
         loss0 = F.mean_squared_error(pred0, true0)
@@ -40,8 +40,8 @@ def first_only(model, properties, **kwargs):
                       ' keyword arguments are ignored.')
     observation_keys = [f'RMSE/{properties[1]}', 'RMSE/total']
 
-    def loss_function(inputs, labels, train=True):
-        predictions = model.predict(inputs, train=train)
+    def loss_function(inputs, labels):
+        predictions = model.predict(inputs)
         _, pred1, *_ = predictions
         _, true1, *_ = labels
         loss1 = F.mean_squared_error(pred1, true1)
@@ -63,8 +63,8 @@ def mix(model, properties, **kwargs):
     observation_keys = [f'RMSE/{properties[0]}', f'RMSE/{properties[1]}',
                         'RMSE/total']
 
-    def loss_function(inputs, labels, train=True):
-        predictions = model.predict(inputs, train=train)
+    def loss_function(inputs, labels):
+        predictions = model.predict(inputs)
         pred0, pred1, *_ = predictions
         true0, true1, *_ = labels
         loss0 = F.mean_squared_error(pred0, true0)

@@ -28,13 +28,13 @@ class Evaluator(evaluator.Evaluator):
 
         for batch in it:
             observation = {}
-            # backprop_mode is needed for HDNNP
             with report_scope(observation):
-                in_arrays = self.converter(batch, self.device)
-                half = len(in_arrays) // 2
-                inputs = in_arrays[:half]
-                labels = in_arrays[half:]
-                eval_func(inputs, labels, train=False)
+                with chainer.no_backprop_mode():
+                    in_arrays = self.converter(batch, self.device)
+                    half = len(in_arrays) // 2
+                    inputs = in_arrays[:half]
+                    labels = in_arrays[half:]
+                    eval_func(inputs, labels)
 
             summary.add(observation)
 
@@ -55,8 +55,9 @@ class ScatterPlot(Extension):
         self._init_labels(dataset)
 
     def __call__(self, trainer):
-        with chainer.using_config('train', False):
-            predictions = self._model.predict(self._inputs, train=False)
+        with chainer.using_config('train', False), \
+             chainer.using_config('enable_backprop', False):
+            predictions = self._model.predict(self._inputs)
 
         for i in range(self._order + 1):
             pred_send = predictions[i].data

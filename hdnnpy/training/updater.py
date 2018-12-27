@@ -10,7 +10,7 @@ class Updater(chainer.training.updaters.StandardUpdater):
     def update_core(self):
         master_opt = self.get_optimizer('master')
         main_opt = self.get_optimizer('main')
-        masters = master_opt.target
+        master_nnp = master_opt.target
         hdnnp = main_opt.target
 
         batch = self.converter(self.get_iterator('main').next(), self.device)
@@ -18,12 +18,12 @@ class Updater(chainer.training.updaters.StandardUpdater):
         inputs = batch[:half]
         labels = batch[half:]
 
-        masters.cleargrads()
+        master_nnp.cleargrads()
         hdnnp.cleargrads()
 
-        loss = self.loss_func(inputs, labels, train=True)
+        loss = self.loss_func(inputs, labels)
         loss.backward()
 
-        hdnnp.reduce_grad_to(masters)
+        hdnnp.reduce_grad_to(master_nnp)
         master_opt.update()
-        hdnnp.sync_param_with(masters)
+        hdnnp.sync_param_with(master_nnp)

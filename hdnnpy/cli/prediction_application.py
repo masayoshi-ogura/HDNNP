@@ -149,8 +149,10 @@ class PredictionApplication(Application):
                 dataset.elemental_composition, mc.layers, pc.order)
             hdnnp.sync_param_with(master_nnp)
 
-            predictions = hdnnp.predict(
-                chainer.dataset.concat_examples(dataset))
+            with chainer.using_config('train', False), \
+                 chainer.using_config('enable_backprop', False):
+                predictions = hdnnp.predict(
+                    chainer.dataset.concat_examples(dataset))
             result = {
                 **{'tag': dataset.tag},
                 **{property_: prediction.data for property_, prediction

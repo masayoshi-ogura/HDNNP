@@ -86,8 +86,8 @@ If you want to use other loss function, define a function of following form:
        parameterB = kwargs['keyB']
        observation_keys = ['metricsA', 'metricsB']
 
-       def loss_function(inputs, labels, train=True):
-           predictions = model(inputs, train=train)
+       def loss_function(inputs, labels):
+           predictions = model(inputs)
            loss = ...
            observation = {
                observation_keys[0]: ...,
