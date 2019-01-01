@@ -1,7 +1,6 @@
 name: HDNNP
 channels:
   - defaults
-  - anaconda
   - conda-forge
 dependencies:
   - python==3.6.7
@@ -15,5 +14,3 @@ dependencies:
   - scipy
   - tqdm
   - traitlets
-  - pip:
-    - chainermn
