@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Training tools subpackage."""
+
 __all__ = [
     'LOSS_FUNCTION',
     'Manager',

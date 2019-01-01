@@ -241,7 +241,7 @@ class TrainingApplication(Application):
                 ext.Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
             if tc.scatter_plot:
-                trainer.extend(ScatterPlot(test, hdnnp, tc.order, comm),
+                trainer.extend(ScatterPlot(test, hdnnp, comm),
                                trigger=interval)
             if MPI.rank == 0:
                 if tc.log_report:
@@ -260,8 +260,8 @@ class TrainingApplication(Application):
 
             manager = Manager(tag, trainer, result, is_snapshot=True)
             if self.is_resume:
-                manager.check_resume(self.resume_dir.name)
-            if manager.allow_to_run():
+                manager.check_to_resume(self.resume_dir.name)
+            if manager.allow_to_run:
                 with manager:
                     trainer.run()
 

@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Functions to handle xyz file format."""
+
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -9,6 +11,22 @@ from hdnnpy.utils import (MPI, mkdir, pprint)
 
 
 def parse_xyz(file_path, save=True, verbose=True):
+    """Parse a xyz format file and bunch structures by the same tag.
+
+    Args:
+        file_path (~pathlib.Path): File path to parse.
+        save (bool, optional):
+            If True, save the structures bunched by the same tag into
+            files. Otherwise, save into temporarily files.
+        verbose (bool, optional): Print log to stdout.
+
+    Returns:
+        tuple: 2-element tuple containing:
+
+        - tag_xyz_map (dict): Tag to file path mapping.
+        - elements (list [str]):
+            All elements contained in the parsed file.
+    """
     tag_xyz_map = {}
     elements = set()
 

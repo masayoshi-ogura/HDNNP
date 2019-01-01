@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""File format support subpackage."""
+
 __all__ = [
     'parse_xyz',
     ]

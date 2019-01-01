@@ -10,7 +10,6 @@ Custom training extensions
     :toctree: generated/
     :nosignatures:
 
-    ~extensions.Evaluator
     ~extensions.ScatterPlot
     ~extensions.set_log_scale
 

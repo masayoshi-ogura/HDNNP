@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Utility functions used in various subpackages."""
+
 __all__ = [
     'MPI',
     'mkdir',
@@ -19,17 +21,32 @@ INT_MAX = 2147483647
 
 
 class MPI:
+    """MPI world communicator and aliases."""
     comm = MPI4PY.COMM_WORLD
     rank = MPI4PY.COMM_WORLD.Get_rank()
     size = MPI4PY.COMM_WORLD.Get_size()
 
 
 def mkdir(path):
-    if MPI.rank == 0:
-        path.mkdir(parents=True, exist_ok=True)
+    """Make new directory on MPI root process.
+
+    Args:
+        path (~pathlib.Path): Directory path to create.
+    """
+    if MPI.rank != 0:
+        return
+
+    path.mkdir(parents=True, exist_ok=True)
 
 
 def pprint(data=None, flush=True, **options):
+    """Pretty print function.
+
+    Args:
+        data (str, optional): Data to output into stdout.
+        flush (bool, optional): Flush the stream after output if True.
+        **options: Other options passed to :meth:`print`.
+    """
     if data is None:
         data = ''
     if isinstance(data, list) or isinstance(data, dict):
@@ -43,6 +60,15 @@ def pprint(data=None, flush=True, **options):
 
 
 def recv_chunk(source, max_buf_len=256 * 1024 * 1024):
+    """Receive data divided into small chunks with MPI communication.
+
+    Args:
+        source (int): MPI source process that sends data.
+        max_buf_len (int, optional): Maximum size of each chunk.
+
+    Returns:
+        object: Received data.
+    """
     assert max_buf_len < INT_MAX
     assert max_buf_len > 0
     data = MPI.comm.recv(source=source, tag=1)
@@ -62,6 +88,13 @@ def recv_chunk(source, max_buf_len=256 * 1024 * 1024):
 
 
 def send_chunk(obj, dest, max_buf_len=256 * 1024 * 1024):
+    """Send data divided into small chunks with MPI communication.
+
+    Args:
+        obj (object): Any data to send, which can be pickled.
+        dest (int): MPI destination process that receives data.
+        max_buf_len (int, optional): Maximum size of each chunk.
+    """
     assert max_buf_len < INT_MAX
     assert max_buf_len > 0
     pickled_bytes = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)

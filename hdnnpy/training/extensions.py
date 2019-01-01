@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Custom chainer training extensions."""
+
 import chainer
 from chainer.training import Extension
 import matplotlib.pyplot as plt
@@ -7,9 +9,18 @@ import numpy as np
 
 
 class ScatterPlot(Extension):
-    def __init__(self, dataset, model, order, comm):
+    """Trainer extension to output predictions/labels scatter plots."""
+    def __init__(self, dataset, model, comm):
+        """
+        Args:
+            dataset (HDNNPDataset):
+                Test dataset to plot a scatter plot. It has to have both
+                input dataset and label dataset.
+            model (HighDimensionalNNP): HDNNP model to evaluate.
+            comm (~chainermn.CommunicatorBase):
+                ChainerMN communicator instance.
+        """
         self._model = model
-        self._order = order
         self._comm = comm.mpi_comm
 
         self._properties = []
@@ -20,11 +31,23 @@ class ScatterPlot(Extension):
         self._init_labels(dataset)
 
     def __call__(self, trainer):
+        """Execute scatter plot extension.
+
+        | Perform prediction with the parameters of the model when this
+          extension was executed, using the data set at initialization.
+        | Horizontal axis shows the predicted values and vertical axis
+          shows the true values.
+        | Plot configurations are written in :meth:`_plot`.
+
+        Args:
+            trainer (~chainer.training.Trainer):
+                Trainer object that invokes this extension.
+        """
         with chainer.using_config('train', False), \
              chainer.using_config('enable_backprop', False):
             predictions = self._model.predict(self._inputs)
 
-        for i in range(self._order + 1):
+        for i in range(self._model.order + 1):
             pred_send = predictions[i].data
             if self._comm.Get_rank() == 0:
                 self._comm.Gatherv(pred_send, self._predictions[i], root=0)
@@ -36,6 +59,8 @@ class ScatterPlot(Extension):
         plt.close('all')
 
     def _init_labels(self, dataset):
+        """Gather label dataset to root process and initialize other
+        instance variables."""
         self._properties = dataset.property.properties
         self._units = dataset.property.units
         batch = chainer.dataset.concat_examples(dataset)
@@ -44,7 +69,7 @@ class ScatterPlot(Extension):
         labels = batch[half:]
         self._count = np.array(self._comm.gather(len(labels[0]), root=0))
 
-        for i in range(self._order + 1):
+        for i in range(self._model.order + 1):
             label_send = labels[i]
             if self._comm.Get_rank() == 0:
                 total_size = sum(self._count)
@@ -62,6 +87,7 @@ class ScatterPlot(Extension):
 
     @staticmethod
     def _plot(trainer, prediction, label, property_, unit):
+        """Plot and save a scatter plot."""
         fig = plt.figure(figsize=(10, 10))
         min_ = np.min(label)
         max_ = np.max(label)
@@ -77,4 +103,5 @@ class ScatterPlot(Extension):
 
 
 def set_log_scale(_, a, __):
+    """Change y axis scale as log scale."""
     a.set_yscale('log')
