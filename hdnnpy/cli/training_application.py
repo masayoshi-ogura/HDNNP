@@ -21,7 +21,7 @@ from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
-    LOSS_FUNCTION, Evaluator, Manager, Updater, ScatterPlot, set_log_scale,
+    LOSS_FUNCTION, Manager, Updater, ScatterPlot, set_log_scale,
     )
 from hdnnpy.utils import (MPI, mkdir, pprint)
 
@@ -238,7 +238,7 @@ class TrainingApplication(Application):
                                                 target=tc.final_lr,
                                                 optimizer=master_opt))
             evaluator = chainermn.create_multi_node_evaluator(
-                Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
+                ext.Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
             if tc.scatter_plot:
                 trainer.extend(ScatterPlot(test, hdnnp, tc.order, comm),

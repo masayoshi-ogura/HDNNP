@@ -1,44 +1,9 @@
 # coding: utf-8
 
-from copy import copy
-
 import chainer
-from chainer import (DictSummary, report_scope)
 from chainer.training import Extension
-from chainer.training.extensions import evaluator
 import matplotlib.pyplot as plt
 import numpy as np
-
-
-class Evaluator(evaluator.Evaluator):
-    def evaluate(self):
-        iterator = self._iterators['main']
-        eval_func = self.eval_func
-
-        if self.eval_hook:
-            self.eval_hook(self)
-
-        if hasattr(iterator, 'reset'):
-            iterator.reset()
-            it = iterator
-        else:
-            it = copy(iterator)
-
-        summary = DictSummary()
-
-        for batch in it:
-            observation = {}
-            with report_scope(observation):
-                with chainer.no_backprop_mode():
-                    in_arrays = self.converter(batch, self.device)
-                    half = len(in_arrays) // 2
-                    inputs = in_arrays[:half]
-                    labels = in_arrays[half:]
-                    eval_func(inputs, labels)
-
-            summary.add(observation)
-
-        return summary.compute_mean()
 
 
 class ScatterPlot(Extension):

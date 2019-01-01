@@ -14,14 +14,11 @@ class Updater(chainer.training.updaters.StandardUpdater):
         hdnnp = main_opt.target
 
         batch = self.converter(self.get_iterator('main').next(), self.device)
-        half = len(batch) // 2
-        inputs = batch[:half]
-        labels = batch[half:]
 
         master_nnp.cleargrads()
         hdnnp.cleargrads()
 
-        loss = self.loss_func(inputs, labels)
+        loss = self.loss_func(*batch)
         loss.backward()
 
         hdnnp.reduce_grad_to(master_nnp)

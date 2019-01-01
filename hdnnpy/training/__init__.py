@@ -2,15 +2,13 @@
 
 __all__ = [
     'LOSS_FUNCTION',
-    'Evaluator',
     'Manager',
     'Updater',
     'ScatterPlot',
     'set_log_scale',
     ]
 
-from hdnnpy.training.extensions import (Evaluator,
-                                        ScatterPlot,
+from hdnnpy.training.extensions import (ScatterPlot,
                                         set_log_scale,
                                         )
 from hdnnpy.training.loss_functions import (first_only,
