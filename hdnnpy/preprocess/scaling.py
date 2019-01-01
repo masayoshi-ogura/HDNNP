@@ -1,6 +1,6 @@
 # coding: utf-8
 
-"""Scale all feature values to be zero-mean and unit-variance."""
+"""Scale all feature values into the certain range."""
 
 import numpy as np
 
@@ -8,27 +8,42 @@ from hdnnpy.preprocess.preprocess_base import PreprocessBase
 from hdnnpy.utils import (MPI, pprint)
 
 
-class Standardization(PreprocessBase):
-    """Scale all feature values to be zero-mean and unit-variance."""
-    name = 'standardization'
+class Scaling(PreprocessBase):
+    """Scale all feature values into the certain range."""
+    name = 'scaling'
     """str: Name of this class."""
 
-    def __init__(self):
+    def __init__(self, min_=0.0, max_=1.0):
+        """
+        Args:
+            min\_ (float): Target minimum value of scaling.
+            max\_ (float): Target maximum value of scaling.
+        """
+        assert isinstance(min_, float)
+        assert isinstance(max_, float)
+        assert min_ < max_
         super().__init__()
-        self._mean = {}
-        self._std = {}
+        self._max = {}
+        self._min = {}
+        self._target_max = max_
+        self._target_min = min_
 
     @property
-    def mean(self):
-        """dict [~numpy.ndarray]: Initialized mean values in each
+    def max(self):
+        """dict [~numpy.ndarray]: Initialized maximum values in each
         feature dimension and each element."""
-        return self._mean
+        return self._max
 
     @property
-    def std(self):
-        """dict [~numpy.ndarray]: Initialized standard deviation values
-        in each feature dimension and each element."""
-        return self._std
+    def min(self):
+        """dict [~numpy.ndarray]: Initialized minimum values in each
+        feature dimension and each element."""
+        return self._min
+
+    @property
+    def target(self):
+        """tuple [float, float]: Target min & max values of scaling."""
+        return self._target_min, self._target_max
 
     def apply(self, dataset, elemental_composition, verbose=True):
         """Apply the same pre-processing for each element to dataset.
@@ -45,23 +60,27 @@ class Standardization(PreprocessBase):
 
         Returns:
             list [~numpy.ndarray]:
-                Processed dataset to be zero-mean and unit-variance.
+                Processed dataset into the same min-max range.
         """
         order = len(dataset) - 1
         assert 0 <= order <= 1
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
-        mean = np.array(
-            [self._mean[element] for element in elemental_composition])
-        std = np.array(
-            [self._std[element] for element in elemental_composition])
+        max_ = np.array(
+            [self._max[element] for element in elemental_composition])
+        min_ = np.array(
+            [self._min[element] for element in elemental_composition])
 
         if order >= 0:
-            dataset[0] -= mean
-            dataset[0] /= std
+            dataset[0] = ((dataset[0] - min_)
+                          / (max_ - min_)
+                          * (self._target_max - self._target_min)
+                          + self._target_min)
         if order >= 1:
-            dataset[1] /= std[..., None, None]
+            dataset[1] = (dataset[1]
+                          / (max_ - min_)[..., None, None]
+                          * (self._target_max - self._target_min))
 
         return dataset
 
@@ -79,12 +98,12 @@ class Standardization(PreprocessBase):
 
         ndarray = np.load(file_path)
         self._elements = ndarray['elements'].item()
-        self._mean = {element: ndarray[f'mean:{element}']
-                      for element in self._elements}
-        self._std = {element: ndarray[f'std:{element}']
+        self._max = {element: ndarray[f'max:{element}']
+                     for element in self._elements}
+        self._min = {element: ndarray[f'min:{element}']
                      for element in self._elements}
         if verbose:
-            pprint(f'Loaded Standardization parameters from {file_path}.')
+            pprint(f'Loaded Scaling parameters from {file_path}.')
 
     def save(self, file_path, verbose=True):
         """Save internal parameters for each element.
@@ -99,11 +118,11 @@ class Standardization(PreprocessBase):
             return
 
         info = {'elements': self._elements}
-        mean = {f'mean:{k}': v for k, v in self._mean.items()}
-        std = {f'std:{k}': v for k, v in self._std.items()}
-        np.savez(file_path, **info, **mean, **std)
+        max_ = {f'max:{k}': v for k, v in self._max.items()}
+        min_ = {f'min:{k}': v for k, v in self._min.items()}
+        np.savez(file_path, **info, **max_, **min_)
         if verbose:
-            pprint(f'Saved Standardization parameters to {file_path}.')
+            pprint(f'Saved Scaling parameters to {file_path}.')
 
     def _initialize_params(self, data, elemental_composition, verbose):
         """Initialize parameters only once for new elements."""
@@ -112,7 +131,7 @@ class Standardization(PreprocessBase):
             mask = np.array(elemental_composition) == element
             X = data[:, mask].reshape(-1, n_feature)
             self._elements.add(element)
-            self._mean[element] = X.mean(axis=0, dtype=np.float32)
-            self._std[element] = X.std(axis=0, ddof=1, dtype=np.float32)
+            self._max[element] = X.max(axis=0, dtype=np.float32)
+            self._min[element] = X.min(axis=0, dtype=np.float32)
             if verbose:
-                pprint(f'Initialized Standardization parameters for {element}')
+                pprint(f'Initialized Scaling parameters for {element}')

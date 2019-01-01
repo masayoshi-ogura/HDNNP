@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Loss functions of HDNNP for various purpose."""
+
 import warnings
 
 import chainer
@@ -7,6 +9,19 @@ import chainer.functions as F
 
 
 def zeroth_only(model, properties, **kwargs):
+    """Define loss function to optimize 0th-order property.
+
+    Args:
+        model (HighDimensionalNNP): HDNNP object to optimize parameters.
+        properties (list [str]): Names of properties to optimize.
+
+    Returns:
+        tuple: 2-element tuple containing:
+
+        - loss_function (function): Loss function to optimize HDNNP.
+        - observation_keys (list [str]):
+          Names of reported values while training loops.
+    """
     assert model.order >= 0
     if model.order >= 1:
         warnings.warn('In this loss function `zeroth_only`,'
@@ -16,8 +31,11 @@ def zeroth_only(model, properties, **kwargs):
                       ' keyword arguments are ignored.')
     observation_keys = [f'RMSE/{properties[0]}', 'RMSE/total']
 
-    def loss_function(inputs, labels, train=True):
-        predictions = model.predict(inputs, train=train)
+    def loss_function(*datasets):
+        """Calculate prediction/label error of 0th-order property."""
+        half = len(datasets) // 2
+        inputs, labels = datasets[:half], datasets[half:]
+        predictions = model.predict(inputs)
         pred0, *_ = predictions
         true0, *_ = labels
         loss0 = F.mean_squared_error(pred0, true0)
@@ -34,14 +52,30 @@ def zeroth_only(model, properties, **kwargs):
 
 
 def first_only(model, properties, **kwargs):
+    """Define loss function to optimize 1st-order property.
+
+    Args:
+        model (HighDimensionalNNP): HDNNP object to optimize parameters.
+        properties (list [str]): Names of properties to optimize.
+
+    Returns:
+        tuple: 2-element tuple containing:
+
+        - loss_function (function): Loss function to optimize HDNNP.
+        - observation_keys (list [str]):
+          Names of reported values while training loops.
+    """
     assert model.order >= 1
     if kwargs:
         warnings.warn('In this loss function `first_only`,'
                       ' keyword arguments are ignored.')
     observation_keys = [f'RMSE/{properties[1]}', 'RMSE/total']
 
-    def loss_function(inputs, labels, train=True):
-        predictions = model.predict(inputs, train=train)
+    def loss_function(*datasets):
+        """Calculate prediction/label error of 1st-order property."""
+        half = len(datasets) // 2
+        inputs, labels = datasets[:half], datasets[half:]
+        predictions = model.predict(inputs)
         _, pred1, *_ = predictions
         _, true1, *_ = labels
         loss1 = F.mean_squared_error(pred1, true1)
@@ -58,13 +92,30 @@ def first_only(model, properties, **kwargs):
 
 
 def mix(model, properties, **kwargs):
+    """Define loss function to optimize 0th and 1st-order properties.
+
+    Args:
+        model (HighDimensionalNNP): HDNNP object to optimize parameters.
+        properties (list [str]): Names of properties to optimize.
+
+    Returns:
+        tuple: 2-element tuple containing:
+
+        - loss_function (function): Loss function to optimize HDNNP.
+        - observation_keys (list [str]):
+          Names of reported values while training loops.
+    """
     assert model.order >= 1
     mixing_beta = kwargs['mixing_beta']
     observation_keys = [f'RMSE/{properties[0]}', f'RMSE/{properties[1]}',
                         'RMSE/total']
 
-    def loss_function(inputs, labels, train=True):
-        predictions = model.predict(inputs, train=train)
+    def loss_function(*datasets):
+        """Calculate prediction/label error of 0th and 1st-order
+        properties."""
+        half = len(datasets) // 2
+        inputs, labels = datasets[:half], datasets[half:]
+        predictions = model.predict(inputs)
         pred0, pred1, *_ = predictions
         true0, true1, *_ = labels
         loss0 = F.mean_squared_error(pred0, true0)

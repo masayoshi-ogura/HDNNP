@@ -21,7 +21,7 @@ from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
-    LOSS_FUNCTION, Evaluator, Manager, Updater, ScatterPlot, set_log_scale,
+    LOSS_FUNCTION, Manager, Updater, ScatterPlot, set_log_scale,
     )
 from hdnnpy.utils import (MPI, mkdir, pprint)
 
@@ -167,7 +167,8 @@ class TrainingApplication(Application):
             # construct training dataset from descriptor & property datasets
             dataset = HDNNPDataset(descriptor, property_)
             dataset.construct(
-                tc.elements, preprocesses, shuffle=True, verbose=self.verbose)
+                all_elements=tc.elements, preprocesses=preprocesses,
+                shuffle=True, verbose=self.verbose)
             dataset.scatter()
             datasets.append(dataset)
             dc.n_sample += dataset.total_size
@@ -237,10 +238,10 @@ class TrainingApplication(Application):
                                                 target=tc.final_lr,
                                                 optimizer=master_opt))
             evaluator = chainermn.create_multi_node_evaluator(
-                Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
+                ext.Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
             trainer.extend(evaluator, name='val')
             if tc.scatter_plot:
-                trainer.extend(ScatterPlot(test, hdnnp, tc.order, comm),
+                trainer.extend(ScatterPlot(test, hdnnp, comm),
                                trigger=interval)
             if MPI.rank == 0:
                 if tc.log_report:
@@ -259,8 +260,8 @@ class TrainingApplication(Application):
 
             manager = Manager(tag, trainer, result, is_snapshot=True)
             if self.is_resume:
-                manager.check_resume(self.resume_dir.name)
-            if manager.allow_to_run():
+                manager.check_to_resume(self.resume_dir.name)
+            if manager.allow_to_run:
                 with manager:
                     trainer.run()
 

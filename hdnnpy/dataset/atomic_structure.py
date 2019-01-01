@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Wrapper class of ase.Atoms."""
+
 import ase.build
 import ase.io
 import ase.neighborlist
@@ -7,7 +9,18 @@ import numpy as np
 
 
 class AtomicStructure(object):
+    """Wrapper class of ase.Atoms."""
     def __init__(self, atoms):
+        """
+        | It wraps :obj:`ase.Atoms` object to define additional methods
+          and attributes.
+        | Before wrapping, it sorts atoms by element alphabetically.
+        | It stores calculated neighbor information such as distance,
+          indices, and cosine.
+
+        Args:
+            atoms (~ase.Atoms): an object to wrap.
+        """
         sorted_atoms = ase.build.sort(atoms)
         sorted_atoms.set_calculator(atoms.get_calculator())
         self._atoms = sorted_atoms
@@ -28,15 +41,41 @@ class AtomicStructure(object):
 
     @property
     def elements(self):
+        """list [str]: Elements included in a cell."""
         return sorted(set(self._atoms.get_chemical_symbols()))
 
     def clear_cache(self, cutoff_distance=None):
+        """Clear up cached neighbor information in this instance.
+
+        Args:
+            cutoff_distance (float, optional):
+                It clears the corresponding cached data if specified,
+                otherwise it clears all cached data.
+        """
         if cutoff_distance:
             self._cache[cutoff_distance].clear()
         else:
             self._cache.clear()
 
     def get_neighbor_info(self, cutoff_distance, geometry_keys):
+        """Calculate or return cached data.
+
+        | If there is no cached data, calculate it as necessary.
+        | The calculated result is cached, and retained unless
+          you use :meth:`clear_cache` method.
+
+        Args:
+            cutoff_distance (float):
+                It calculates the geometry for the neighboring atoms
+                within this value of each atom in a cell.
+            geometry_keys (list [str]):
+                A list of atomic geometries to calculate between an atom
+                and its neighboring atoms.
+
+        Returns:
+            Iterator [tuple]: Neighbor information required by
+            ``geometry_keys`` for each atom in a cell.
+        """
         ret = []
         for key in geometry_keys:
             if (cutoff_distance not in self._cache
@@ -51,14 +90,28 @@ class AtomicStructure(object):
                 elif key in ['diff_cosine']:
                     self._calculate_diff_cosine(cutoff_distance)
             ret.append(self._cache[cutoff_distance][key])
-        return zip(*ret)
+        for neighbor_info in zip(*ret):
+            yield neighbor_info
 
     @classmethod
     def read_xyz(cls, file_path):
+        """Read .xyz format file and make a list of instances.
+
+        Parses .xyz format file using :func:`ase.io.iread` and wraps it
+        by this class.
+
+        Args:
+            file_path (~pathlib.Path):
+                File path to read atomic structures.
+
+        Returns:
+            list [AtomicStructure]: Initialized instances.
+        """
         return [cls(atoms) for atoms
                 in ase.io.iread(str(file_path), index=':', format='xyz')]
 
     def _calculate_cosine(self, cutoff_distance):
+        """Calculate cosine between two neighboring atoms."""
         cosine = []
         for dRdr, in self.get_neighbor_info(
                 cutoff_distance, ['diff_distance']):
@@ -69,6 +122,8 @@ class AtomicStructure(object):
             })
 
     def _calculate_diff_cosine(self, cutoff_distance):
+        """Calculate differentiation of cosine between two neighboring
+        atoms by atomic position."""
         diff_cosine = []
         for R, cos, dRdr in self.get_neighbor_info(
                 cutoff_distance, ['distance', 'cosine', 'diff_distance']):
@@ -82,6 +137,8 @@ class AtomicStructure(object):
             })
 
     def _calculate_diff_distance(self, cutoff_distance):
+        """Calculate differentiation of distance to one neighboring atom
+        by atomic position."""
         diff_distance = []
         for r, R in self.get_neighbor_info(
                 cutoff_distance, ['distance_vector', 'distance']):
@@ -92,6 +149,8 @@ class AtomicStructure(object):
             })
 
     def _calculate_distance(self, cutoff_distance):
+        """Calculate distance to one neighboring atom and store indices
+        of neighboring atoms."""
         symbols = self._atoms.get_chemical_symbols()
         elements = sorted(set(symbols))
         index_element_map = [elements.index(element) for element in symbols]

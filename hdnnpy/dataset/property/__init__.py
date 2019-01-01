@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Property dataset subpackage."""
+
 __all__ = [
     'PROPERTY_DATASET',
     ]

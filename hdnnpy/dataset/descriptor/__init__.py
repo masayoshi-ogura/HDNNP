@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Descriptor dataset subpackage."""
+
 __all__ = [
     'DESCRIPTOR_DATASET',
     ]

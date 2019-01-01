@@ -1,5 +1,7 @@
 # coding: utf-8
 
+"""Symmetry function dataset for descriptor of HDNNP."""
+
 from itertools import (chain, combinations_with_replacement)
 
 import numpy as np
@@ -12,10 +14,38 @@ from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class SymmetryFunctionDataset(DescriptorDatasetBase):
+    """Symmetry function dataset for descriptor of HDNNP."""
     DESCRIPTORS = ['sym_func', 'derivative']
+    """list [str]: Names of descriptors for each derivative order."""
     name = 'symmetry_function'
+    """str: Name of this descriptor class."""
 
     def __init__(self, order, structures, **func_param_map):
+        """
+        It accepts 0 or 1 for ``order``.
+
+        | Each symmetry function requires following parameters.
+        | Pass parameters you want to use for the dataset as keyword
+          arguments ``func_param_map``.
+
+        * type1: :math:`R_c`
+        * type2: :math:`R_c, \eta, R_s`
+        * type4: :math:`R_c, \eta, \lambda, \zeta`
+
+        Args:
+            order (int): passed to super class.
+            structures (list [AtomicStructure]): passed to super class.
+            **func_param_map (list [tuple]):
+                parameter sets for each type of symmetry function.
+
+        References:
+            Symmetry function was proposed by Behler *et al.* in
+            `this paper`_ as a descriptor of HDNNP. Please see here for
+            details of each symmetry function.
+
+        .. _`this paper`:
+            https://onlinelibrary.wiley.com/doi/full/10.1002/qua.24890
+        """
         assert 0 <= order <= 1
         assert func_param_map
         super().__init__(order, structures)
@@ -24,13 +54,32 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
 
     @property
     def function_names(self):
+        """list [str]: Names of symmetry functions this instance
+        calculates or has calculated."""
         return list(self._func_param_map.keys())
 
     @property
     def params(self):
+        """dict [list [tuple]]]: Mapping from symmetry function name to
+        its parameters."""
         return self._func_param_map
 
     def generate_feature_keys(self, elements):
+        """Generate feature keys from given elements and parameters.
+
+        | parameters given at initialization are used.
+        | This method is used to initialize instance and expand feature
+          dimension in
+          :class:`~hdnnpy.dataset.hdnnp_dataset.HDNNPDataset`.
+
+        Args:
+            elements (list [str]): Unique list of elements. It should be
+                sorted alphabetically.
+
+        Returns:
+            list [str]: Generated feature keys in a format
+            like ``<func_name>:<parameters>:<elements>``.
+        """
         feature_keys = []
         for function_name, params_set in self._func_param_map.items():
             for params in params_set:
@@ -48,6 +97,15 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         return feature_keys
 
     def make(self, verbose=True):
+        """Calculate & retain symmetry functions.
+
+        | It calculates symmetry functions by data-parallel using MPI
+          communication.
+        | The calculated dataset is retained in only root MPI process.
+
+        Args:
+            verbose (bool, optional): Print log to stdout.
+        """
         n_sample = len(self._structures)
         n_atom = len(self._structures[0])
         slices = [slice(i[0], i[-1]+1)
@@ -70,6 +128,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             pprint(f'Calculated {self.name} dataset.')
 
     def _calculate_descriptors(self, structures):
+        """Main method of calculating symmetry functions."""
         n_sample = len(structures)
         n_atom = len(structures[0])
 
@@ -106,13 +165,16 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             yield dGdr
 
     def _make_symmetry_function_type1(self, Rc):
+        """Define symmetry function type1 for specific parameters."""
         def symmetry_function_type1(structure):
+            """Original symmetry function type1."""
             for R, neigh2elem in structure.get_neighbor_info(
                     Rc, ['distance', 'neigh2elem']):
                 g = np.tanh(1.0 - R/Rc) ** 3
                 yield [np.sum(g_e) for g_e in np.split(g, neigh2elem[1:])]
 
         def diff_symmetry_function_type1(structure):
+            """1st derivative of symmetry function type1."""
             n_atom = len(structure)
             for R, dRdr, neigh2j, j2elem in structure.get_neighbor_info(
                     Rc, ['distance', 'diff_distance', 'neigh2j', 'j2elem']):
@@ -129,13 +191,16 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             return symmetry_function_type1, diff_symmetry_function_type1
 
     def _make_symmetry_function_type2(self, Rc, eta, Rs):
+        """Define symmetry function type2 for specific parameters."""
         def symmetry_function_type2(structure):
+            """Original symmetry function type2."""
             for R, neigh2elem in structure.get_neighbor_info(
                     Rc, ['distance', 'neigh2elem']):
                 g = np.exp(-eta*(R-Rs)**2) * np.tanh(1.0 - R/Rc)**3
                 yield [np.sum(g_e) for g_e in np.split(g, neigh2elem[1:])]
 
         def diff_symmetry_function_type2(structure):
+            """1st derivative of symmetry function type2."""
             n_atom = len(structure)
             for R, dRdr, neigh2j, j2elem in structure.get_neighbor_info(
                     Rc, ['distance', 'diff_distance', 'neigh2j', 'j2elem']):
@@ -155,7 +220,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             return symmetry_function_type2, diff_symmetry_function_type2
 
     def _make_symmetry_function_type4(self, Rc, eta, lambda_, zeta):
+        """Define symmetry function type4 for specific parameters."""
         def symmetry_function_type4(structure):
+            """Original symmetry function type4."""
             for R, cos, neigh2elem in structure.get_neighbor_info(
                     Rc, ['distance', 'cosine', 'neigh2elem']):
                 ang = np.triu(1.0 + lambda_*cos, k=1)
@@ -169,6 +236,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                        if j <= k]
 
         def diff_symmetry_function_type4(structure):
+            """1st derivative of symmetry function type4."""
             n_elem = len(structure.elements)
             n_comb = n_elem * (n_elem+1) // 2
             n_atom = len(structure)

@@ -1,29 +1,32 @@
 # coding: utf-8
 
+"""Updater for HDNNP training."""
+
 import chainer
 
 
 class Updater(chainer.training.updaters.StandardUpdater):
+    """Updater for HDNNP training using `HighDimensionalNNP` and
+    `MasterNNP`."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def update_core(self):
+        """Calculate gradient of parameters using `HighDimensionalNNP`
+        and collect them in `MasterNNP` and update parameters."""
         master_opt = self.get_optimizer('master')
         main_opt = self.get_optimizer('main')
-        masters = master_opt.target
+        master_nnp = master_opt.target
         hdnnp = main_opt.target
 
         batch = self.converter(self.get_iterator('main').next(), self.device)
-        half = len(batch) // 2
-        inputs = batch[:half]
-        labels = batch[half:]
 
-        masters.cleargrads()
+        master_nnp.cleargrads()
         hdnnp.cleargrads()
 
-        loss = self.loss_func(inputs, labels, train=True)
+        loss = self.loss_func(*batch)
         loss.backward()
 
-        hdnnp.reduce_grad_to(masters)
+        hdnnp.reduce_grad_to(master_nnp)
         master_opt.update()
-        hdnnp.sync_param_with(masters)
+        hdnnp.sync_param_with(master_nnp)

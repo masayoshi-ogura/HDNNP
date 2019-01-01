@@ -25,6 +25,8 @@ class HDNNPApplication(Application):
     def initialize(self, argv=None):
         if MPI.rank != 0:
             sys.stdout = Path(os.devnull).open('w')
+        assert sys.argv[1] in self.subcommands, \
+            'Only `hdnnpy train` and `hdnnpy predict` are available.'
         super().initialize(argv)
 
 

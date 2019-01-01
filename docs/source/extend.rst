@@ -58,8 +58,8 @@ In addition, override the following abstract method.
 Preprocess
 -------------------
 
-* Normalization
 * PCA
+* Scaling
 * Standardization
 
 
@@ -86,8 +86,10 @@ If you want to use other loss function, define a function of following form:
        parameterB = kwargs['keyB']
        observation_keys = ['metricsA', 'metricsB']
 
-       def loss_function(inputs, labels, train=True):
-           predictions = model(inputs, train=train)
+       def loss_function(*datasets):
+           half = len(datasets) // 2
+           inputs, labels = datasets[:half], datasets[half:]
+           predictions = model(inputs)
            loss = ...
            observation = {
                observation_keys[0]: ...,

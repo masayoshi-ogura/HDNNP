@@ -14,7 +14,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../hdnnpy/'))
+from hdnnpy import __version__
+sys.path.insert(0, os.path.abspath('../..'))
 
 
 # -- Project information -----------------------------------------------------
@@ -24,9 +25,9 @@ copyright = '2018, masayoshi.ogura'
 author = 'masayoshi.ogura'
 
 # The short X.Y version
-version = '0.3.0.dev'
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = '0.3.0.dev'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -39,6 +40,7 @@ release = '0.3.0.dev'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinx.ext.autosummary',
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.todo',
@@ -46,8 +48,8 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -76,6 +78,10 @@ exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
+
+# The reST default role (used for this markup: `text`) to use for all
+# documents.
+default_role = 'any'
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -188,3 +194,29 @@ epub_exclude_files = ['search.html']
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
+
+# -- Options for napoleon extension ------------------------------------------
+napoleon_include_special_with_doc = True
+napoleon_use_admonition_for_examples = True
+napoleon_use_admonition_for_notes = True
+napoleon_use_admonition_for_references = True
+
+# -- Options for autodoc extension -------------------------------------------
+autoclass_content = 'both'
+autodoc_member_order = 'groupwise'
+autodoc_default_options = {
+    'show-inheritance': None,
+    'members': None,
+}
+
+# -- Options for intersphinx extension ---------------------------------------
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3.6/', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
+    'chainer': ('https://docs.chainer.org/en/stable/', None),
+    'ase': ('https://wiki.fysik.dtu.dk/ase/', None),
+    'sklearn': ('https://scikit-learn.org/stable/', None),
+}
+
+# -- Options for autosummary extension ---------------------------------------
+autosummary_generate = True

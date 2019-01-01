@@ -1,5 +1,11 @@
 # coding: utf-8
 
+"""Base class of atomic structure based descriptor dataset.
+
+If you want to add new descriptor to extend HDNNP, inherits this base
+class.
+"""
+
 from abc import (ABC, abstractmethod)
 
 import numpy as np
@@ -8,10 +14,22 @@ from hdnnpy.utils import (MPI, pprint)
 
 
 class DescriptorDatasetBase(ABC):
+    """Base class of atomic structure based descriptor dataset."""
     DESCRIPTORS = []
+    """list [str]: Names of descriptors for each derivative order."""
     name = ''
+    """str: Name of this descriptor class."""
 
     def __init__(self, order, structures):
+        """
+        Common instance variables for descriptor datasets are
+        initialized.
+
+        Args:
+            order (int): Derivative order of descriptor to calculate.
+            structures (list [AtomicStructure]):
+                Descriptors are calculated for these atomic structures.
+        """
         self._order = order
         self._descriptors = self.DESCRIPTORS[: order+1]
         self._elemental_composition = structures[0].get_chemical_symbols()
@@ -22,6 +40,12 @@ class DescriptorDatasetBase(ABC):
         self._feature_keys = []
 
     def __getitem__(self, item):
+        """Return descriptor data this instance has.
+
+        If ``item`` is string, it returns corresponding descriptor.
+        Available keys can be obtained by ``descriptors`` attribute.
+        Otherwise, it returns a list of descriptor sliced by ``item``.
+        """
         if isinstance(item, str):
             try:
                 index = self._descriptors.index(item)
@@ -32,45 +56,95 @@ class DescriptorDatasetBase(ABC):
             return [data[item] for data in self._dataset]
 
     def __len__(self):
+        """Number of atomic structures given at initialization."""
         return len(self._structures)
 
     @property
     def descriptors(self):
+        """list [str]: Names of descriptors this instance have."""
         return self._descriptors
 
     @property
     def elemental_composition(self):
+        """list [str]: Elemental composition of atomic structures given
+        at initialization."""
         return self._elemental_composition
 
     @property
     def elements(self):
+        """list [str]: Elements of atomic structures given at
+        initialization."""
         return self._elements
 
     @property
     def feature_keys(self):
+        """list [str]: Unique keys of feature dimension."""
         return self._feature_keys
 
     @property
     def has_data(self):
+        """bool: True if success to load or make dataset,
+        False otherwise."""
         return len(self._dataset) != 0
 
     @property
     def n_feature(self):
+        """int: Length of feature dimension."""
         return len(self._feature_keys)
 
     @property
     def order(self):
+        """int: Derivative order of descriptor to calculate."""
         return self._order
 
     @property
     def tag(self):
+        """str: Unique tag of atomic structures given at
+        initialization.
+
+        Usually, it is a form like ``<any prefix> <chemical formula>``.
+        (ex. ``CrystalGa2N2``)
+        """
         return self._tag
 
     def clear(self):
+        """Clear up instance variables to initial state."""
         self._dataset.clear()
         self._feature_keys.clear()
 
     def load(self, file_path, verbose=True, remake=False):
+        """Load dataset from .npz format file.
+
+        Only root MPI process load dataset.
+
+        It validates following compatibility between loaded dataset and
+        atomic structures given at initialization.
+
+            * length of data
+            * elemental composition
+            * elements
+            * tag
+
+        It also validates that loaded dataset satisfies requirements.
+
+            * feature keys
+            * order
+
+        Args:
+            file_path (~pathlib.Path): File path to load dataset.
+            verbose (bool, optional): Print log to stdout.
+            remake (bool, optional): If loaded dataset is lacking in
+                any feature key or any descriptor, recalculate dataset
+                from scratch and overwrite it to ``file_path``.
+                Otherwise, it raises ValueError.
+
+        Raises:
+            RuntimeError: If this instance already has data.
+            AssertionError: If loaded dataset is incompatible with
+                atomic structures given at initialization.
+            ValueError: If loaded dataset is lacking in any feature key
+                or any descriptor and ``remake=False``.
+        """
         if MPI.rank != 0:
             return
 
@@ -139,6 +213,17 @@ class DescriptorDatasetBase(ABC):
                    f' from {file_path}')
 
     def save(self, file_path, verbose=True):
+        """Save dataset to .npz format file.
+
+        Only root MPI process save dataset.
+
+        Args:
+            file_path (~pathlib.Path): File path to save dataset.
+            verbose (bool, optional): Print log to stdout.
+
+        Raises:
+            RuntimeError: If this instance do not have any data.
+        """
         if MPI.rank != 0:
             return
 
@@ -161,8 +246,21 @@ class DescriptorDatasetBase(ABC):
 
     @abstractmethod
     def generate_feature_keys(self, *args, **kwargs):
+        """Generate feature keys of current state.
+
+        This is abstract method.
+        Subclass of this base class have to override.
+
+        Returns:
+            list [str]: Unique keys of feature dimension.
+        """
         return
 
     @abstractmethod
     def make(self, *args, **kwargs):
+        """Calculate & retain descriptor dataset.
+
+        This is abstract method.
+        Subclass of this base class have to override.
+        """
         pass

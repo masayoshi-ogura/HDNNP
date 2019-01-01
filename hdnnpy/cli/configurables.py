@@ -54,7 +54,7 @@ class DatasetConfig(Configurable):
         ).tag(config=True)
     preprocesses = List(
         trait=Tuple(
-            CaselessStrEnum(['normalization', 'pca', 'standardization']),
+            CaselessStrEnum(['pca', 'scaling', 'standardization']),
             Tuple(),
             Dict()
             ),
