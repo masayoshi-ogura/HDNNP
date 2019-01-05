@@ -118,4 +118,4 @@ Post-processing
 | However, it is also under development.
 | We welcome your comments and suggestions.
 
-`HDNNP-LAMMPS interface program <https://githun.com/ogura-edu/HDNNP-LAMMPS.git>`_
+`HDNNP-LAMMPS interface program <https://github.com/ogura-edu/HDNNP-LAMMPS.git>`_
