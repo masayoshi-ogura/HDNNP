@@ -81,6 +81,30 @@ class PCA(PreprocessBase):
 
         return dataset
 
+    def dump_params(self):
+        """Dump its own parameters as :obj:`str`.
+
+        Returns:
+            str: Formed parameters.
+        """
+        params_str = ''
+        for element in self._elements:
+            transform = self._transform[element]
+            mean = self._mean[element]
+            transform_str = ('\n'+' '*12).join([' '.join(map(str, row))
+                                                for row in transform.T])
+            mean_str = ' '.join(map(str, mean))
+
+            params_str += f'''
+            {element} {transform.shape[1]} {transform.shape[0]}
+            # transformation matrix
+            {transform_str}
+            # mean
+            {mean_str}
+            '''
+
+        return params_str
+
     def load(self, file_path, verbose=True):
         """Load internal parameters for each element.
 

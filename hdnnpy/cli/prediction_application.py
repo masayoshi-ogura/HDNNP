@@ -6,18 +6,18 @@ import chainer
 import numpy as np
 from traitlets import (Bool, Dict, List, Unicode)
 from traitlets.config import Application
+import yaml
 
 from hdnnpy.cli.configurables import (
     DatasetConfig, ModelConfig, Path, PredictionConfig,
     )
-from hdnnpy.cli.training_application import TrainingApplication
 from hdnnpy.dataset import (AtomicStructure, DatasetGenerator, HDNNPDataset)
 from hdnnpy.dataset.descriptor import DESCRIPTOR_DATASET
 from hdnnpy.dataset.property import PROPERTY_DATASET
 from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, pyyaml_path_constructor)
 
 
 class PredictionApplication(Application):
@@ -69,11 +69,11 @@ class PredictionApplication(Application):
         self.load_config_file(self.config_file)
         self.prediction_config = PredictionConfig(config=self.config)
 
-        self.load_config_file(
-            self.prediction_config.load_dir
-            / TrainingApplication().config_file.name)
-        self.dataset_config = DatasetConfig(config=self.config)
-        self.model_config = ModelConfig(config=self.config)
+        yaml.add_constructor('Path', pyyaml_path_constructor)
+        training_result = yaml.load(
+            (self.prediction_config.load_dir / 'training_result.yaml').open())
+        self.dataset_config = DatasetConfig(**training_result['dataset'])
+        self.model_config = ModelConfig(**training_result['model'])
 
     def start(self):
         pc = self.prediction_config
