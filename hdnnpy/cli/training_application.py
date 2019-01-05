@@ -2,7 +2,6 @@
 
 import pathlib
 import shutil
-import yaml
 
 import chainer
 import chainer.training.extensions as ext
@@ -10,6 +9,7 @@ from chainer.training.triggers import EarlyStoppingTrigger
 import chainermn
 from traitlets import (Bool, Dict, List, Unicode)
 from traitlets.config import Application
+import yaml
 
 from hdnnpy.cli.configurables import (
     DatasetConfig, ModelConfig, Path, TrainingConfig,
@@ -23,7 +23,7 @@ from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
     LOSS_FUNCTION, Manager, Updater, ScatterPlot, set_log_scale,
     )
-from hdnnpy.utils import (MPI, mkdir, pprint)
+from hdnnpy.utils import (MPI, mkdir, pprint, pyyaml_path_representer)
 
 
 class TrainingApplication(Application):
@@ -270,14 +270,10 @@ class TrainingApplication(Application):
         return result
 
     def dump_result(self, result):
-        def represent_path(dumper, instance):
-            return dumper.represent_scalar('Path', f'{instance}')
-
-        yaml.add_representer(pathlib.PosixPath, represent_path)
-
         if MPI.rank != 0:
             return
 
+        yaml.add_representer(pathlib.PosixPath, pyyaml_path_representer)
         result_file = self.training_config.out_dir / 'training_result.yaml'
         with result_file.open('w') as f:
             yaml.dump({

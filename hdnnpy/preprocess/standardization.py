@@ -65,6 +65,29 @@ class Standardization(PreprocessBase):
 
         return dataset
 
+    def dump_params(self):
+        """Dump its own parameters as :obj:`str`.
+
+        Returns:
+            str: Formed parameters.
+        """
+        params_str = ''
+        for element in self._elements:
+            mean = self._mean[element]
+            std = self._std[element]
+            mean_str = ' '.join(map(str, mean))
+            std_str = ' '.join(map(str, std))
+
+            params_str += f'''
+            {element} {mean.shape[0]}
+            # mean
+            {mean_str}
+            # standard deviation
+            {std_str}
+            '''
+
+        return params_str
+
     def load(self, file_path, verbose=True):
         """Load internal parameters for each element.
 
@@ -112,7 +135,7 @@ class Standardization(PreprocessBase):
             mask = np.array(elemental_composition) == element
             X = data[:, mask].reshape(-1, n_feature)
             self._elements.add(element)
-            self._mean[element] = X.mean(axis=0, dtype=np.float32)
-            self._std[element] = X.std(axis=0, ddof=1, dtype=np.float32)
+            self._mean[element] = X.mean(axis=0)
+            self._std[element] = X.std(axis=0, ddof=1)
             if verbose:
                 pprint(f'Initialized Standardization parameters for {element}')

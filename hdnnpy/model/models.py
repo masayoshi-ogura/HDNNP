@@ -187,6 +187,34 @@ class MasterNNP(chainer.ChainList):
         """
         super().__init__(*[SubNNP(element, layers) for element in elements])
 
+    def dump_params(self):
+        """Dump its own parameters as :obj:`str`.
+
+        Returns:
+            str: Formed parameters.
+        """
+        params_str = ''
+        for nnp in self:
+            element = nnp.element
+            depth = len(nnp)
+            for i in range(depth):
+                weight = getattr(nnp, f'fc_layer{i}').W.data
+                bias = getattr(nnp, f'fc_layer{i}').b.data
+                activation = getattr(nnp, f'activation_function{i}').__name__
+                weight_str = ('\n'+' '*16).join([' '.join(map(str, row))
+                                                 for row in weight.T])
+                bias_str = ' '.join(map(str, bias))
+
+                params_str += f'''
+                {element} {i} {weight.shape[1]} {weight.shape[0]} {activation}
+                # weight
+                {weight_str}
+                # bias
+                {bias_str}
+                '''
+
+        return params_str
+
 
 class SubNNP(chainer.Chain):
     """Feed-forward neural network representing one element or atom."""

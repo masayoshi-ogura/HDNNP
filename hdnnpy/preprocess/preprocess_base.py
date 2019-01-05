@@ -36,6 +36,15 @@ class PreprocessBase(ABC):
         pass
 
     @abstractmethod
+    def dump_params(self):
+        """Dump its own parameters as :obj:`str`.
+
+        This is abstract method.
+        Subclass of this base class have to override.
+        """
+        pass
+
+    @abstractmethod
     def load(self, *args, **kwargs):
         """Load internal parameters for each element.
 

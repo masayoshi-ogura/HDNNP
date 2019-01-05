@@ -84,6 +84,32 @@ class Scaling(PreprocessBase):
 
         return dataset
 
+    def dump_params(self):
+        """Dump its own parameters as :obj:`str`.
+
+        Returns:
+            str: Formed parameters.
+        """
+        params_str = (f'''
+            # target range
+            {self._target_max} {self._target_min}
+            ''')
+        for element in self._elements:
+            max_ = self._max[element]
+            min_ = self._min[element]
+            max_str = ' '.join(map(str, max_))
+            min_str = ' '.join(map(str, min_))
+
+            params_str += f'''
+            {element} {max_.shape[0]}
+            # max
+            {max_str}
+            # min
+            {min_str}
+            '''
+
+        return params_str
+
     def load(self, file_path, verbose=True):
         """Load internal parameters for each element.
 
@@ -131,7 +157,7 @@ class Scaling(PreprocessBase):
             mask = np.array(elemental_composition) == element
             X = data[:, mask].reshape(-1, n_feature)
             self._elements.add(element)
-            self._max[element] = X.max(axis=0, dtype=np.float32)
-            self._min[element] = X.min(axis=0, dtype=np.float32)
+            self._max[element] = X.max(axis=0)
+            self._min[element] = X.min(axis=0)
             if verbose:
                 pprint(f'Initialized Scaling parameters for {element}')

@@ -6,13 +6,17 @@ __all__ = [
     'MPI',
     'mkdir',
     'pprint',
+    'pyyaml_path_constructor',
+    'pyyaml_path_representer',
     'recv_chunk',
     'send_chunk',
     ]
 
+from pathlib import Path
 import pickle
 from pprint import pprint as pretty_print
 import sys
+import textwrap
 
 from mpi4py import MPI as MPI4PY
 
@@ -49,6 +53,7 @@ def pprint(data=None, flush=True, **options):
     """
     if data is None:
         data = ''
+    data = textwrap.dedent(data)
     if isinstance(data, list) or isinstance(data, dict):
         pretty_print(data, **options)
     else:
@@ -57,6 +62,15 @@ def pprint(data=None, flush=True, **options):
         print(data, **options)
     if flush:
         sys.stdout.flush()
+
+
+def pyyaml_path_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return Path(value)
+
+
+def pyyaml_path_representer(dumper, instance):
+    return dumper.represent_scalar('Path', f'{instance}')
 
 
 def recv_chunk(source, max_buf_len=256 * 1024 * 1024):
