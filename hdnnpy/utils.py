@@ -65,11 +65,13 @@ def pprint(data=None, flush=True, **options):
 
 
 def pyyaml_path_constructor(loader, node):
+    """Helper method to load Path tag in PyYAML."""
     value = loader.construct_scalar(node)
     return Path(value)
 
 
 def pyyaml_path_representer(dumper, instance):
+    """Helper method to dump :class:`~pathlib.Path` in PyYAML."""
     return dumper.represent_scalar('Path', f'{instance}')
 
 

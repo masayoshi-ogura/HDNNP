@@ -119,3 +119,20 @@ Post-processing
 | We welcome your comments and suggestions.
 
 `HDNNP-LAMMPS interface program <https://github.com/ogura-edu/HDNNP-LAMMPS.git>`_
+
+
+Command line interface
+^^^^^^^^^^^^^^^^^^^^^^
+
+Execute the following command.
+
+::
+
+    $ hdnnpy convert
+
+| 2 command line options are available, and no config file is used in this command.
+| To see details of these options, use
+
+::
+
+    $ hdnnpy convert -h
