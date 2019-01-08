@@ -55,6 +55,8 @@ class DatasetGenerator(object):
             s = int(dataset.partial_size * ratio)
             train = dataset.take(slice(None, s, None))
             test = dataset.take(slice(s, None, None))
+            assert len(train) > 0
+            assert len(test) > 0
             split.append((train, test))
         return split
 
@@ -79,5 +81,7 @@ class DatasetGenerator(object):
             for dataset, (train_idx, test_idx) in zip(self._datasets, indices):
                 train = dataset.take(train_idx)
                 test = dataset.take(test_idx)
+                assert len(train) > 0
+                assert len(test) > 0
                 split.append((train, test))
             yield split

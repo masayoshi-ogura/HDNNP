@@ -248,9 +248,9 @@ class HDNNPDataset(object):
         sort_indices = np.array(sort_indices)
 
         for i, data in enumerate(inputs):
-            n_pad = [(0, n_pad) if i == 2 else (0, 0)
-                     for i in range(data.ndim)]
-            np.pad(data, n_pad, 'constant')
+            pad_width = [(0, n_pad) if i == 2 else (0, 0)
+                         for i in range(data.ndim)]
+            data = np.pad(data, pad_width, 'constant')
             inputs[i] = data[:, :, sort_indices]
         return inputs
 
