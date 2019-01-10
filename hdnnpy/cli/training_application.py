@@ -97,20 +97,15 @@ class TrainingApplication(Application):
     def start(self):
         tc = self.training_config
         tc.out_dir.mkdir(parents=True, exist_ok=True)
+        if not self.is_resume:
+            shutil.copy(self.config_file,
+                        tc.out_dir / self.config_file.name)
         tag_xyz_map, tc.elements = parse_xyz(
             tc.data_file, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
         dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
-        try:
-            result = self.train(dataset)
-        except InterruptedError as e:
-            pprint(e)
-        else:
-            self.dump_result(result)
-        finally:
-            if not self.is_resume:
-                shutil.copy(self.config_file,
-                            tc.out_dir / self.config_file.name)
+        result = self.train(dataset)
+        self.dump_result(result)
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
