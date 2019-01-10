@@ -4,7 +4,6 @@
 
 __all__ = [
     'MPI',
-    'mkdir',
     'pprint',
     'pyyaml_path_constructor',
     'pyyaml_path_representer',
@@ -29,18 +28,6 @@ class MPI:
     comm = MPI4PY.COMM_WORLD
     rank = MPI4PY.COMM_WORLD.Get_rank()
     size = MPI4PY.COMM_WORLD.Get_size()
-
-
-def mkdir(path):
-    """Make new directory on MPI root process.
-
-    Args:
-        path (~pathlib.Path): Directory path to create.
-    """
-    if MPI.rank != 0:
-        return
-
-    path.mkdir(parents=True, exist_ok=True)
 
 
 def pprint(data=None, flush=True, **options):
