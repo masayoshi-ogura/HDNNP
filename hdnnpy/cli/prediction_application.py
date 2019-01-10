@@ -78,13 +78,13 @@ class PredictionApplication(Application):
 
     def start(self):
         pc = self.prediction_config
+        shutil.copy(self.config_file, pc.load_dir / self.config_file.name)
         tag_xyz_map, pc.elements = parse_xyz(
             pc.data_file, save=False, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
         datasets = DatasetGenerator(*datasets).all()
         results = self.predict(datasets)
         self.dump_result(results)
-        shutil.copy(self.config_file, pc.load_dir / self.config_file.name)
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
