@@ -115,9 +115,9 @@
 ## Set chainer training extension `ScatterPlot` if this flag is set
 #c.TrainingConfig.scatter_plot = False
 
-## List of data tags used for HDNNP training. If you set "all", all data
-#  contained in the data file is used.
-#c.TrainingConfig.tags = ['all']
+## List of dataset tags. Use dataset for HDNNP training in this order. Pattern
+#  matching is available.
+#c.TrainingConfig.tags = ['*']
 
 ## Ratio to use for training data. The rest are used for test data.
 #c.TrainingConfig.train_test_ratio = 0.9

@@ -94,9 +94,10 @@ class TrainingConfig(Configurable):
         ).tag(config=True)
     tags = List(
         trait=Unicode,
-        default_value=['all'],
-        help='List of data tags used for HDNNP training. '
-             'If you set "all", all data contained in the data file is used.'
+        default_value=['*'],
+        help='List of dataset tags. '
+             'Use dataset for HDNNP training in this order. '
+             'Pattern matching is available.'
         ).tag(config=True)
     out_dir = Path(
         default_value='output',
@@ -184,9 +185,10 @@ class PredictionConfig(Configurable):
         ).tag(config=True)
     tags = List(
         trait=Unicode,
-        default_value=['all'],
-        help='List of data tags used for HDNNP prediction. '
-             'If you set "all", all data contained in the data file is used.'
+        default_value=['*'],
+        help='List of dataset tags. '
+             'Use dataset for HDNNP training in this order. '
+             'Pattern matching is available.'
         ).tag(config=True)
     load_dir = Path(
         default_value='output',

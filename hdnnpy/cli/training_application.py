@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import fnmatch
 import pathlib
 import shutil
 
@@ -114,10 +115,6 @@ class TrainingApplication(Application):
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
         tc = self.training_config
-        if 'all' in tc.tags:
-            included_tags = sorted(tag_xyz_map)
-        else:
-            included_tags = tc.tags
 
         preprocess_dir = tc.out_dir / 'preprocess'
         mkdir(preprocess_dir)
@@ -130,48 +127,43 @@ class TrainingApplication(Application):
             preprocesses.append(preprocess)
 
         datasets = []
-        for tag in included_tags:
-            try:
-                tagged_xyz = tag_xyz_map[tag]
-            except KeyError:
-                if self.verbose:
-                    pprint(f'Sub dataset tagged as "{tag}" does not exist.')
-                continue
-            else:
+        for pattern in tc.tags:
+            for tag in fnmatch.filter(tag_xyz_map, pattern):
                 if self.verbose:
                     pprint(f'Construct sub dataset tagged as "{tag}"')
+                tagged_xyz = tag_xyz_map.pop(tag)
+                structures = AtomicStructure.read_xyz(tagged_xyz)
 
-            structures = AtomicStructure.read_xyz(tagged_xyz)
+                # prepare descriptor dataset
+                descriptor = DESCRIPTOR_DATASET[dc.descriptor](
+                    tc.order, structures, **dc.parameters)
+                descriptor_npz = tagged_xyz.with_name(f'{dc.descriptor}.npz')
+                if descriptor_npz.exists():
+                    descriptor.load(
+                        descriptor_npz, verbose=self.verbose, remake=dc.remake)
+                else:
+                    descriptor.make(verbose=self.verbose)
+                    descriptor.save(descriptor_npz, verbose=self.verbose)
 
-            # prepare descriptor dataset
-            descriptor = DESCRIPTOR_DATASET[dc.descriptor](
-                tc.order, structures, **dc.parameters)
-            descriptor_npz = tagged_xyz.with_name(f'{dc.descriptor}.npz')
-            if descriptor_npz.exists():
-                descriptor.load(
-                    descriptor_npz, verbose=self.verbose, remake=dc.remake)
-            else:
-                descriptor.make(verbose=self.verbose)
-                descriptor.save(descriptor_npz, verbose=self.verbose)
+                # prepare property dataset
+                property_ = PROPERTY_DATASET[dc.property_](
+                    tc.order, structures)
+                property_npz = tagged_xyz.with_name(f'{dc.property_}.npz')
+                if property_npz.exists():
+                    property_.load(
+                        property_npz, verbose=self.verbose, remake=dc.remake)
+                else:
+                    property_.make(verbose=self.verbose)
+                    property_.save(property_npz, verbose=self.verbose)
 
-            # prepare property dataset
-            property_ = PROPERTY_DATASET[dc.property_](tc.order, structures)
-            property_npz = tagged_xyz.with_name(f'{dc.property_}.npz')
-            if property_npz.exists():
-                property_.load(
-                    property_npz, verbose=self.verbose, remake=dc.remake)
-            else:
-                property_.make(verbose=self.verbose)
-                property_.save(property_npz, verbose=self.verbose)
-
-            # construct training dataset from descriptor & property datasets
-            dataset = HDNNPDataset(descriptor, property_)
-            dataset.construct(
-                all_elements=tc.elements, preprocesses=preprocesses,
-                shuffle=True, verbose=self.verbose)
-            dataset.scatter()
-            datasets.append(dataset)
-            dc.n_sample += dataset.total_size
+                # construct HDNNP dataset from descriptor & property datasets
+                dataset = HDNNPDataset(descriptor, property_)
+                dataset.construct(
+                    all_elements=tc.elements, preprocesses=preprocesses,
+                    shuffle=True, verbose=self.verbose)
+                dataset.scatter()
+                datasets.append(dataset)
+                dc.n_sample += dataset.total_size
 
         for preprocess in preprocesses:
             preprocess.save(

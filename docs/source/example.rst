@@ -255,19 +255,20 @@ After training, directory tree becomes as follows:
 .. code-block:: text
 
     workdir
-    ├── data
-    │   └── GaN.xyz
-    ├── output
-    │   ├── CrystalGa16N16
+    ├── data/
+    │   ├── GaN.xyz
+    │   ...
+    ├── output/
+    │   ├── CrystalGa16N16/
     │   │   ├── energy.png
     │   │   ├── force.png
     │   │   └── training.log
-    │   ├── CrystalGa2N2
+    │   ├── CrystalGa2N2/
     │   │   ├── energy.png
     │   │   ├── force.png
     │   │   └── training.log
     │   ├── master_nnp.npz
-    │   ├── preprocess
+    │   ├── preprocess/
     │   │   └── pca.npz
     │   ├── training_config.py
     │   └── training_result.yaml

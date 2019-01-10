@@ -159,7 +159,7 @@ class PCA(PreprocessBase):
             pca = decomposition.PCA(n_components=self._n_components)
             pca.fit(X)
             if self._n_components is None:
-                self._n_components = n_feature
+                self._n_components = pca.n_components_
             self._elements.add(element)
             self._mean[element] = pca.mean_.astype(np.float32)
             self._transform[element] = pca.components_.T.astype(np.float32)
