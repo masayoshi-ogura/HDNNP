@@ -8,5 +8,4 @@ Utilities
     :nosignatures:
 
     MPI
-    mkdir
     pprint

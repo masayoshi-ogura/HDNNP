@@ -24,7 +24,7 @@ from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
     LOSS_FUNCTION, Manager, Updater, ScatterPlot, set_log_scale,
     )
-from hdnnpy.utils import (MPI, mkdir, pprint, pyyaml_path_representer)
+from hdnnpy.utils import (MPI, pprint, pyyaml_path_representer)
 
 
 class TrainingApplication(Application):
@@ -96,7 +96,7 @@ class TrainingApplication(Application):
 
     def start(self):
         tc = self.training_config
-        mkdir(tc.out_dir)
+        tc.out_dir.mkdir(parents=True, exist_ok=True)
         tag_xyz_map, tc.elements = parse_xyz(
             tc.data_file, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
@@ -117,7 +117,7 @@ class TrainingApplication(Application):
         tc = self.training_config
 
         preprocess_dir = tc.out_dir / 'preprocess'
-        mkdir(preprocess_dir)
+        preprocess_dir.mkdir(parents=True, exist_ok=True)
         preprocesses = []
         for (name, args, kwargs) in dc.preprocesses:
             preprocess = PREPROCESS[name](*args, **kwargs)
