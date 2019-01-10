@@ -41,6 +41,6 @@
 #  potential
 #c.PredictionConfig.order = 0
 
-## List of data tags used for HDNNP prediction. If you set "all", all data
-#  contained in the data file is used.
-#c.PredictionConfig.tags = ['all']
+## List of dataset tags. Use dataset for HDNNP training in this order. Pattern
+#  matching is available.
+#c.PredictionConfig.tags = ['*']

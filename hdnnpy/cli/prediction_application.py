@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import fnmatch
 import shutil
 
 import chainer
@@ -88,10 +89,6 @@ class PredictionApplication(Application):
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
         pc = self.prediction_config
-        if 'all' in pc.tags:
-            included_tags = sorted(tag_xyz_map)
-        else:
-            included_tags = pc.tags
 
         preprocesses = []
         for (name, args, kwargs) in dc.preprocesses:
@@ -102,34 +99,29 @@ class PredictionApplication(Application):
             preprocesses.append(preprocess)
 
         datasets = []
-        for tag in included_tags:
-            try:
-                tagged_xyz = tag_xyz_map[tag]
-            except KeyError:
-                if self.verbose:
-                    pprint(f'Sub dataset tagged as "{tag}" does not exist.')
-                continue
-            else:
+        for pattern in pc.tags:
+            for tag in fnmatch.filter(tag_xyz_map, pattern):
                 if self.verbose:
                     pprint(f'Construct sub dataset tagged as "{tag}"')
+                tagged_xyz = tag_xyz_map.pop(tag)
+                structures = AtomicStructure.read_xyz(tagged_xyz)
 
-            structures = AtomicStructure.read_xyz(tagged_xyz)
+                # prepare descriptor dataset
+                descriptor = DESCRIPTOR_DATASET[dc.descriptor](
+                    pc.order, structures, **dc.parameters)
+                descriptor.make(verbose=self.verbose)
 
-            # prepare descriptor dataset
-            descriptor = DESCRIPTOR_DATASET[dc.descriptor](
-                pc.order, structures, **dc.parameters)
-            descriptor.make(verbose=self.verbose)
+                # prepare empty property dataset
+                property_ = PROPERTY_DATASET[dc.property_](
+                    pc.order, structures)
 
-            # prepare empty property dataset
-            property_ = PROPERTY_DATASET[dc.property_](pc.order, structures)
-
-            # construct test dataset from descriptor & property datasets
-            dataset = HDNNPDataset(descriptor, property_)
-            dataset.construct(
-                all_elements=pc.elements, preprocesses=preprocesses,
-                shuffle=False, verbose=self.verbose)
-            datasets.append(dataset)
-            dc.n_sample += dataset.total_size
+                # construct test dataset from descriptor & property datasets
+                dataset = HDNNPDataset(descriptor, property_)
+                dataset.construct(
+                    all_elements=pc.elements, preprocesses=preprocesses,
+                    shuffle=False, verbose=self.verbose)
+                datasets.append(dataset)
+                dc.n_sample += dataset.total_size
 
         return datasets
 
