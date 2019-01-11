@@ -252,7 +252,7 @@ class TrainingApplication(Application):
                 with manager:
                     trainer.run()
 
-        MPI.rank == 0:
+        if MPI.rank == 0:
             chainer.serializers.save_npz(
                 tc.out_dir / 'master_nnp.npz', master_nnp)
 
