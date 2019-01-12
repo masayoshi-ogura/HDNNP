@@ -29,20 +29,21 @@ class HDNNPDataset(object):
                 If specified, dataset will be initialized with this.
         """
         if dataset is None:
-            dataset = []
+            dataset = {}
         self._descriptor = descriptor
         self._property = property_
-        self._dataset = dataset[:]
+        self._dataset = dataset.copy()
 
     def __getitem__(self, item):
-        """Return indexed or sliced dataset as tuple data."""
-        batches = [dataset[item] for dataset in self._dataset]
+        """Return indexed or sliced dataset as dict data."""
+        batches = {key: data[item]
+                   for key, data in self._dataset.items()}
         if isinstance(item, slice):
-            length = len(batches[0])
-            return [tuple([batch[i] for batch in batches])
+            length = len(list(batches.values())[0])
+            return [{key: batch[i] for key, batch in batches.items()}
                     for i in range(length)]
         else:
-            return tuple(batches)
+            return batches
 
     def __len__(self):
         """Redicect to :attr:`partial_size`"""
@@ -66,7 +67,7 @@ class HDNNPDataset(object):
     @property
     def partial_size(self):
         """int: Number of data after scattered by MPI communication."""
-        return len(self._dataset[0])
+        return len(list(self._dataset.values())[0])
 
     @property
     def tag(self):
@@ -132,7 +133,7 @@ class HDNNPDataset(object):
         # check compatibility and add info to myself
         self._check_dataset_compatibility()
 
-        # apply pre-processing & append my dataset
+        # apply pre-processing
         inputs = [self._descriptor[key]
                   for key in self._descriptor.descriptors]
         if all_elements != self._descriptor.elements:
@@ -145,12 +146,13 @@ class HDNNPDataset(object):
             inputs = preprocess.apply(
                 inputs, self.elemental_composition, verbose=verbose)
 
-        # merge dataset
+        # make own dataset
+        self._dataset.update(
+            {f'inputs/{i}': data for i, data in enumerate(inputs)})
         if self._property.has_data:
             labels = [self._property[key] for key in self._property.properties]
-            self._dataset = inputs + labels
-        else:
-            self._dataset = inputs
+            self._dataset.update(
+                {f'labels/{i}': data for i, data in enumerate(labels)})
 
         # shuffle dataset
         if shuffle:
@@ -184,13 +186,13 @@ class HDNNPDataset(object):
                 b = n_total_samples * i // MPI.size
                 e = b + n_sub_samples
                 slc = slice(b, e, None)
+                dataset = {
+                    key: data[slc] for key, data in self._dataset.items()}
 
                 if i == root:
-                    dataset = [data[slc] for data in self._dataset]
                     mine = [self._descriptor, self._property, dataset]
 
                 else:
-                    dataset = [data[slc] for data in self._dataset]
                     send = [self._descriptor, self._property, dataset]
                     send_chunk(send, dest=i, max_buf_len=max_buf_len)
             assert mine is not None
@@ -208,7 +210,7 @@ class HDNNPDataset(object):
             index (int or slice):
                 Copied object has dataset indexed or sliced by this.
         """
-        dataset = [data[index] for data in self._dataset]
+        dataset = {key: data[index] for key, data in self._dataset.items()}
         new_dataset = self.__class__(self._descriptor, self._property, dataset)
         return new_dataset
 
@@ -256,6 +258,6 @@ class HDNNPDataset(object):
 
     def _shuffle(self):
         """Shuffle the order of the data."""
-        for data in self._dataset:
+        for data in self._dataset.values():
             np.random.set_state(RANDOMSTATE)
             np.random.shuffle(data)

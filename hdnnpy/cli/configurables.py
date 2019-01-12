@@ -104,11 +104,6 @@ class TrainingConfig(Configurable):
         help='Path to output directory. '
              'NOTE: Currently, all output files will be overwritten.'
         ).tag(config=True)
-    order = Integer(
-        help='Order of differentiation used for calculation '
-             'of descriptor & property datasets and HDNNP training. '
-             'ex.) 0: energy, 1: force, for interatomic potential'
-        ).tag(config=True)
     train_test_ratio = Float(
         default_value=0.9,
         help='Ratio to use for training data. '
@@ -116,7 +111,7 @@ class TrainingConfig(Configurable):
         ).tag(config=True)
     # chainer training
     loss_function = Tuple(
-        CaselessStrEnum(['zeroth_only', 'first_only', 'mix']),
+        CaselessStrEnum(['zeroth', 'first', 'mix', 'potential']),
         Dict(),
         help='Name of loss function and parameters of it. '
              'Set as Tuple(Str(name), Dict{parameters}). '

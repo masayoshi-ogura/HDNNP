@@ -113,7 +113,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         structures = self._structures[slices[MPI.rank]]
 
         for i, send_data in enumerate(self._calculate_descriptors(structures)):
-            shape = (n_atom, self.n_feature, *(n_atom, 3) * i)
+            shape = (n_atom, self.n_feature, *(n_atom*3,) * i)
             send_data = send_data.reshape((-1,) + shape)
             if MPI.rank == 0:
                 data = np.empty((n_sample,) + shape, dtype=np.float32)

@@ -68,36 +68,29 @@ Loss function
 
 Currently, we have implemented following loss function for HDNNP training.
 
-* zeroth_only
-* first_only
+* Zeroth
+* First
 
 Each loss function uses a 0th/1st order error of property to optimize HDNNP.
 
-* mix
+* Mix
 
 It uses both 0th/1st order errors of property weighted by parameter ``mixing_beta`` to optimize HDNNP.
 
-If you want to use other loss function, define a function of following form:
+* Potential
 
-.. code-block:: python
+It uses 2nd order derivative of descriptor dataset to optimize HDNNP to satisfy following condition:
 
-   def your_loss_function(model, properties, **kwargs):
-       parameterA = kwargs['keyA']
-       parameterB = kwargs['keyB']
-       observation_keys = ['metricsA', 'metricsB']
+.. math::
 
-       def loss_function(*datasets):
-           half = len(datasets) // 2
-           inputs, labels = datasets[:half], datasets[half:]
-           predictions = model(inputs)
-           loss = ...
-           observation = {
-               observation_keys[0]: ...,
-               observation_keys[1]: ...,
-               }
-           chainer.report(observation, observer=model)
-           return loss
+    \rot \bm{F} = 0
 
-       return loss_function, observation_keys
+Then, there is a scalar potential :math:`\varphi`:
 
+.. math::
 
+    \bm{F} = \mathrm{grad} \varphi
+
+| If you want to use other loss function, define a class that inherits
+| ``hdnnpy.training.loss_function.loss_function_base.LossFunctionBase``.
+| It defines several instance variables, properties and instance methods.

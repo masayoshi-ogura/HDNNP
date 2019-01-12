@@ -22,8 +22,9 @@ from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
-    LOSS_FUNCTION, Manager, Updater, ScatterPlot, set_log_scale,
+    Manager, Updater, ScatterPlot, set_log_scale,
     )
+from hdnnpy.training.loss_function import LOSS_FUNCTION
 from hdnnpy.utils import (MPI, pprint, pyyaml_path_representer)
 
 
@@ -77,6 +78,7 @@ class TrainingApplication(Application):
         self.dataset_config = None
         self.model_config = None
         self.training_config = None
+        self.loss_function = None
 
     def initialize(self, argv=None):
         # temporarily set `resume_dir` configurable
@@ -93,6 +95,8 @@ class TrainingApplication(Application):
         self.training_config = TrainingConfig(config=self.config)
         if self.is_resume:
             self.training_config.out_dir = self.resume_dir.parent
+        name, _ = self.training_config.loss_function
+        self.loss_function = LOSS_FUNCTION[name]
 
     def start(self):
         tc = self.training_config
@@ -131,7 +135,8 @@ class TrainingApplication(Application):
 
                 # prepare descriptor dataset
                 descriptor = DESCRIPTOR_DATASET[dc.descriptor](
-                    tc.order, structures, **dc.parameters)
+                    self.loss_function.order['descriptor'],
+                    structures, **dc.parameters)
                 descriptor_npz = tagged_xyz.with_name(f'{dc.descriptor}.npz')
                 if descriptor_npz.exists():
                     descriptor.load(
@@ -142,7 +147,7 @@ class TrainingApplication(Application):
 
                 # prepare property dataset
                 property_ = PROPERTY_DATASET[dc.property_](
-                    tc.order, structures)
+                    self.loss_function.order['property'], structures)
                 property_npz = tagged_xyz.with_name(f'{dc.property_}.npz')
                 if property_npz.exists():
                     property_.load(
@@ -194,16 +199,16 @@ class TrainingApplication(Application):
 
             # model
             hdnnp = HighDimensionalNNP(
-                training.elemental_composition, mc.layers, tc.order)
+                training.elemental_composition, mc.layers)
             hdnnp.sync_param_with(master_nnp)
             main_opt = chainer.Optimizer()
             main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
             main_opt.setup(hdnnp)
 
             # loss function
-            name, kwargs = tc.loss_function
-            loss_function, observation_keys = (
-                LOSS_FUNCTION[name](hdnnp, properties, **kwargs))
+            _, kwargs = tc.loss_function
+            loss_function = self.loss_function(hdnnp, properties, **kwargs)
+            observation_keys = loss_function.observation_keys
 
             # triggers
             interval = (tc.interval, 'epoch')
@@ -216,7 +221,7 @@ class TrainingApplication(Application):
             # updater and trainer
             updater = Updater(train_iter,
                               {'main': main_opt, 'master': master_opt},
-                              loss_func=loss_function)
+                              loss_func=loss_function.eval)
             out_dir = tc.out_dir / tag
             trainer = chainer.training.Trainer(updater, stop_trigger, out_dir)
 
@@ -225,7 +230,8 @@ class TrainingApplication(Application):
                                                 target=tc.final_lr,
                                                 optimizer=master_opt))
             evaluator = chainermn.create_multi_node_evaluator(
-                ext.Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
+                ext.Evaluator(test_iter, hdnnp, eval_func=loss_function.eval),
+                comm)
             trainer.extend(evaluator, name='val')
             if tc.scatter_plot:
                 trainer.extend(ScatterPlot(test, hdnnp, comm),

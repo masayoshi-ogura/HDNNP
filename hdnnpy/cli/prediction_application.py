@@ -138,13 +138,16 @@ class PredictionApplication(Application):
         for dataset in datasets:
             # hdnnp model
             hdnnp = HighDimensionalNNP(
-                dataset.elemental_composition, mc.layers, pc.order)
+                dataset.elemental_composition, mc.layers)
             hdnnp.sync_param_with(master_nnp)
 
+            batch = chainer.dataset.concat_examples(dataset)
+            inputs = [data for key, data in batch.items()
+                      if key.startswith('inputs')]
             with chainer.using_config('train', False), \
                  chainer.using_config('enable_backprop', False):
-                predictions = hdnnp.predict(
-                    chainer.dataset.concat_examples(dataset))
+                predictions = hdnnp.predict(inputs, pc.order)
+
             result = {
                 **{'tag': dataset.tag},
                 **{property_: prediction.data for property_, prediction

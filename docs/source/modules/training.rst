@@ -21,9 +21,19 @@ Loss functions
     :toctree: generated/
     :nosignatures:
 
-    ~loss_functions.zeroth_only
-    ~loss_functions.first_only
-    ~loss_functions.mix
+    ~loss_function.Zeroth
+    ~loss_function.First
+    ~loss_function.Mix
+    ~loss_function.Potential
+
+Loss function base class
+------------------------
+
+.. autosummary::
+    :toctree: generated/
+    :nosignatures:
+
+    ~loss_function.loss_function_base.LossFunctionBase
 
 
 Training manager

@@ -19,10 +19,8 @@ class HighDimensionalNNP(chainer.ChainList):
     and outputs property per atom.
     Total value or property is predicted to sum them up.
     """
-    def __init__(self, elemental_composition, layers, order):
+    def __init__(self, elemental_composition, layers):
         """
-        It accepts 0 or 2 for ``order``.
-
         Args:
             elemental_composition (list [str]):
                 Create the same number of :class:`SubNNP` instances as
@@ -34,24 +32,17 @@ class HighDimensionalNNP(chainer.ChainList):
                 tuple ``(# of nodes, activation function)``, for example
                 ``(50, 'sigmoid')``. Only activation functions
                 implemented in `chainer.functions`_ can be used.
-            order (int):
-                Derivative order of prediction by this model.
 
         .. _`chainer.functions`:
             https://docs.chainer.org/en/stable/reference/functions.html
         """
-        assert 0 <= order <= 2
         super().__init__(
             *[SubNNP(element, layers) for element in elemental_composition])
-        self._order = order
 
-    @property
-    def order(self):
-        """int: Derivative order of prediction by this model."""
-        return self._order
-
-    def predict(self, inputs):
+    def predict(self, inputs, order):
         """Get prediction from input data in a feed-forward way.
+
+        It accepts 0 or 2 for ``order``.
 
         Notes:
             0th-order predicted value is not total value, but per-atom
@@ -61,38 +52,42 @@ class HighDimensionalNNP(chainer.ChainList):
             inputs (list [~numpy.ndarray]):
                 Length have to equal to ``order + 1``. Each element is
                 correspond to ``0th-order``, ``1st-order``, ...
+            order (int):
+                Derivative order of prediction by this model.
 
         Returns:
             list [~chainer.Variable]:
                 Predicted values. Each elements is correspond to
                 ``0th-order``, ``1st-order``, ...
         """
+        assert 0 <= order <= 2
         input_variables = [[Variable(x) for x in data.swapaxes(0, 1)]
                            for data in inputs]
         ret = []
 
-        if self._order >= 0:
-            xs, = input_variables[:1]
-            with chainer.force_backprop_mode():
-                ys = self._predict_y(xs)
+        xs = input_variables.pop(0)
+        with chainer.force_backprop_mode():
+            ys = self._predict_y(xs)
             y_pred = sum(ys) / len(self)
-            ret.append(y_pred)
+        ret.append(y_pred)
+        if order == 0:
+            return ret
 
-        if self._order >= 1:
-            xs, dxs = input_variables[:2]
-            with chainer.force_backprop_mode():
-                dys = self._predict_dy(xs, dxs, ys)
+        dxs = input_variables.pop(0)
+        with chainer.force_backprop_mode():
+            dys = self._predict_dy(xs, dxs, ys)
             dy_pred = sum(dys)
-            ret.append(dy_pred)
+        ret.append(dy_pred)
+        if order == 1:
+            return ret
 
-        if self._order >= 2:
-            xs, dxs, d2xs = input_variables[:3]
-            with chainer.force_backprop_mode():
-                d2ys = self._predict_d2y(xs, dxs, d2xs, dys)
+        d2xs = input_variables.pop(0)
+        with chainer.force_backprop_mode():
+            d2ys = self._predict_d2y(xs, dxs, d2xs, dys)
             d2y_pred = sum(d2ys)
-            ret.append(d2y_pred)
-
-        return ret
+        ret.append(d2y_pred)
+        if order == 2:
+            return ret
 
     def get_by_element(self, element):
         """Get all `SubNNP` instances that represent the same element.
@@ -148,7 +143,7 @@ class HighDimensionalNNP(chainer.ChainList):
         return [nnp.feedforward(x) for nnp, x in zip(self, xs)]
 
     def _predict_dy(self, xs, dxs, ys):
-        """Calculate 1th-order prediction for each `SubNNP`.
+        """Calculate 1st-order prediction for each `SubNNP`.
 
         Args:
             xs (list [~chainer.Variable]):
@@ -174,7 +169,7 @@ class HighDimensionalNNP(chainer.ChainList):
                 for nnp, x, dx, y in zip(self, xs, dxs, ys)]
 
     def _predict_d2y(self, xs, dxs, d2xs, dys):
-        """Calculate 2th-order prediction for each `SubNNP`.
+        """Calculate 2nd-order prediction for each `SubNNP`.
 
         Args:
             xs (list [~chainer.Variable]):
