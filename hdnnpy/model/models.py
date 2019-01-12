@@ -21,7 +21,7 @@ class HighDimensionalNNP(chainer.ChainList):
     """
     def __init__(self, elemental_composition, layers, order):
         """
-        It accepts 0 or 1 for ``order``.
+        It accepts 0 or 2 for ``order``.
 
         Args:
             elemental_composition (list [str]):
@@ -40,7 +40,7 @@ class HighDimensionalNNP(chainer.ChainList):
         .. _`chainer.functions`:
             https://docs.chainer.org/en/stable/reference/functions.html
         """
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
         super().__init__(
             *[SubNNP(element, layers) for element in elemental_composition])
         self._order = order
@@ -67,23 +67,32 @@ class HighDimensionalNNP(chainer.ChainList):
                 Predicted values. Each elements is correspond to
                 ``0th-order``, ``1st-order``, ...
         """
-        if self._order == 0:
-            xs, = inputs
-            xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-            ys = self._predict_y(xs)
-            y_pred = sum(ys) / len(self)
-            return [y_pred]
+        input_variables = [[Variable(x) for x in data.swapaxes(0, 1)]
+                           for data in inputs]
+        ret = []
 
-        elif self._order == 1:
-            xs, dxs = inputs
-            xs = [Variable(x) for x in xs.transpose(1, 0, 2)]
-            dxs = [Variable(dx) for dx in dxs.transpose(1, 0, 2, 3, 4)]
+        if self._order >= 0:
+            xs, = input_variables[:1]
             with chainer.force_backprop_mode():
                 ys = self._predict_y(xs)
-                dys = self._predict_dy(xs, ys, dxs)
             y_pred = sum(ys) / len(self)
+            ret.append(y_pred)
+
+        if self._order >= 1:
+            xs, dxs = input_variables[:2]
+            with chainer.force_backprop_mode():
+                dys = self._predict_dy(xs, dxs, ys)
             dy_pred = sum(dys)
-            return [y_pred, dy_pred]
+            ret.append(dy_pred)
+
+        if self._order >= 2:
+            xs, dxs, d2xs = input_variables[:3]
+            with chainer.force_backprop_mode():
+                d2ys = self._predict_d2y(xs, dxs, d2xs, dys)
+            d2y_pred = sum(d2ys)
+            ret.append(d2y_pred)
+
+        return ret
 
     def get_by_element(self, element):
         """Get all `SubNNP` instances that represent the same element.
@@ -138,7 +147,7 @@ class HighDimensionalNNP(chainer.ChainList):
         """
         return [nnp.feedforward(x) for nnp, x in zip(self, xs)]
 
-    def _predict_dy(self, xs, ys, dxs):
+    def _predict_dy(self, xs, dxs, ys):
         """Calculate 1th-order prediction for each `SubNNP`.
 
         Args:
@@ -146,24 +155,54 @@ class HighDimensionalNNP(chainer.ChainList):
                 Input data for each `SubNNP` constituting this HDNNP
                 instance. The shape of data is
                 ``n_atom x (n_sample, n_input)``.
+            dxs (list [~chainer.Variable]):
+                Differentiated input data. The shape of data is
+                ``n_atom x (n_sample, n_input, n_deriv)``.
             ys (list [~chainer.Variable]):
                 Output data for each `SubNNP` constituting this HDNNP
                 instance. The shape of data is
                 ``n_atom x (n_sample, n_output)``. This can be obtained
                 by :meth:`_predict_y`.
-            dxs (list [~chainer.Variable]):
-                Differentiated input data. The shape of data is
-                ``n_atom x (n_sample, n_input, ...)``.
 
         Returns:
             list [~chainer.Variable]:
                 Differentiated output data. The shape of data is
-                ``n_atom x (n_sample, n_output, ...)``.
+                ``n_atom x (n_sample, n_output, n_deriv)``.
         """
-        return [F.einsum('soi,si...->so...',
-                         nnp.first_derivative(x, y),
-                         dx)
-                for nnp, x, y, dx in zip(self, xs, ys, dxs)]
+        return [F.einsum('soi,six->sox',
+                         nnp.first_derivative(x, y), dx)
+                for nnp, x, dx, y in zip(self, xs, dxs, ys)]
+
+    def _predict_d2y(self, xs, dxs, d2xs, dys):
+        """Calculate 2th-order prediction for each `SubNNP`.
+
+        Args:
+            xs (list [~chainer.Variable]):
+                Input data for each `SubNNP` constituting this HDNNP
+                instance. The shape of data is
+                ``n_atom x (n_sample, n_input)``.
+            dxs (list [~chainer.Variable]):
+                Differentiated input data. The shape of data is
+                ``n_atom x (n_sample, n_input, n_deriv)``.
+            d2xs (list [~chainer.Variable]):
+                Double differentiated input data. The shape of data is
+                ``n_atom x (n_sample, n_input, n_deriv, n_deriv)``.
+            dys (list [~chainer.Variable]):
+                Differentiated output data for each `SubNNP`
+                constituting this HDNNP instance. The shape of data is
+                ``n_atom x (n_sample, n_output, n_input)``.
+                This can be obtained by :meth:`_predict_dy`.
+
+        Returns:
+            list [~chainer.Variable]:
+                Double differentiated output data. The shape of data is
+                ``n_atom x (n_sample, n_output, n_deriv, n_deriv)``.
+        """
+        return [F.einsum('soij,six,sjy->soxy',
+                         nnp.second_derivative(x, dy), dx, dx)
+                + F.einsum('soi,sixy->soxy', dy, d2x)
+                for nnp, x, dx, d2x, dy
+                in zip(self, xs, dxs, d2xs, dys)]
 
 
 class MasterNNP(chainer.ChainList):
@@ -295,3 +334,28 @@ class SubNNP(chainer.Chain):
               for output_node in y.T]
         dy = F.stack(dy, axis=1)
         return dy
+
+    @staticmethod
+    def second_derivative(x, dy):
+        """Calculate 2nd derivative of the output data w.r.t. input
+        data.
+
+        Args:
+            x (~chainer.Variable):
+                Input data which has the shape ``(n_sample, n_input)``.
+            dy (~chainer.Variable):
+                1st derivative of output data which has the shape
+                ``(n_sample, n_output, n_input)``.
+
+        Returns:
+            ~chainer.Variable:
+                Derivative of ``dy`` w.r.t. ``x`` which has the shape
+                ``(n_sample, n_output, n_input, n_input)``.
+        """
+        n_sample, n_output, n_input = dy.shape
+        d2y = [chainer.grad([derivative], [x])[0]
+               for output_node in F.transpose(dy, (1, 2, 0))
+               for derivative in output_node]
+        d2y = F.stack(d2y, axis=1).reshape(
+            (n_sample, n_output, n_input, n_input))
+        return d2y
