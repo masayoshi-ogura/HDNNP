@@ -25,17 +25,22 @@ class AtomicStructure(object):
         deco = sorted([(tag, i) for i, tag in enumerate(tags)])
         indices = [i for tag, i in deco]
         self._atoms = atoms[indices]
-
+        
+        
         results = {}
         calculator = atoms.get_calculator()
         if calculator:
             for key, value in calculator.results.items():
                 if key in ['energy', 'magmom', 'free_energy']:
                     results[key] = value
+                elif key in ['stress']:
+                    results[key] = np.array(value, float)
                 else:
                     results[key] = np.array(value[indices], float)
         self._atoms.set_calculator(
             SinglePointCalculator(self._atoms, **results))
+
+        
 
         self._cache = {}
 
