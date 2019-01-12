@@ -63,7 +63,7 @@ class Scaling(PreprocessBase):
                 Processed dataset into the same min-max range.
         """
         order = len(dataset) - 1
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -79,6 +79,10 @@ class Scaling(PreprocessBase):
                           + self._target_min)
         if order >= 1:
             dataset[1] = (dataset[1]
+                          / (max_ - min_)[..., None]
+                          * (self._target_max - self._target_min))
+        if order >= 2:
+            dataset[2] = (dataset[2]
                           / (max_ - min_)[..., None, None]
                           * (self._target_max - self._target_min))
 

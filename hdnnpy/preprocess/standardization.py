@@ -48,7 +48,7 @@ class Standardization(PreprocessBase):
                 Processed dataset to be zero-mean and unit-variance.
         """
         order = len(dataset) - 1
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -61,7 +61,9 @@ class Standardization(PreprocessBase):
             dataset[0] -= mean
             dataset[0] /= std
         if order >= 1:
-            dataset[1] /= std[..., None, None]
+            dataset[1] /= std[..., None]
+        if order >= 2:
+            dataset[2] /= std[..., None, None]
 
         return dataset
 

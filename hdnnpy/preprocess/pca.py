@@ -65,7 +65,7 @@ class PCA(PreprocessBase):
                 Processed dataset to be zero-mean and unit-variance.
         """
         order = len(dataset) - 1
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -75,9 +75,11 @@ class PCA(PreprocessBase):
             [self._transform[element] for element in elemental_composition])
 
         if order >= 0:
-            dataset[0] = np.einsum('ijk,jkl->ijl', dataset[0]-mean, transform)
+            dataset[0] = np.einsum('saf,aft->sat', dataset[0]-mean, transform)
         if order >= 1:
-            dataset[1] = np.einsum('ijkmn,jkl->ijlmn', dataset[1], transform)
+            dataset[1] = np.einsum('safx,aft->satx', dataset[1], transform)
+        if order >= 2:
+            dataset[2] = np.einsum('safxy,aft->satxy', dataset[2], transform)
 
         return dataset
 
