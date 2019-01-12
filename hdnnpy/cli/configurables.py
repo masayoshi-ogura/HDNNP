@@ -48,7 +48,7 @@ class DatasetConfig(Configurable):
              'ex.) {"type2": [(5.0, 0.01, 2.0)]}'
         ).tag(config=True)
     property_ = CaselessStrEnum(
-        ['interatomic_potential'],
+        ['interatomic_potential', 'born_effective_charge'],
         default_value='interatomic_potential',
         help='Name of property dataset to be optimized by HDNNP'
         ).tag(config=True)
