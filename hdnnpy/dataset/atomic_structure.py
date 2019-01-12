@@ -2,7 +2,7 @@
 
 """Wrapper class of ase.Atoms."""
 
-import ase.build
+from ase.calculators.singlepoint import SinglePointCalculator
 import ase.io
 import ase.neighborlist
 import numpy as np
@@ -21,9 +21,20 @@ class AtomicStructure(object):
         Args:
             atoms (~ase.Atoms): an object to wrap.
         """
-        sorted_atoms = ase.build.sort(atoms)
-        sorted_atoms.set_calculator(atoms.get_calculator())
-        self._atoms = sorted_atoms
+        tags = atoms.get_chemical_symbols()
+        deco = sorted([(tag, i) for i, tag in enumerate(tags)])
+        indices = [i for tag, i in deco]
+        self._atoms = atoms[indices]
+
+        results = {}
+        for key, value in atoms.get_calculator().results.items():
+            if key in ['energy', 'magmom', 'free_energy']:
+                results[key] = value
+            else:
+                results[key] = np.array(value[indices], float)
+        calc = SinglePointCalculator(self._atoms, **results)
+        self._atoms.set_calculator(calc)
+
         self._cache = {}
 
     def __getattr__(self, item):
