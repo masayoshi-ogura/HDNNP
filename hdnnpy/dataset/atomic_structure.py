@@ -25,8 +25,7 @@ class AtomicStructure(object):
         deco = sorted([(tag, i) for i, tag in enumerate(tags)])
         indices = [i for tag, i in deco]
         self._atoms = atoms[indices]
-        
-        
+
         results = {}
         calculator = atoms.get_calculator()
         if calculator:
@@ -40,7 +39,6 @@ class AtomicStructure(object):
         self._atoms.set_calculator(
             SinglePointCalculator(self._atoms, **results))
 
-        
 
         self._cache = {}
 
