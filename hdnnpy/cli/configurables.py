@@ -111,11 +111,11 @@ class TrainingConfig(Configurable):
         ).tag(config=True)
     # chainer training
     loss_function = Tuple(
-        CaselessStrEnum(['zeroth', 'first', 'mix', 'potential']),
+        CaselessStrEnum(['zeroth', 'first', 'potential']),
         Dict(),
         help='Name of loss function and parameters of it. '
              'Set as Tuple(Str(name), Dict{parameters}). '
-             'ex.) ("mix", {"mixing_beta": 0.5})'
+             'ex.) ("first", {"mixing_beta": 0.5})'
         ).tag(config=True)
     init_lr = Float(
         default_value=1.0e-3,

@@ -72,10 +72,7 @@ Currently, we have implemented following loss function for HDNNP training.
 * First
 
 Each loss function uses a 0th/1st order error of property to optimize HDNNP.
-
-* Mix
-
-It uses both 0th/1st order errors of property weighted by parameter ``mixing_beta`` to optimize HDNNP.
+``First`` uses both 0th/1st order errors of property weighted by parameter ``mixing_beta`` to optimize HDNNP.
 
 * Potential
 

@@ -23,7 +23,6 @@ Loss functions
 
     ~loss_function.Zeroth
     ~loss_function.First
-    ~loss_function.Mix
     ~loss_function.Potential
 
 Loss function base class

@@ -48,9 +48,7 @@ class Zeroth(LossFunctionBase):
         labels = [data for key, data in dataset.items()
                   if key.startswith('labels')]
         predictions = self._model.predict(inputs, self.order['descriptor'])
-        pred0, *_ = predictions
-        true0, *_ = labels
-        loss0 = F.mean_squared_error(pred0, true0)
+        loss0 = F.mean_squared_error(predictions[0], labels[0])
         RMSE0 = F.sqrt(loss0)
 
         observation = {

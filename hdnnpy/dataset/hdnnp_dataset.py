@@ -60,11 +60,6 @@ class HDNNPDataset(object):
         return self._descriptor.elements
 
     @property
-    def order(self):
-        """int: Derivative order of the dataset."""
-        return self._descriptor.order
-
-    @property
     def partial_size(self):
         """int: Number of data after scattered by MPI communication."""
         return len(list(self._dataset.values())[0])
@@ -231,7 +226,6 @@ class HDNNPDataset(object):
             assert self._descriptor.elemental_composition \
                    == self._property.elemental_composition
             assert self._descriptor.elements == self._property.elements
-            assert self._descriptor.order == self._property.order
             assert self._descriptor.tag == self._property.tag
 
     @staticmethod

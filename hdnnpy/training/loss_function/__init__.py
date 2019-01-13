@@ -6,14 +6,12 @@ __all__ = [
     'LOSS_FUNCTION',
     ]
 
-from hdnnpy.training.loss_function.zeroth import Zeroth
 from hdnnpy.training.loss_function.first import First
-from hdnnpy.training.loss_function.mix import Mix
-# from hdnnpy.training.loss_function.potential import Potential
+from hdnnpy.training.loss_function.potential import Potential
+from hdnnpy.training.loss_function.zeroth import Zeroth
 
 LOSS_FUNCTION = {
-    Zeroth.name: Zeroth,
     First.name: First,
-    Mix.name: Mix,
-    # Potential.name: Potential,
+    Potential.name: Potential,
+    Zeroth.name: Zeroth,
     }
