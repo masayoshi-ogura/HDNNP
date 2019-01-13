@@ -270,7 +270,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                      for dgdr_j in np.split(dgdr, neigh2j[1:])])
 
                 dGdr = np.zeros((n_comb, n_atom, 3))
-                j2elem = np.append(j2elem, 0)
+                j2elem = np.append(j2elem, n_atom)
                 for c, (j, k) in enumerate(combinations_with_replacement(
                         range(n_elem), 2)):
                     dGdr[c, j2elem[j]:j2elem[j+1]] = (
