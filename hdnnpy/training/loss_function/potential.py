@@ -22,7 +22,7 @@ class Potential(LossFunctionBase):
     """dict: Required orders of each dataset to calculate loss function.
     """
 
-    def __init__(self, model, properties, mixing_beta=1.0, penalty=0e-3, **_):
+    def __init__(self, model, properties, mixing_beta=1.0, penalty=1e-3, **_):
         """
         Args:
             model (HighDimensionalNNP):
