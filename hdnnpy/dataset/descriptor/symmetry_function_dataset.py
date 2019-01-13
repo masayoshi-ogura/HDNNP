@@ -137,9 +137,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 generators.append(eval(
                     f'self._symmetry_function_{name}')(structure, *params))
 
-        dataset = [
-            np.concatenate([next(gen).data for gen in generators], axis=1)
-            for _ in range(self._order + 1)]
+        dataset = [np.concatenate([next(gen).data
+                                   for gen in generators]).swapaxes(0, 1)
+                   for _ in range(self._order + 1)]
 
         structure.clear_cache()
 
@@ -148,40 +148,44 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def differentiate(func):
         def wrapper(self, structure, Rc, *params):
             G = func(self, structure, Rc, *params)
-            yield F.stack(G)
+            yield F.stack([F.stack(g) for g in G])
+
+            n_atom = len(G[0])
+            r = []
+            neigh2j = []
+            for r_, neigh2j_ in structure.get_neighbor_info(
+                    Rc, ['distance_vector', 'neigh2j']):
+                r.append(r_)
+                neigh2j.append(neigh2j_)
 
             dG = []
-            for g, (r, neigh2j) in zip(G, structure.get_neighbor_info(
-                    Rc, ['distance_vector', 'neigh2j'])):
-                dg = []
-                for g_ in g:
-                    grad, = chainer.grad(
-                        [g_], [r],
-                        enable_double_backprop=self._order >= 2)
-                    dg.append(F.concat([
-                        F.sum(dg_, axis=0) for dg_
-                        in F.split_axis(grad, neigh2j[1:], axis=0)],
-                        axis=0))
-                dG.append(F.stack(dg))
-            yield F.stack(dG)
+            for g in G:
+                grad = chainer.grad(
+                    g, r, enable_double_backprop=self._order >= 2)
+                dg = [F.concat([F.sum(dg_, axis=0) for dg_
+                                in F.split_axis(grad_, neigh2j_[1:],
+                                                axis=0)],
+                               axis=0)
+                      for grad_, neigh2j_ in zip(grad, neigh2j)]
+                dG.append(dg)
+            yield F.stack([F.stack(dg) for dg in dG])
 
             d2G = []
-            for dg, (r, neigh2j) in zip(dG, structure.get_neighbor_info(
-                    Rc, ['distance_vector', 'neigh2j'])):
+            for dg in dG:
                 d2g = []
-                for dg_ in dg:
-                    d2g_ = []
-                    for dg__ in dg_:
-                        grad, = chainer.grad(
-                            [dg__], [r],
-                            enable_double_backprop=self._order >= 3)
-                        d2g_.append(F.concat([
-                            F.sum(d2g_, axis=0) for d2g_
-                            in F.split_axis(grad, neigh2j[1:], axis=0)],
-                            axis=0))
-                    d2g.append(F.stack(d2g_))
-                d2G.append(F.stack(d2g))
-            yield F.stack(d2G)
+                for i in range(3 * n_atom):
+                    grad = chainer.grad(
+                        [dg_[i] for dg_ in dg], r,
+                        enable_double_backprop=self._order >= 3)
+                    d2g_ = [F.concat([F.sum(d2g_, axis=0) for d2g_
+                                      in F.split_axis(grad_, neigh2j_[1:],
+                                                      axis=0)],
+                                     axis=0)
+                            for grad_, neigh2j_ in zip(grad, neigh2j)]
+                    d2g.append(d2g_)
+                d2G.append(d2g)
+            yield F.stack([F.stack([F.stack(d2g_) for d2g_ in d2g])
+                           for d2g in d2G]).transpose(0, 2, 1, 3)
 
         return wrapper
 
@@ -193,8 +197,8 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 Rc, ['distance', 'neigh2elem']):
             g = F.tanh(1.0 - R/Rc) ** 3
             g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
-            G.append(F.stack(g))
-        return G
+            G.append(g)
+        return list(zip(*G))
 
     @differentiate
     def _symmetry_function_type2(self, structure, Rc, eta, Rs):
@@ -204,8 +208,8 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 Rc, ['distance', 'neigh2elem']):
             g = F.exp(-eta*(R-Rs)**2) * F.tanh(1.0 - R/Rc)**3
             g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
-            G.append(F.stack(g))
-        return G
+            G.append(g)
+        return list(zip(*G))
 
     @differentiate
     def _symmetry_function_type4(self, structure, Rc, eta, lambda_, zeta):
@@ -232,5 +236,5 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                  for k, g__
                  in enumerate(F.split_axis(g_, neigh2elem[1:], axis=1))
                  if j <= k]
-            G.append(F.stack(g))
-        return G
+            G.append(g)
+        return list(zip(*G))
