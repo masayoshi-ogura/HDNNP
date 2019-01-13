@@ -17,6 +17,8 @@ class PropertyDatasetBase(ABC):
     """Base class of atomic structure based property dataset."""
     PROPERTIES = []
     """list [str]: Names of properties for each derivative order."""
+    COEFFICIENTS = []
+    """list [float]: Coefficient values of each properties."""
     UNITS = []
     """list [str]: Units of properties for each derivative order."""
     name = ''
@@ -37,6 +39,7 @@ class PropertyDatasetBase(ABC):
         self._elements = sorted(set(self._elemental_composition))
         self._structures = structures
         self._tag = structures[0].info['tag']
+        self._coefficients = self.COEFFICIENTS[: order+1]
         self._units = self.UNITS[: order+1]
         self._dataset = []
 
@@ -59,6 +62,11 @@ class PropertyDatasetBase(ABC):
     def __len__(self):
         """Number of atomic structures given at initialization."""
         return len(self._structures)
+
+    @property
+    def coefficients(self):
+        """list [float]: Coefficient values this instance have."""
+        return self._coefficients
 
     @property
     def elemental_composition(self):
