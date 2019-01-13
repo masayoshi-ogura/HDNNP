@@ -3,6 +3,7 @@
 """Interatomic potential dataset for property of HDNNP. """
 
 import numpy as np
+from tqdm import tqdm
 
 from hdnnpy.dataset.property.property_dataset_base import PropertyDatasetBase
 from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
@@ -42,58 +43,58 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
         Args:
             verbose (bool, optional): Print log to stdout.
         """
-        n_sample = len(self._structures)
-        n_atom = len(self._structures[0])
-        slices = [slice(i[0], i[-1]+1)
-                  for i in np.array_split(range(n_sample), MPI.size)]
-        structures = self._structures[slices[MPI.rank]]
+        dataset = []
+        for structure in tqdm(self._structures,
+                              ascii=True, desc=f'Process #{MPI.rank}',
+                              leave=False, position=MPI.rank):
+            dataset.append(self._calculate_properties(structure))
 
-        for i, send_data in enumerate(self._calculate_properties(structures)):
-            shape = (1, *(n_atom*3,) * i)
-            send_data = send_data.reshape((-1,) + shape)
+        for i, data_list in enumerate(zip(*dataset)):
+            n_atom = len(self._structures[0])
+            shape = (1, *(3*n_atom,) * i)
+            send_data = np.stack(data_list).reshape((-1, *shape))
             if MPI.rank == 0:
-                data = np.empty((n_sample,) + shape, dtype=np.float32)
-                data[slices[0]] = send_data
+                recv_data = np.empty((self._length, *shape), dtype=np.float32)
+                recv_data[self._slices[0]] = send_data
                 for j in range(1, MPI.size):
-                    data[slices[j]] = recv_chunk(source=j)
-                self._dataset.append(data)
+                    recv_data[self._slices[j]] = recv_chunk(source=j)
+                self._dataset.append(recv_data)
             else:
                 send_chunk(send_data, dest=0)
 
         if verbose:
             pprint(f'Calculated {self.name} dataset.')
 
-    def _calculate_properties(self, structures):
+    def _calculate_properties(self, structure):
         """Main method of calculating interatomic potential dataset."""
+        dataset = []
         if self._order >= 0:
-            yield self._calculate_energy(structures)
+            dataset.append(self._calculate_energy(structure))
         if self._order >= 1:
-            yield self._calculate_force(structures)
+            dataset.append(self._calculate_force(structure))
         if self._order >= 2:
-            yield self._calculate_harmonic(structures)
+            dataset.append(self._calculate_harmonic(structure))
         if self._order >= 3:
-            yield self._calculate_third_order(structures)
+            dataset.append(self._calculate_third_order(structure))
+        return dataset
 
     @staticmethod
-    def _calculate_energy(structures):
+    def _calculate_energy(structure):
         """Calculate atomic energy."""
-        return np.array([structure.get_potential_energy() / len(structure)
-                         for structure in structures],
-                        dtype=np.float32)
+        return (structure.get_potential_energy() / len(structure)
+                ).astype(np.float32)
 
     @staticmethod
-    def _calculate_force(structures):
+    def _calculate_force(structure):
         """Calculate interatomic forces."""
-        return np.array([structure.get_forces()
-                         for structure in structures],
-                        dtype=np.float32)
+        return structure.get_forces().astype(np.float32)
 
     @staticmethod
-    def _calculate_harmonic(structures):
+    def _calculate_harmonic(structure):
         """Calculate 2nd-order harmonic force constant."""
         raise NotImplementedError
 
     @staticmethod
-    def _calculate_third_order(structures):
+    def _calculate_third_order(structure):
         """Calculate 3rd-order anharmonic force constant."""
         raise NotImplementedError

@@ -107,74 +107,43 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         Args:
             verbose (bool, optional): Print log to stdout.
         """
-        n_sample = len(self._structures)
-        n_atom = len(self._structures[0])
-        slices = [slice(i[0], i[-1]+1)
-                  for i in np.array_split(range(n_sample), MPI.size)]
-        structures = self._structures[slices[MPI.rank]]
+        dataset = []
+        for structure in tqdm(self._structures,
+                              ascii=True, desc=f'Process #{MPI.rank}',
+                              leave=False, position=MPI.rank):
+            dataset.append(self._calculate_descriptors(structure))
 
-        for i, send_data in enumerate(
-                self._calculate_descriptors(structures, verbose)):
-            shape = (n_atom, self.n_feature, *(n_atom*3,) * i)
-            send_data = send_data.reshape((-1,) + shape)
+        for i, data_list in enumerate(zip(*dataset)):
+            n_atom = len(self._structures[0])
+            shape = (n_atom, self.n_feature, *(3*n_atom,) * i)
+            send_data = np.stack(data_list).reshape((-1, *shape))
             if MPI.rank == 0:
-                data = np.empty((n_sample,) + shape, dtype=np.float32)
-                data[slices[0]] = send_data
+                recv_data = np.empty((self._length, *shape), dtype=np.float32)
+                recv_data[self._slices[0]] = send_data
                 for j in range(1, MPI.size):
-                    data[slices[j]] = recv_chunk(source=j)
-                self._dataset.append(data)
+                    recv_data[self._slices[j]] = recv_chunk(source=j)
+                self._dataset.append(recv_data)
             else:
                 send_chunk(send_data, dest=0)
 
         if verbose:
             pprint(f'Calculated {self.name} dataset.')
 
-    def _calculate_descriptors(self, structures, verbose):
+    def _calculate_descriptors(self, structure):
         """Main method of calculating symmetry functions."""
         generators = []
-        for structure in structures:
-            nst = []
-            for name, params_set in self._func_param_map.items():
-                for params in params_set:
-                    nst.append(eval(
-                        f'self._symmetry_function_{name}')(structure, *params))
-            generators.append(nst)
+        for name, params_set in self._func_param_map.items():
+            for params in params_set:
+                generators.append(eval(
+                    f'self._symmetry_function_{name}')(structure, *params))
 
-        if self._order >= 0:
-            if verbose:
-                pprint('Calculate symmetry function: 0th order')
-            G = []
-            for gen_list in tqdm(generators,
-                                 ascii=True, desc=f'Process #{MPI.rank}',
-                                 leave=False, position=MPI.rank):
-                G.append(np.concatenate(
-                    [next(gen).data for gen in gen_list], axis=1))
-            yield np.stack(G)
+        dataset = [
+            np.concatenate([next(gen).data for gen in generators], axis=1)
+            for _ in range(self._order + 1)]
 
-        if self._order >= 1:
-            if verbose:
-                pprint('Calculate symmetry function: 1st order')
-            dG = []
-            for gen_list in tqdm(generators,
-                                 ascii=True, desc=f'Process #{MPI.rank}',
-                                 leave=False, position=MPI.rank):
-                dG.append(np.concatenate(
-                    [next(gen).data for gen in gen_list], axis=1))
-            yield np.stack(dG)
+        structure.clear_cache()
 
-        if self._order >= 2:
-            if verbose:
-                pprint('Calculate symmetry function: 2nd order')
-            d2G = []
-            for gen_list in tqdm(generators,
-                                 ascii=True, desc=f'Process #{MPI.rank}',
-                                 leave=False, position=MPI.rank):
-                d2G.append(np.concatenate(
-                    [next(gen).data for gen in gen_list], axis=1))
-            yield np.stack(d2G)
-
-        for structure in structures:
-            structure.clear_cache()
+        return dataset
 
     def differentiate(func):
         def wrapper(self, structure, Rc, *params):

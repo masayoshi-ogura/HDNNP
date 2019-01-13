@@ -35,7 +35,10 @@ class PropertyDatasetBase(ABC):
         self._properties = self.PROPERTIES[: order+1]
         self._elemental_composition = structures[0].get_chemical_symbols()
         self._elements = sorted(set(self._elemental_composition))
-        self._structures = structures
+        self._length = len(structures)
+        self._slices = [slice(i[0], i[-1]+1)
+                        for i in np.array_split(range(self._length), MPI.size)]
+        self._structures = structures[self._slices[MPI.rank]]
         self._tag = structures[0].info['tag']
         self._units = self.UNITS[: order+1]
         self._dataset = []
@@ -58,7 +61,7 @@ class PropertyDatasetBase(ABC):
 
     def __len__(self):
         """Number of atomic structures given at initialization."""
-        return len(self._structures)
+        return self._length
 
     @property
     def elemental_composition(self):
