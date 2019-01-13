@@ -150,8 +150,11 @@ class PredictionApplication(Application):
 
             result = {
                 **{'tag': dataset.tag},
-                **{property_: prediction.data for property_, prediction
-                   in zip(dataset.property.properties, predictions)},
+                **{property_: coefficient * prediction.data
+                   for property_, coefficient, prediction
+                   in zip(dataset.property.properties,
+                          dataset.property.coefficients,
+                          predictions)},
                 }
             results.append(result)
         return results

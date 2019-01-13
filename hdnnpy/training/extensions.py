@@ -25,6 +25,7 @@ class ScatterPlot(Extension):
         self._comm = comm.mpi_comm
 
         self._properties = []
+        self._coefficients = []
         self._units = []
         self._inputs = []
         self._labels = []
@@ -52,7 +53,9 @@ class ScatterPlot(Extension):
             pred_send = predictions[i].data
             if self._comm.Get_rank() == 0:
                 self._comm.Gatherv(pred_send, self._predictions[i], root=0)
-                self._plot(trainer, self._predictions[i], self._labels[i],
+                self._plot(trainer,
+                           self._coefficients[i] * self._predictions[i],
+                           self._coefficients[i] * self._labels[i],
                            self._properties[i], self._units[i])
             else:
                 self._comm.Gatherv(pred_send, None, root=0)
@@ -63,6 +66,7 @@ class ScatterPlot(Extension):
         """Gather label dataset to root process and initialize other
         instance variables."""
         self._properties = dataset.property.properties
+        self._coefficients = dataset.property.coefficients
         self._units = dataset.property.units
         batch = chainer.dataset.concat_examples(dataset)
         self._inputs = [data for key, data in batch.items()
