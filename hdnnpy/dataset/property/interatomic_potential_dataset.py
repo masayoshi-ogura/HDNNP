@@ -12,6 +12,8 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     """Interatomic potential dataset for property of HDNNP. """
     PROPERTIES = ['energy', 'force', 'harmonic', 'third_order']
     """list [str]: Names of properties for each derivative order."""
+    COEFFICIENTS = [1.0, -1.0]
+    """list [float]: Coefficient values of each properties."""
     UNITS = ['eV/atom', 'eV/$\\AA$']
     """list [str]: Units of properties for each derivative order."""
     name = 'interatomic_potential'
@@ -66,13 +68,17 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     def _calculate_properties(self, structures):
         """Main method of calculating interatomic potential dataset."""
         if self._order >= 0:
-            yield self._calculate_energy(structures)
+            yield (self._calculate_energy(structures)
+                   / self._coefficients[0])
         if self._order >= 1:
-            yield self._calculate_force(structures)
+            yield (self._calculate_force(structures)
+                   / self._coefficients[1])
         if self._order >= 2:
-            yield self._calculate_harmonic(structures)
+            yield (self._calculate_harmonic(structures)
+                   / self._coefficients[2])
         if self._order >= 3:
-            yield self._calculate_third_order(structures)
+            yield (self._calculate_third_order(structures)
+                   / self._coefficients[3])
 
     @staticmethod
     def _calculate_energy(structures):
