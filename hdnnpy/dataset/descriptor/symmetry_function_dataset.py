@@ -147,8 +147,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
 
     def differentiate(func):
         def wrapper(self, structure, Rc, *params):
-            G = func(self, structure, Rc, *params)
-            yield F.stack([F.stack(g) for g in G])
+            differentiate_more = self._order > 0
+            with chainer.using_config('enable_backprop', differentiate_more):
+                G = func(self, structure, Rc, *params)
+                yield F.stack([F.stack(g) for g in G])
 
             n_atom = len(G[0])
             r = []
@@ -158,34 +160,40 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 r.append(r_)
                 neigh2j.append(neigh2j_)
 
-            dG = []
-            for g in G:
-                grad = chainer.grad(
-                    g, r, enable_double_backprop=self._order >= 2)
-                dg = [F.concat([F.sum(dg_, axis=0) for dg_
-                                in F.split_axis(grad_, neigh2j_[1:],
-                                                axis=0)],
-                               axis=0)
-                      for grad_, neigh2j_ in zip(grad, neigh2j)]
-                dG.append(dg)
-            yield F.stack([F.stack(dg) for dg in dG])
+            differentiate_more = self._order > 1
+            with chainer.using_config('enable_backprop', differentiate_more):
+                dG = []
+                for g in G:
+                    with chainer.force_backprop_mode():
+                        grad = chainer.grad(
+                            g, r, enable_double_backprop=differentiate_more)
+                    dg = [F.concat([F.sum(dg_, axis=0) for dg_
+                                    in F.split_axis(grad_, neigh2j_[1:],
+                                                    axis=0)],
+                                   axis=0)
+                          for grad_, neigh2j_ in zip(grad, neigh2j)]
+                    dG.append(dg)
+                yield F.stack([F.stack(dg) for dg in dG])
 
-            d2G = []
-            for dg in dG:
-                d2g = []
-                for i in range(3 * n_atom):
-                    grad = chainer.grad(
-                        [dg_[i] for dg_ in dg], r,
-                        enable_double_backprop=self._order >= 3)
-                    d2g_ = [F.concat([F.sum(d2g_, axis=0) for d2g_
-                                      in F.split_axis(grad_, neigh2j_[1:],
-                                                      axis=0)],
-                                     axis=0)
-                            for grad_, neigh2j_ in zip(grad, neigh2j)]
-                    d2g.append(d2g_)
-                d2G.append(d2g)
-            yield F.stack([F.stack([F.stack(d2g_) for d2g_ in d2g])
-                           for d2g in d2G]).transpose(0, 2, 1, 3)
+            differentiate_more = self._order > 2
+            with chainer.using_config('enable_backprop', differentiate_more):
+                d2G = []
+                for dg in dG:
+                    d2g = []
+                    for i in range(3 * n_atom):
+                        with chainer.force_backprop_mode():
+                            grad = chainer.grad(
+                                [dg_[i] for dg_ in dg], r,
+                                enable_double_backprop=differentiate_more)
+                        d2g_ = [F.concat([F.sum(d2g_, axis=0) for d2g_
+                                          in F.split_axis(grad_, neigh2j_[1:],
+                                                          axis=0)],
+                                         axis=0)
+                                for grad_, neigh2j_ in zip(grad, neigh2j)]
+                        d2g.append(d2g_)
+                    d2G.append(d2g)
+                yield F.stack([F.stack([F.stack(d2g_) for d2g_ in d2g])
+                               for d2g in d2G]).transpose(0, 2, 1, 3)
 
         return wrapper
 
