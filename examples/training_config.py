@@ -88,16 +88,11 @@
 #c.TrainingConfig.log_report = True
 
 ## Name of loss function and parameters of it. Set as Tuple(Str(name),
-#  Dict{parameters}). ex.) ("mix", {"mixing_beta": 0.5})
+#  Dict{parameters}). ex.) ("first", {"mixing_beta": 0.5})
 #c.TrainingConfig.loss_function = ()
 
 ## Rate of exponential decay of learning rate
 #c.TrainingConfig.lr_decay = 0.0
-
-## Order of differentiation used for calculation of descriptor & property
-#  datasets and HDNNP training. ex.) 0: energy, 1: force, for interatomic
-#  potential
-#c.TrainingConfig.order = 0
 
 ## Path to output directory. NOTE: Currently, all output files will be
 #  overwritten.
