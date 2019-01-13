@@ -16,14 +16,14 @@ from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 class SymmetryFunctionDataset(DescriptorDatasetBase):
     """Symmetry function dataset for descriptor of HDNNP."""
-    DESCRIPTORS = ['sym_func', 'derivative']
+    DESCRIPTORS = ['sym_func', 'derivative', 'second_derivative']
     """list [str]: Names of descriptors for each derivative order."""
     name = 'symmetry_function'
     """str: Name of this descriptor class."""
 
     def __init__(self, order, structures, **func_param_map):
         """
-        It accepts 0 or 1 for ``order``.
+        It accepts 0 or 2 for ``order``.
 
         | Each symmetry function requires following parameters.
         | Pass parameters you want to use for the dataset as keyword
@@ -47,7 +47,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         .. _`this paper`:
             https://onlinelibrary.wiley.com/doi/full/10.1002/qua.24890
         """
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
         assert func_param_map
         super().__init__(order, structures)
         self._func_param_map = func_param_map.copy()
@@ -131,9 +131,6 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
 
     def _calculate_descriptors(self, structures, verbose):
         """Main method of calculating symmetry functions."""
-        n_sample = len(structures)
-        n_atom = len(structures[0])
-
         generators = []
         for structure in structures:
             nst = []
@@ -147,33 +144,79 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             if verbose:
                 pprint('Calculate symmetry function: 0th order')
             G = []
-            with chainer.using_config('enable_backprop', self._order > 0):
-                for gen_list in tqdm(generators,
-                                     ascii=True, desc=f'Process #{MPI.rank}',
-                                     leave=False, position=MPI.rank):
-                    G.append(F.concat([next(gen) for gen in gen_list],
-                                      axis=1))
-            G = F.stack(G).reshape(
-                n_sample, n_atom, self.n_feature)
-            yield G.data
+            for gen_list in tqdm(generators,
+                                 ascii=True, desc=f'Process #{MPI.rank}',
+                                 leave=False, position=MPI.rank):
+                G.append(np.concatenate(
+                    [next(gen).data for gen in gen_list], axis=1))
+            yield np.stack(G)
 
         if self._order >= 1:
             if verbose:
                 pprint('Calculate symmetry function: 1st order')
             dG = []
-            with chainer.using_config('enable_backprop', self._order > 1):
-                for gen_list in tqdm(generators,
-                                     ascii=True, desc=f'Process #{MPI.rank}',
-                                     leave=False, position=MPI.rank):
-                    dG.append(F.concat([next(gen) for gen in gen_list],
-                                       axis=1))
-            dG = F.stack(dG).reshape(
-                n_sample, n_atom, self.n_feature, n_atom*3)
-            yield dG.data
+            for gen_list in tqdm(generators,
+                                 ascii=True, desc=f'Process #{MPI.rank}',
+                                 leave=False, position=MPI.rank):
+                dG.append(np.concatenate(
+                    [next(gen).data for gen in gen_list], axis=1))
+            yield np.stack(dG)
+
+        if self._order >= 2:
+            if verbose:
+                pprint('Calculate symmetry function: 2nd order')
+            d2G = []
+            for gen_list in tqdm(generators,
+                                 ascii=True, desc=f'Process #{MPI.rank}',
+                                 leave=False, position=MPI.rank):
+                d2G.append(np.concatenate(
+                    [next(gen).data for gen in gen_list], axis=1))
+            yield np.stack(d2G)
 
         for structure in structures:
             structure.clear_cache()
 
+    def differentiate(func):
+        def wrapper(self, structure, Rc, *params):
+            G = func(self, structure, Rc, *params)
+            yield F.stack(G)
+
+            dG = []
+            for g, (r, neigh2j) in zip(G, structure.get_neighbor_info(
+                    Rc, ['distance_vector', 'neigh2j'])):
+                dg = []
+                for g_ in g:
+                    grad, = chainer.grad(
+                        [g_], [r],
+                        enable_double_backprop=self._order >= 2)
+                    dg.append(F.concat([
+                        F.sum(dg_, axis=0) for dg_
+                        in F.split_axis(grad, neigh2j[1:], axis=0)],
+                        axis=0))
+                dG.append(F.stack(dg))
+            yield F.stack(dG)
+
+            d2G = []
+            for dg, (r, neigh2j) in zip(dG, structure.get_neighbor_info(
+                    Rc, ['distance_vector', 'neigh2j'])):
+                d2g = []
+                for dg_ in dg:
+                    d2g_ = []
+                    for dg__ in dg_:
+                        grad, = chainer.grad(
+                            [dg__], [r],
+                            enable_double_backprop=self._order >= 3)
+                        d2g_.append(F.concat([
+                            F.sum(d2g_, axis=0) for d2g_
+                            in F.split_axis(grad, neigh2j[1:], axis=0)],
+                            axis=0))
+                    d2g.append(F.stack(d2g_))
+                d2G.append(F.stack(d2g))
+            yield F.stack(d2G)
+
+        return wrapper
+
+    @differentiate
     def _symmetry_function_type1(self, structure, Rc):
         """Symmetry function type1 for specific parameters."""
         G = []
@@ -181,19 +224,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 Rc, ['distance', 'neigh2elem']):
             g = F.tanh(1.0 - R/Rc) ** 3
             g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
-            G.append(g)
-        yield F.stack([F.stack(a) for a in G])
+            G.append(F.stack(g))
+        return G
 
-        dG = []
-        for g, (r, neigh2j) in zip(G, structure.get_neighbor_info(
-                Rc, ['distance_vector', 'neigh2j'])):
-            dg = [[F.sum(dg_, axis=0)
-                   for dg_ in F.split_axis(chainer.grad([g_], [r])[0],
-                                           neigh2j[1:], axis=0)]
-                  for g_ in g]
-            dG.append(dg)
-        yield F.stack([F.stack([F.stack(f) for f in a]) for a in dG])
-
+    @differentiate
     def _symmetry_function_type2(self, structure, Rc, eta, Rs):
         """Symmetry function type2 for specific parameters."""
         G = []
@@ -201,48 +235,33 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 Rc, ['distance', 'neigh2elem']):
             g = F.exp(-eta*(R-Rs)**2) * F.tanh(1.0 - R/Rc)**3
             g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
-            G.append(g)
-        yield F.stack([F.stack(a) for a in G])
+            G.append(F.stack(g))
+        return G
 
-        dG = []
-        for g, (r, neigh2j) in zip(G, structure.get_neighbor_info(
-                Rc, ['distance_vector', 'neigh2j'])):
-            dg = [[F.sum(dg_, axis=0)
-                   for dg_ in F.split_axis(chainer.grad([g_], [r])[0],
-                                           neigh2j[1:], axis=0)]
-                  for g_ in g]
-            dG.append(dg)
-        yield F.stack([F.stack([F.stack(f) for f in a]) for a in dG])
-
+    @differentiate
     def _symmetry_function_type4(self, structure, Rc, eta, lambda_, zeta):
         """Symmetry function type4 for specific parameters."""
         G = []
         for r, R, neigh2elem in structure.get_neighbor_info(
                 Rc, ['distance_vector', 'distance', 'neigh2elem']):
             cos = (r/F.expand_dims(R, axis=1)) @ (r.T/R)
-            triu = np.triu(np.ones_like(cos.data), k=1)
-            ang = F.where(triu.astype(np.bool), 1.0 + lambda_ * cos, triu)
+            if zeta == 1:
+                ang = (1.0 + lambda_*cos)
+            else:
+                ang = (1.0 + lambda_*cos) ** zeta
             g = (2.0 ** (1-zeta)
-                 * ang ** zeta
+                 * ang
                  * F.expand_dims(F.exp(-eta*R**2) * F.tanh(1.0 - R/Rc)**3,
                                  axis=1)
                  * F.expand_dims(F.exp(-eta*R**2) * F.tanh(1.0 - R/Rc)**3,
                                  axis=0))
+            triu = np.triu(np.ones_like(cos.data), k=1)
+            g = F.where(triu.astype(np.bool), g, triu)
             g = [F.sum(g__)
                  for j, g_
                  in enumerate(F.split_axis(g, neigh2elem[1:], axis=0))
                  for k, g__
                  in enumerate(F.split_axis(g_, neigh2elem[1:], axis=1))
                  if j <= k]
-            G.append(g)
-        yield F.stack([F.stack(a) for a in G])
-
-        dG = []
-        for g, (r, neigh2j) in zip(G, structure.get_neighbor_info(
-                Rc, ['distance_vector', 'neigh2j'])):
-            dg = [[F.sum(dg_, axis=0)
-                   for dg_ in F.split_axis(chainer.grad([g_], [r])[0],
-                                           neigh2j[1:], axis=0)]
-                  for g_ in g]
-            dG.append(dg)
-        yield F.stack([F.stack([F.stack(f) for f in a]) for a in dG])
+            G.append(F.stack(g))
+        return G
