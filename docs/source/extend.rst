@@ -30,10 +30,9 @@ In addition, override the following abstract method.
 | In addition to being able to use it internally,
   it is also used to expand feature dimension and zero-fill in ``hdnnpy.dataset.HDNNPDataset``
 
-* make
+* calculate_descriptors
 
-| It is main function for calculating descriptors from atomic structures and parameters.
-| The calculated descriptors are stored in instance variable ``self._dataset`` as a list of Numpy arrays.
+| It is main function for calculating descriptors from a atomic structure, which is a wrapper of ase.Atoms object.
 
 
 
@@ -49,10 +48,9 @@ Property dataset
 
 In addition, override the following abstract method.
 
-* make
+* calculate_properties
 
-| It is main function for getting properties from atomic structures, which is a wrapper of ase.Atoms object.
-| The obtained properties are stored in instance variable ``self._dataset`` as a list of Numpy arrays.
+| It is main function for getting properties from a atomic structure, which is a wrapper of ase.Atoms object.
 
 
 Preprocess
