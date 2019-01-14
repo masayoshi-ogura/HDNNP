@@ -87,7 +87,8 @@ class PropertyDatasetBase(ABC):
     def has_data(self):
         """bool: True if success to load or make dataset,
         False otherwise."""
-        return len(self._dataset) != 0
+        has_data = len(self._dataset) > 0
+        return MPI.bcast(has_data, root=0)
 
     @property
     def order(self):
@@ -150,12 +151,10 @@ class PropertyDatasetBase(ABC):
             ValueError: If loaded dataset is lacking in any property and
                 ``remake=False``.
         """
-        if MPI.rank != 0:
-            return
-
         if self.has_data:
-            raise RuntimeError(
-                'Cannot load dataset, since this dataset already has data.')
+            raise RuntimeError('''
+            Cannot load dataset, since this dataset already has data.
+            ''')
 
         # validate compatibility between my structures and loaded dataset
         ndarray = np.load(file_path)
@@ -171,21 +170,25 @@ class PropertyDatasetBase(ABC):
             lacking_properties = '\n\t'.join(sorted(lacking_properties))
             if remake:
                 if verbose:
-                    pprint('Following properties are lacked in loaded'
-                           f' {self.name} dataset.\n\t'
-                           f'{lacking_properties}\n'
-                           'Start to recalculate dataset from scratch.')
+                    pprint(f'''
+                    Following properties are lacked in {file_path}.
+                        {lacking_properties}
+                    Start to recalculate dataset from scratch.
+                    ''')
                 self.make(verbose=verbose)
                 self.save(file_path, verbose=verbose)
+                return
             else:
-                raise ValueError('Following properties are lacked in loaded'
-                                 f' {self.name} dataset.\n'
-                                 'Please recalculate dataset from scratch.\n\t'
-                                 f'{lacking_properties}')
+                raise ValueError(f'''
+                Following properties are lacked in {file_path}.
+                    {lacking_properties}
+                Please recalculate dataset from scratch.
+                ''')
 
         # load dataset as much as needed
-        for i in range(self._order + 1):
-            self._dataset.append(ndarray[self._properties[i]])
+        if MPI.rank == 0:
+            for i in range(self._order + 1):
+                self._dataset.append(ndarray[self._properties[i]])
 
         if verbose:
             pprint(f'Successfully loaded & made needed {self.name} dataset'
@@ -203,22 +206,20 @@ class PropertyDatasetBase(ABC):
         Raises:
             RuntimeError: If this instance do not have any data.
         """
-        if MPI.rank != 0:
-            return
-
         if not self.has_data:
-            raise RuntimeError(
-                'Cannot save dataset,'
-                ' since this dataset does not have any data.')
+            raise RuntimeError('''
+            Cannot save dataset, since this dataset does not have any data.
+            ''')
 
-        data = {property_: data for property_, data
-                in zip(self._properties, self._dataset)}
-        info = {
-            'elemental_composition': self._elemental_composition,
-            'elements': self._elements,
-            'tag': self._tag,
-            }
-        np.savez(file_path, **data, **info)
+        if MPI.rank == 0:
+            data = {property_: data for property_, data
+                    in zip(self._properties, self._dataset)}
+            info = {
+                'elemental_composition': self._elemental_composition,
+                'elements': self._elements,
+                'tag': self._tag,
+                }
+            np.savez(file_path, **data, **info)
         if verbose:
             pprint(f'Successfully saved {self.name} dataset to {file_path}.')
 
