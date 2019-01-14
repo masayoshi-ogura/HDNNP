@@ -42,7 +42,8 @@ class Potential(LossFunctionBase):
         assert 0.0 <= mixing_beta <= 1.0
         super().__init__(model)
         self._observation_keys = [
-            f'RMSE/{properties[0]}', f'RMSE/{properties[1]}', 'RMSE/total']
+            f'RMSE/{properties[0]}', f'RMSE/{properties[1]}',
+            f'RMSE/rot-{properties[1]}', 'RMSE/total']
         self._mixing_beta = mixing_beta
         self._penalty = penalty
 
@@ -50,6 +51,10 @@ class Potential(LossFunctionBase):
             warnings.warn(
                 'If mixing_beta=0.0, you should use loss function type '
                 '`zeroth` instead of `first`.')
+        if penalty == 0.0:
+            warnings.warn(
+                'If penalty=0.0, you should use loss function type '
+                '`first` instead of `first`.')
 
     def eval(self, **dataset):
         """Calculate loss function from given datasets and model.
@@ -68,30 +73,27 @@ class Potential(LossFunctionBase):
                   if key.startswith('inputs')]
         labels = [data for key, data in dataset.items()
                   if key.startswith('labels')]
-
-        if chainer.config.train:
-            predictions = self._model.predict(inputs, self.order['descriptor'])
-        else:
-            predictions = self._model.predict(inputs, self.order['property'])
+        predictions = self._model.predict(inputs, self.order['descriptor'])
 
         loss0 = F.mean_squared_error(predictions[0], labels[0])
         loss1 = F.mean_squared_error(predictions[1], labels[1])
+        loss_rot = F.mean_squared_error(
+            predictions[2], F.swapaxes(predictions[2], 2, 3))
         total_loss = ((1.0 - self._mixing_beta) * loss0
-                      + self._mixing_beta * loss1)
-        if chainer.config.train:
-            penalty_term = F.mean_squared_error(
-                predictions[2], F.swapaxes(predictions[2], 2, 3))
-            total_loss += self._penalty * penalty_term
+                      + self._mixing_beta * loss1
+                      + self._penalty * loss_rot)
 
         RMSE0 = F.sqrt(loss0)
         RMSE1 = F.sqrt(loss1)
+        RMSE_rot = F.sqrt(loss_rot)
         total_RMSE = ((1.0 - self._mixing_beta) * RMSE0
                       + self._mixing_beta * RMSE1)
 
         observation = {
             self._observation_keys[0]: RMSE0,
             self._observation_keys[1]: RMSE1,
-            self._observation_keys[2]: total_RMSE,
+            self._observation_keys[2]: RMSE_rot,
+            self._observation_keys[3]: total_RMSE,
             }
         chainer.report(observation, observer=self._model)
         return total_loss

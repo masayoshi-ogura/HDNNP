@@ -73,14 +73,16 @@ class HighDimensionalNNP(chainer.ChainList):
             return [y_pred]
 
         dxs = input_variables.pop(0)
+        differentiate_more = chainer.config.train or order > 1
         with chainer.force_backprop_mode():
-            dy_pred = self._predict_dy(xs, dxs)
+            dy_pred = self._predict_dy(xs, dxs, differentiate_more)
         if order == 1:
             return [y_pred, dy_pred]
 
         d2xs = input_variables.pop(0)
+        differentiate_more = chainer.config.train or order > 2
         with chainer.force_backprop_mode():
-            d2y_pred = self._predict_d2y(xs, dxs, d2xs)
+            d2y_pred = self._predict_d2y(xs, dxs, d2xs, differentiate_more)
         if order == 2:
             return [y_pred, dy_pred, d2y_pred]
 
@@ -139,7 +141,7 @@ class HighDimensionalNNP(chainer.ChainList):
             nnp.feedforward(x)
         return sum([nnp.results['y'] for nnp in self]) / len(self)
 
-    def _predict_dy(self, xs, dxs):
+    def _predict_dy(self, xs, dxs, differentiate_more):
         """Calculate 1st-order prediction for each `SubNNP`.
 
         Args:
@@ -150,6 +152,9 @@ class HighDimensionalNNP(chainer.ChainList):
             dxs (list [~chainer.Variable]):
                 Differentiated input data. The shape of data is
                 ``n_atom x (n_sample, n_input, n_deriv)``.
+            differentiate_more (bool):
+                If True, more deep calculation graph will be created for
+                back-propagation or higher-order differentiation.
 
         Returns:
             ~chainer.Variable:
@@ -157,11 +162,11 @@ class HighDimensionalNNP(chainer.ChainList):
                 ``(n_sample, n_output, n_deriv)``.
         """
         for nnp, x in zip(self, xs):
-            nnp.differentiate(x)
+            nnp.differentiate(x, differentiate_more)
         return sum([F.einsum('soi,six->sox', nnp.results['dy'], dx)
                     for nnp, dx in zip(self, dxs)])
 
-    def _predict_d2y(self, xs, dxs, d2xs):
+    def _predict_d2y(self, xs, dxs, d2xs, differentiate_more):
         """Calculate 2nd-order prediction for each `SubNNP`.
 
         Args:
@@ -175,6 +180,9 @@ class HighDimensionalNNP(chainer.ChainList):
             d2xs (list [~chainer.Variable]):
                 Double differentiated input data. The shape of data is
                 ``n_atom x (n_sample, n_input, n_deriv, n_deriv)``.
+            differentiate_more (bool):
+                If True, more deep calculation graph will be created for
+                back-propagation or higher-order differentiation.
 
         Returns:
             ~chainer.Variable:
@@ -182,7 +190,7 @@ class HighDimensionalNNP(chainer.ChainList):
                 ``(n_sample, n_output, n_deriv, n_deriv)``.
         """
         for nnp, x in zip(self, xs):
-            nnp.second_differentiate(x)
+            nnp.second_differentiate(x, differentiate_more)
         return sum([F.einsum('soij,six,sjy->soxy', nnp.results['d2y'], dx, dx)
                     + F.einsum('soi,sixy->soxy', nnp.results['dy'], d2x)
                     for nnp, dx, d2x in zip(self, dxs, d2xs)])
@@ -291,28 +299,35 @@ class SubNNP(chainer.Chain):
         y = h
         self.results['y'] = y
 
-    def differentiate(self, x):
+    def differentiate(self, x, enable_double_backprop):
         """Calculate derivative of the output data w.r.t. input data.
 
         Args:
             x (~chainer.Variable):
                 Input data which has the shape ``(n_sample, n_input)``.
+            enable_double_backprop (bool):
+                Passed to :func:`chainer.grad` to determine whether to
+                create more deep calculation graph or not.
         """
         dy = [chainer.grad([output_node], [x],
-                           enable_double_backprop=chainer.config.train)[0]
+                           enable_double_backprop=enable_double_backprop)[0]
               for output_node in F.moveaxis(self.results['y'], 0, -1)]
         dy = F.stack(dy, axis=1)
         self.results['dy'] = dy
 
-    def second_differentiate(self, x):
+    def second_differentiate(self, x, enable_double_backprop):
         """Calculate 2nd derivative of the output data w.r.t. input
         data.
 
         Args:
             x (~chainer.Variable):
                 Input data which has the shape ``(n_sample, n_input)``.
+            enable_double_backprop (bool):
+                Passed to :func:`chainer.grad` to determine whether to
+                create more deep calculation graph or not.
         """
-        d2y = [[chainer.grad([derivative], [x])[0]
+        d2y = [[chainer.grad([derivative], [x],
+                             enable_double_backprop=enable_double_backprop)[0]
                 for derivative in dy_]
                for dy_ in F.moveaxis(self.results['dy'], 0, -1)]
         d2y = F.stack([F.stack(d2y_, axis=1) for d2y_ in d2y], axis=1)
