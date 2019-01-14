@@ -9,8 +9,9 @@ class.
 from abc import (ABC, abstractmethod)
 
 import numpy as np
+from tqdm import tqdm
 
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class DescriptorDatasetBase(ABC):
@@ -193,6 +194,37 @@ class DescriptorDatasetBase(ABC):
             pprint(f'Successfully loaded & made needed {self.name} dataset'
                    f' from {file_path}')
 
+    def make(self, verbose=True):
+        """Calculate & retain descriptor dataset
+
+        | It calculates descriptor dataset by data-parallel using MPI
+          communication.
+        | The calculated dataset is retained in only root MPI process.
+
+        Args:
+            verbose (bool, optional): Print log to stdout.
+        """
+        dataset = []
+        for structure in tqdm(self._structures,
+                              ascii=True, desc=f'Process #{MPI.rank}',
+                              leave=False, position=MPI.rank):
+            dataset.append(self.calculate_descriptors(structure))
+
+        for data_list in zip(*dataset):
+            shape = data_list[0].shape
+            send_data = np.stack(data_list)
+            if MPI.rank == 0:
+                recv_data = np.empty((self._length, *shape), dtype=np.float32)
+                recv_data[self._slices[0]] = send_data
+                for i in range(1, MPI.size):
+                    recv_data[self._slices[i]] = recv_chunk(source=j)
+                self._dataset.append(recv_data)
+            else:
+                send_chunk(send_data, dest=0)
+
+        if verbose:
+            pprint(f'Calculated {self.name} dataset.')
+
     def save(self, file_path, verbose=True):
         """Save dataset to .npz format file.
 
@@ -224,6 +256,23 @@ class DescriptorDatasetBase(ABC):
             pprint(f'Successfully saved {self.name} dataset to {file_path}.')
 
     @abstractmethod
+    def calculate_descriptors(self, structure):
+        """Calculate required descriptors for a structure data.
+
+        This is abstract method.
+        Subclass of this base class have to override.
+
+        Args:
+            structure (AtomicStructure):
+                A structure data to calculate descriptors.
+
+        Returns:
+            list [~numpy.ndarray]: Calculated descriptors.
+            The length is the same as ``order`` given at initialization.
+        """
+        return
+
+    @abstractmethod
     def generate_feature_keys(self, *args, **kwargs):
         """Generate feature keys of current state.
 
@@ -234,12 +283,3 @@ class DescriptorDatasetBase(ABC):
             list [str]: Unique keys of feature dimension.
         """
         return
-
-    @abstractmethod
-    def make(self, *args, **kwargs):
-        """Calculate & retain descriptor dataset.
-
-        This is abstract method.
-        Subclass of this base class have to override.
-        """
-        pass

@@ -9,8 +9,9 @@ class.
 from abc import (ABC, abstractmethod)
 
 import numpy as np
+from tqdm import tqdm
 
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class PropertyDatasetBase(ABC):
@@ -184,6 +185,40 @@ class PropertyDatasetBase(ABC):
             pprint(f'Successfully loaded & made needed {self.name} dataset'
                    f' from {file_path}')
 
+    def make(self, verbose=True):
+        """Calculate & retain property dataset
+
+        | It calculates property dataset by data-parallel using MPI
+          communication.
+        | The calculated dataset is retained in only root MPI process.
+
+        Each property values are divided by ``COEFFICIENTS`` which is
+        unique to each property dataset class.
+
+        Args:
+            verbose (bool, optional): Print log to stdout.
+        """
+        dataset = []
+        for structure in tqdm(self._structures,
+                              ascii=True, desc=f'Process #{MPI.rank}',
+                              leave=False, position=MPI.rank):
+            dataset.append(self.calculate_properties(structure))
+
+        for data_list, coefficient in zip(zip(*dataset), self._coefficients):
+            shape = data_list[0].shape
+            send_data = np.stack(data_list) / coefficient
+            if MPI.rank == 0:
+                recv_data = np.empty((self._length, *shape), dtype=np.float32)
+                recv_data[self._slices[0]] = send_data
+                for j in range(1, MPI.size):
+                    recv_data[self._slices[j]] = recv_chunk(source=j)
+                self._dataset.append(recv_data)
+            else:
+                send_chunk(send_data, dest=0)
+
+        if verbose:
+            pprint(f'Calculated {self.name} dataset.')
+
     def save(self, file_path, verbose=True):
         """Save dataset to .npz format file.
 
@@ -214,10 +249,18 @@ class PropertyDatasetBase(ABC):
             pprint(f'Successfully saved {self.name} dataset to {file_path}.')
 
     @abstractmethod
-    def make(self, *args, **kwargs):
-        """Calculate & retain property dataset.
+    def calculate_properties(self, structure):
+        """Calculate required properties for a structure data.
 
         This is abstract method.
         Subclass of this base class have to override.
+
+        Args:
+            structure (AtomicStructure):
+                A structure data to calculate properties.
+
+        Returns:
+            list [~numpy.ndarray]: Calculated properties.
+            The length is the same as ``order`` given at initialization.
         """
-        pass
+        return

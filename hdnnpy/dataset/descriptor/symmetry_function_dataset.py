@@ -7,11 +7,9 @@ from itertools import combinations_with_replacement
 import chainer
 import chainer.functions as F
 import numpy as np
-from tqdm import tqdm
 
 from hdnnpy.dataset.descriptor.descriptor_dataset_base import (
     DescriptorDatasetBase)
-from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class SymmetryFunctionDataset(DescriptorDatasetBase):
@@ -65,6 +63,31 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         its parameters."""
         return self._func_param_map
 
+    def calculate_descriptors(self, structure):
+        """Calculate required descriptors for a structure data.
+
+        Args:
+            structure (AtomicStructure):
+                A structure data to calculate descriptors.
+
+        Returns:
+            list [~numpy.ndarray]: Calculated descriptors.
+            The length is the same as ``order`` given at initialization.
+        """
+        generators = []
+        for name, params_set in self._func_param_map.items():
+            for params in params_set:
+                generators.append(eval(
+                    f'self._symmetry_function_{name}')(structure, *params))
+
+        dataset = [np.concatenate([next(gen).data
+                                   for gen in generators]).swapaxes(0, 1)
+                   for _ in range(self._order + 1)]
+
+        structure.clear_cache()
+
+        return dataset
+
     def generate_feature_keys(self, elements):
         """Generate feature keys from given elements and parameters.
 
@@ -97,55 +120,8 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                         feature_keys.append(key)
         return feature_keys
 
-    def make(self, verbose=True):
-        """Calculate & retain symmetry functions.
-
-        | It calculates symmetry functions by data-parallel using MPI
-          communication.
-        | The calculated dataset is retained in only root MPI process.
-
-        Args:
-            verbose (bool, optional): Print log to stdout.
-        """
-        dataset = []
-        for structure in tqdm(self._structures,
-                              ascii=True, desc=f'Process #{MPI.rank}',
-                              leave=False, position=MPI.rank):
-            dataset.append(self._calculate_descriptors(structure))
-
-        for i, data_list in enumerate(zip(*dataset)):
-            n_atom = len(self._structures[0])
-            shape = (n_atom, self.n_feature, *(3*n_atom,) * i)
-            send_data = np.stack(data_list).reshape((-1, *shape))
-            if MPI.rank == 0:
-                recv_data = np.empty((self._length, *shape), dtype=np.float32)
-                recv_data[self._slices[0]] = send_data
-                for j in range(1, MPI.size):
-                    recv_data[self._slices[j]] = recv_chunk(source=j)
-                self._dataset.append(recv_data)
-            else:
-                send_chunk(send_data, dest=0)
-
-        if verbose:
-            pprint(f'Calculated {self.name} dataset.')
-
-    def _calculate_descriptors(self, structure):
-        """Main method of calculating symmetry functions."""
-        generators = []
-        for name, params_set in self._func_param_map.items():
-            for params in params_set:
-                generators.append(eval(
-                    f'self._symmetry_function_{name}')(structure, *params))
-
-        dataset = [np.concatenate([next(gen).data
-                                   for gen in generators]).swapaxes(0, 1)
-                   for _ in range(self._order + 1)]
-
-        structure.clear_cache()
-
-        return dataset
-
     def differentiate(func):
+        """Decorator function to differentiate symmetry function."""
         def wrapper(self, structure, Rc, *params):
             differentiate_more = self._order > 0
             with chainer.using_config('enable_backprop', differentiate_more):
