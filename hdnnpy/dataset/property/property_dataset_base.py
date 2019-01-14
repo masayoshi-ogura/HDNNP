@@ -88,7 +88,7 @@ class PropertyDatasetBase(ABC):
         """bool: True if success to load or make dataset,
         False otherwise."""
         has_data = len(self._dataset) > 0
-        return MPI.bcast(has_data, root=0)
+        return MPI.comm.bcast(has_data, root=0)
 
     @property
     def order(self):
@@ -167,23 +167,20 @@ class PropertyDatasetBase(ABC):
         # validate lacking properties
         lacking_properties = set(self._properties) - set(ndarray)
         if lacking_properties:
-            lacking_properties = '\n\t'.join(sorted(lacking_properties))
+            if verbose:
+                lacking = ('\n'+' '*20).join(sorted(lacking_properties))
+                pprint(f'''
+                Following properties are lacked in {file_path}.
+                    {lacking}
+                ''')
             if remake:
                 if verbose:
-                    pprint(f'''
-                    Following properties are lacked in {file_path}.
-                        {lacking_properties}
-                    Start to recalculate dataset from scratch.
-                    ''')
+                    pprint('Start to recalculate dataset from scratch.')
                 self.make(verbose=verbose)
                 self.save(file_path, verbose=verbose)
                 return
             else:
-                raise ValueError(f'''
-                Following properties are lacked in {file_path}.
-                    {lacking_properties}
-                Please recalculate dataset from scratch.
-                ''')
+                raise ValueError('Please recalculate dataset from scratch.')
 
         # load dataset as much as needed
         if MPI.rank == 0:
