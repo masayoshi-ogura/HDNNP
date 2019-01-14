@@ -99,15 +99,13 @@ class Standardization(PreprocessBase):
             file_path (~pathlib.Path): File path to load parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        ndarray = np.load(file_path)
-        self._elements = ndarray['elements'].item()
-        self._mean = {element: ndarray[f'mean:{element}']
-                      for element in self._elements}
-        self._std = {element: ndarray[f'std:{element}']
-                     for element in self._elements}
+        if MPI.rank == 0:
+            ndarray = np.load(file_path)
+            self._elements = ndarray['elements'].item()
+            self._mean = {element: ndarray[f'mean:{element}']
+                          for element in self._elements}
+            self._std = {element: ndarray[f'std:{element}']
+                         for element in self._elements}
         if verbose:
             pprint(f'Loaded Standardization parameters from {file_path}.')
 
@@ -120,13 +118,11 @@ class Standardization(PreprocessBase):
             file_path (~pathlib.Path): File path to save parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        info = {'elements': self._elements}
-        mean = {f'mean:{k}': v for k, v in self._mean.items()}
-        std = {f'std:{k}': v for k, v in self._std.items()}
-        np.savez(file_path, **info, **mean, **std)
+        if MPI.rank == 0:
+            info = {'elements': self._elements}
+            mean = {f'mean:{k}': v for k, v in self._mean.items()}
+            std = {f'std:{k}': v for k, v in self._std.items()}
+            np.savez(file_path, **info, **mean, **std)
         if verbose:
             pprint(f'Saved Standardization parameters to {file_path}.')
 

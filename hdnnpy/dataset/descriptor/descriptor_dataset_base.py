@@ -89,7 +89,7 @@ class DescriptorDatasetBase(ABC):
     def has_data(self):
         """bool: True if success to load or make dataset,
         False otherwise."""
-        return len(self._dataset) > 0
+        return len(self._dataset) == self._order + 1
 
     @property
     def n_feature(self):

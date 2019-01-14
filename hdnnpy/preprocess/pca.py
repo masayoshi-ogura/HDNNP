@@ -116,16 +116,14 @@ class PCA(PreprocessBase):
             file_path (~pathlib.Path): File path to load parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        ndarray = np.load(file_path)
-        self._elements = ndarray['elements'].item()
-        self._n_components = ndarray['n_components'].item()
-        self._mean = {element: ndarray[f'mean:{element}']
-                      for element in self._elements}
-        self._transform = {element: ndarray[f'transform:{element}']
-                           for element in self._elements}
+        if MPI.rank == 0:
+            ndarray = np.load(file_path)
+            self._elements = ndarray['elements'].item()
+            self._n_components = ndarray['n_components'].item()
+            self._mean = {element: ndarray[f'mean:{element}']
+                          for element in self._elements}
+            self._transform = {element: ndarray[f'transform:{element}']
+                               for element in self._elements}
         if verbose:
             pprint(f'Loaded PCA parameters from {file_path}.')
 
@@ -138,17 +136,15 @@ class PCA(PreprocessBase):
             file_path (~pathlib.Path): File path to save parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        info = {
-            'elements': self._elements,
-            'n_components': self._n_components,
-            }
-        mean = {f'mean:{k}': v for k, v in self._mean.items()}
-        transform = {f'transform:{k}': v
-                     for k, v in self._transform.items()}
-        np.savez(file_path, **info, **mean, **transform)
+        if MPI.rank == 0:
+            info = {
+                'elements': self._elements,
+                'n_components': self._n_components,
+                }
+            mean = {f'mean:{k}': v for k, v in self._mean.items()}
+            transform = {f'transform:{k}': v
+                         for k, v in self._transform.items()}
+            np.savez(file_path, **info, **mean, **transform)
         if verbose:
             pprint(f'Saved PCA parameters to {file_path}.')
 
