@@ -86,7 +86,7 @@ class DescriptorDatasetBase(ABC):
         """bool: True if success to load or make dataset,
         False otherwise."""
         has_data = len(self._dataset) > 0
-        return MPI.bcast(has_data, root=0)
+        return MPI.comm.bcast(has_data, root=0)
 
     @property
     def n_feature(self):
@@ -162,45 +162,28 @@ class DescriptorDatasetBase(ABC):
         # validate lacking feature keys
         loaded_keys = list(ndarray['feature_keys'])
         lacking_keys = set(self._feature_keys) - set(loaded_keys)
-        if lacking_keys:
-            lacking_keys = '\n\t'.join(sorted(lacking_keys))
-            if remake:
-                if verbose:
-                    pprint(f'''
-                    Following feature keys are lacked in {file_path}.
-                        {lacking_keys}
-                    Start to recalculate dataset from scratch.
-                    ''')
-                self.make(verbose=verbose)
-                self.save(file_path, verbose=verbose)
-                return
-            else:
-                raise ValueError(f'''
-                Following feature keys are lacked in {file_path}.
-                    {lacking_keys}
-                Please recalculate dataset from scratch.
-                ''')
-
-        # validate lacking descriptors
         lacking_descriptors = set(self._descriptors) - set(ndarray)
-        if lacking_descriptors:
-            lacking_descriptors = '\n\t'.join(sorted(lacking_descriptors))
+        if lacking_keys or lacking_descriptors:
+            if verbose and lacking_keys:
+                lacking = ('\n'+' '*20).join(sorted(lacking_keys))
+                pprint(f'''
+                Following feature keys are lacked in {file_path}.
+                    {lacking}
+                ''')
+            if verbose and lacking_descriptors:
+                lacking = ('\n'+' '*20).join(sorted(lacking_descriptors))
+                pprint(f'''
+                Following descriptors are lacked in {file_path}.
+                    {lacking}
+                ''')
             if remake:
                 if verbose:
-                    pprint(f'''
-                    Following descriptors are lacked in {file_path}.
-                        {lacking_descriptors}
-                    Start to recalculate dataset from scratch.
-                    ''')
+                    pprint('Start to recalculate dataset from scratch.')
                 self.make(verbose=verbose)
                 self.save(file_path, verbose=verbose)
                 return
             else:
-                raise ValueError(f'''
-                Following descriptors are lacked in {file_path}.
-                    {lacking_descriptors}
-                Please recalculate dataset from scratch.
-                ''')
+                raise ValueError('Please recalculate dataset from scratch.')
 
         # load dataset as much as needed
         if MPI.rank == 0:
