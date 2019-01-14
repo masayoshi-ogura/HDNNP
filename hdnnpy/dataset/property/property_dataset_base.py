@@ -84,8 +84,7 @@ class PropertyDatasetBase(ABC):
     def has_data(self):
         """bool: True if success to load or make dataset,
         False otherwise."""
-        has_data = len(self._dataset) > 0
-        return MPI.comm.bcast(has_data, root=0)
+        return len(self._dataset) > 0
 
     @property
     def order(self):
@@ -142,17 +141,11 @@ class PropertyDatasetBase(ABC):
                 ValueError.
 
         Raises:
-            RuntimeError: If this instance already has data.
             AssertionError: If loaded dataset is incompatible with
                 atomic structures given at initialization.
             ValueError: If loaded dataset is lacking in any property and
                 ``remake=False``.
         """
-        if self.has_data:
-            raise RuntimeError('''
-            Cannot load dataset, since this dataset already has data.
-            ''')
-
         # validate compatibility between my structures and loaded dataset
         ndarray = np.load(file_path)
         assert list(ndarray['elemental_composition']) \
@@ -200,7 +193,7 @@ class PropertyDatasetBase(ABC):
         Raises:
             RuntimeError: If this instance do not have any data.
         """
-        if not self.has_data:
+        if not MPI.comm.bcast(self.has_data, root=0):
             raise RuntimeError('''
             Cannot save dataset, since this dataset does not have any data.
             ''')
