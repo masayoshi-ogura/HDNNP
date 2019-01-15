@@ -29,13 +29,15 @@ class AtomicStructure(object):
         self._atoms = atoms[indices]
 
         results = {}
-        for key, value in atoms.get_calculator().results.items():
-            if key in atoms.arrays:
-                results[key] = value[indices]
-            else:
-                results[key] = value
-        calc = SinglePointCalculator(self._atoms, **results)
-        self._atoms.set_calculator(calc)
+        calculator = atoms.get_calculator()
+        if calculator:
+            for key, value in calculator.results.items():
+                if key in atoms.arrays:
+                    results[key] = value[indices]
+                else:
+                    results[key] = value
+        self._atoms.set_calculator(
+            SinglePointCalculator(self._atoms, **results))
 
         self._cache = {}
 
