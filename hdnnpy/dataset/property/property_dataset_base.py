@@ -214,8 +214,8 @@ class PropertyDatasetBase(ABC):
                 recv_data = np.empty((self._length, *shape), dtype=np.float32)
                 recv_data[self._slices[0]] = send_data
                 del send_data
-                for j in range(1, MPI.size):
-                    recv_data[self._slices[j]] = recv_chunk(source=j)
+                for i in range(1, MPI.size):
+                    recv_data[self._slices[i]] = recv_chunk(source=i)
                 self._dataset.append(recv_data)
             else:
                 send_chunk(send_data, dest=0)

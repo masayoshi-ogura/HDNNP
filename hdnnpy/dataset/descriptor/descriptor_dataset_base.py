@@ -219,7 +219,7 @@ class DescriptorDatasetBase(ABC):
                 recv_data[self._slices[0]] = send_data
                 del send_data
                 for i in range(1, MPI.size):
-                    recv_data[self._slices[i]] = recv_chunk(source=j)
+                    recv_data[self._slices[i]] = recv_chunk(source=i)
                 self._dataset.append(recv_data)
             else:
                 send_chunk(send_data, dest=0)
