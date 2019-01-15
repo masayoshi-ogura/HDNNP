@@ -12,6 +12,8 @@ class BornEffectiveChargeDataset(PropertyDatasetBase):
     """Born effective charge dataset for property of HDNNP. """
     PROPERTIES = ['energy', 'born_z']
     """list [str]: Names of properties for each derivative order."""
+    COEFFICIENTS = [1.0, 1.0]
+    """list [float]: Coefficient values of each properties."""
     UNITS = ['eV/atom', 'e']
     """list [str]: Units of properties for each derivative order."""
     name = 'born_effective_charge'
@@ -58,11 +60,13 @@ class BornEffectiveChargeDataset(PropertyDatasetBase):
             pprint(f'Calculated {self.name} dataset.')
 
     def _calculate_properties(self, structures):
-        """Main method of calculating interatomic potential dataset."""
+        """Main method of calculating Born effective charge dataset."""
         if self._order >= 0:
-            yield self._calculate_energy(structures)
+            yield (self._calculate_energy(structures)
+                   / self._coefficients[0])
         if self._order >= 1:
-            yield self._calculate_Born_effective_charge(structures)
+            yield (self._calculate_Born_effective_charge(structures)
+                   / self._coefficients[1])
 
 
     @staticmethod
@@ -74,7 +78,7 @@ class BornEffectiveChargeDataset(PropertyDatasetBase):
 
     @staticmethod
     def _calculate_Born_effective_charge(structures):
-        """Calculate interatomic forces."""
+        """Calculate Born effective charge."""
         return np.array([structure.get_array("born_z")
                          for structure in structures],
                         dtype=np.float32)
