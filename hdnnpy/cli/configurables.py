@@ -72,12 +72,17 @@ class DatasetConfig(Configurable):
 
 
 class ModelConfig(Configurable):
+    # not configurable
+    n_input = Integer(
+        help='Number of nodes of input layer.')
+    n_output = Integer(
+        help='Number of nodes of output layer.')
+
     # configurable
-    layers = List(
+    hidden_layers = List(
         trait=Tuple(Integer, Unicode),
-        help='Structure of a neural network constituting HDNNP. '
+        help='Hidden layers of a neural network constituting HDNNP. '
              'Set as List[Tuple(Int(# of nodes), Str(activation function))]. '
-             'Activation function of the last layer must be "identity". '
         ).tag(config=True)
 
 

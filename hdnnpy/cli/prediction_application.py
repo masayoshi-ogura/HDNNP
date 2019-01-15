@@ -88,6 +88,7 @@ class PredictionApplication(Application):
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
+        mc = self.model_config
         pc = self.prediction_config
 
         preprocesses = []
@@ -122,6 +123,8 @@ class PredictionApplication(Application):
                     shuffle=False, verbose=self.verbose)
                 datasets.append(dataset)
                 dc.n_sample += dataset.total_size
+                mc.n_input = dataset.n_input
+                mc.n_output = dataset.n_label
 
         return datasets
 
@@ -131,14 +134,16 @@ class PredictionApplication(Application):
         results = []
 
         # master model
-        master_nnp = MasterNNP(pc.elements, mc.layers)
+        master_nnp = MasterNNP(
+            pc.elements, mc.n_input, mc.hidden_layers, mc.n_output)
         chainer.serializers.load_npz(
             pc.load_dir / 'master_nnp.npz', master_nnp)
 
         for dataset in datasets:
             # hdnnp model
             hdnnp = HighDimensionalNNP(
-                dataset.elemental_composition, mc.layers)
+                dataset.elemental_composition,
+                mc.n_input, mc.hidden_layers, mc.n_output)
             hdnnp.sync_param_with(master_nnp)
 
             batch = chainer.dataset.concat_examples(dataset)

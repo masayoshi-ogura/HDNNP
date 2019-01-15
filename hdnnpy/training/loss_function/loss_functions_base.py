@@ -7,11 +7,11 @@ from abc import (ABC, abstractmethod)
 
 class LossFunctionBase(ABC):
     """Base class for loss functions."""
-    name = ''
+    name = None
     """str: Name of this loss function class."""
     order = {
-        'descriptor': 0,
-        'property': 0,
+        'descriptor': None,
+        'property': None,
         }
     """dict: Required orders of each dataset to calculate loss function.
     """

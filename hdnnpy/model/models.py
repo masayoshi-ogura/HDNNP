@@ -19,25 +19,17 @@ class HighDimensionalNNP(chainer.ChainList):
     and outputs property per atom.
     Total value or property is predicted to sum them up.
     """
-    def __init__(self, elemental_composition, layers):
+    def __init__(self, elemental_composition, *args):
         """
         Args:
             elemental_composition (list [str]):
                 Create the same number of :class:`SubNNP` instances as
                 this. A :class:`SubNNP` with the same element has the
                 same parameters synchronized.
-            layers (list [tuple [int, str]]):
-                A neural network structure. Last one is output layer,
-                and the remains are hidden layers. Each element is a
-                tuple ``(# of nodes, activation function)``, for example
-                ``(50, 'sigmoid')``. Only activation functions
-                implemented in `chainer.functions`_ can be used.
-
-        .. _`chainer.functions`:
-            https://docs.chainer.org/en/stable/reference/functions.html
+            *args: Positional arguments that is passed to `SubNNP`.
         """
         super().__init__(
-            *[SubNNP(element, layers) for element in elemental_composition])
+            *[SubNNP(element, *args) for element in elemental_composition])
 
     def predict(self, inputs, order):
         """Get prediction from input data in a feed-forward way.
@@ -198,24 +190,16 @@ class HighDimensionalNNP(chainer.ChainList):
 
 class MasterNNP(chainer.ChainList):
     """Responsible for managing the parameters of each element."""
-    def __init__(self, elements, layers):
+    def __init__(self, elements, *args):
         """
         It is implemented as a simple :class:`~chainer.ChainList` of
         `SubNNP`.
 
         Args:
             elements (list [str]): Element symbols must be unique.
-            layers (list [tuple [int, str]]):
-                A neural network structure. Last one is output layer,
-                and the remains are hidden layers. Each element is a
-                tuple ``(# of nodes, activation function)``, for example
-                ``(50, 'sigmoid')``. Only activation functions
-                implemented in `chainer.functions`_ can be used.
-
-        .. _`chainer.functions`:
-            https://docs.chainer.org/en/stable/reference/functions.html
+            *args: Positional arguments that is passed to `SubNNP`.
         """
-        super().__init__(*[SubNNP(element, layers) for element in elements])
+        super().__init__(*[SubNNP(element, *args) for element in elements])
 
     def dump_params(self):
         """Dump its own parameters as :obj:`str`.
@@ -248,7 +232,7 @@ class MasterNNP(chainer.ChainList):
 
 class SubNNP(chainer.Chain):
     """Feed-forward neural network representing one element or atom."""
-    def __init__(self, element, layers):
+    def __init__(self, element, n_feature, hidden_layers, n_property):
         """
         | ``element`` is registered as a persistent value.
         | It consists of repetition of fully connected layer and
@@ -257,33 +241,35 @@ class SubNNP(chainer.Chain):
 
         Args:
             element (str): Element symbol represented by an instance.
-            layers (list [tuple [int, str]]):
+            n_feature (int): Number of nodes of input layer.
+            hidden_layers (list [tuple [int, str]]):
                 A neural network structure. Last one is output layer,
                 and the remains are hidden layers. Each element is a
                 tuple ``(# of nodes, activation function)``, for example
                 ``(50, 'sigmoid')``. Only activation functions
                 implemented in `chainer.functions`_ can be used.
+            n_property (int): Number of nodes of output layer.
 
         .. _`chainer.functions`:
             https://docs.chainer.org/en/stable/reference/functions.html
         """
         super().__init__()
         self.add_persistent('element', element)
-        self._n_layer = len(layers)
-        nodes = [None] + [layer[0] for layer in layers]
-        activations = [layer[1] for layer in layers]
+        self._n_layer = len(hidden_layers) + 1
+        nodes = [n_feature, *[layer[0] for layer in hidden_layers], n_property]
+        activations = [*[layer[1] for layer in hidden_layers], 'identity']
         with self.init_scope():
             w = chainer.initializers.HeNormal()
-            for i, (insize, outsize, activation) in enumerate(zip(
+            for i, (in_size, out_size, activation) in enumerate(zip(
                     nodes[:-1], nodes[1:], activations)):
                 setattr(self, f'activation_function{i}',
                         eval(f'F.{activation}'))
                 setattr(self, f'fc_layer{i}',
-                        L.Linear(insize, outsize, initialW=w))
+                        L.Linear(in_size, out_size, initialW=w))
         self.results = {}
 
     def __len__(self):
-        """Return the number of layers."""
+        """Return the number of hidden_layers."""
         return self._n_layer
 
     def feedforward(self, x):

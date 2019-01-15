@@ -17,6 +17,8 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     """list [str]: Units of properties for each derivative order."""
     name = 'interatomic_potential'
     """str: Name of this property class."""
+    n_property = 1
+    """int: Number of dimensions of 0th property."""
 
     def __init__(self, order, structures):
         """
@@ -44,28 +46,28 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
             list [~numpy.ndarray]: Calculated properties.
             The length is the same as ``order`` given at initialization.
         """
-        n_property = 1
         n_deriv = len(structure) * 3
         dataset = []
         if self._order >= 0:
             energy = (self._calculate_energy(structure)
                       .astype(np.float32)
-                      .reshape(n_property))
+                      .reshape(self.n_property))
             dataset.append(energy)
         if self._order >= 1:
             force = (self._calculate_force(structure)
                      .astype(np.float32)
-                     .reshape(n_property, n_deriv))
+                     .reshape(self.n_property, n_deriv))
             dataset.append(force)
         if self._order >= 2:
             harmonic = (self._calculate_harmonic(structure)
                         .astype(np.float32)
-                        .reshape(n_property, n_deriv, n_deriv))
+                        .reshape(self.n_property, n_deriv, n_deriv))
             dataset.append(harmonic)
         if self._order >= 3:
             third_order = (self._calculate_third_order(structure)
                            .astype(np.float32)
-                           .reshape(n_property, n_deriv, n_deriv, n_deriv))
+                           .reshape(self.n_property, n_deriv,
+                                    n_deriv, n_deriv))
             dataset.append(third_order)
         return dataset
 

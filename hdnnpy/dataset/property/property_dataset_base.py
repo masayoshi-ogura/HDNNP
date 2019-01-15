@@ -22,8 +22,10 @@ class PropertyDatasetBase(ABC):
     """list [float]: Coefficient values of each properties."""
     UNITS = []
     """list [str]: Units of properties for each derivative order."""
-    name = ''
+    name = None
     """str: Name of this property class."""
+    n_property = None
+    """int: Number of dimensions of 0th property."""
 
     def __init__(self, order, structures):
         """
@@ -207,14 +209,17 @@ class PropertyDatasetBase(ABC):
         for data_list, coefficient in zip(zip(*dataset), self._coefficients):
             shape = data_list[0].shape
             send_data = np.stack(data_list) / coefficient
+            del data_list
             if MPI.rank == 0:
                 recv_data = np.empty((self._length, *shape), dtype=np.float32)
                 recv_data[self._slices[0]] = send_data
+                del send_data
                 for j in range(1, MPI.size):
                     recv_data[self._slices[j]] = recv_chunk(source=j)
                 self._dataset.append(recv_data)
             else:
                 send_chunk(send_data, dest=0)
+                del send_data
 
         if verbose:
             pprint(f'Calculated {self.name} dataset.')

@@ -18,7 +18,7 @@ class DescriptorDatasetBase(ABC):
     """Base class of atomic structure based descriptor dataset."""
     DESCRIPTORS = []
     """list [str]: Names of descriptors for each derivative order."""
-    name = ''
+    name = None
     """str: Name of this descriptor class."""
 
     def __init__(self, order, structures):
@@ -213,14 +213,17 @@ class DescriptorDatasetBase(ABC):
         for data_list in zip(*dataset):
             shape = data_list[0].shape
             send_data = np.stack(data_list)
+            del data_list
             if MPI.rank == 0:
                 recv_data = np.empty((self._length, *shape), dtype=np.float32)
                 recv_data[self._slices[0]] = send_data
+                del send_data
                 for i in range(1, MPI.size):
                     recv_data[self._slices[i]] = recv_chunk(source=j)
                 self._dataset.append(recv_data)
             else:
                 send_chunk(send_data, dest=0)
+                del send_data
 
         if verbose:
             pprint(f'Calculated {self.name} dataset.')

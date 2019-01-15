@@ -11,7 +11,7 @@ from abc import (ABC, abstractmethod)
 
 class PreprocessBase(ABC):
     """Base class of pre-processing."""
-    name = ''
+    name = None
     """str: Name of this class."""
 
     def __init__(self):

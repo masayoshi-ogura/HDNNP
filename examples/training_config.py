@@ -50,10 +50,9 @@
 # ModelConfig(Configurable) configuration
 #------------------------------------------------------------------------------
 
-## Structure of a neural network constituting HDNNP. Set as List[Tuple(Int(# of
-#  nodes), Str(activation function))]. Activation function of the last layer must
-#  be "identity".
-#c.ModelConfig.layers = []
+## Hidden layers of a neural network constituting HDNNP. Set as List[Tuple(Int(#
+#  of nodes), Str(activation function))].
+#c.ModelConfig.hidden_layers = []
 
 #------------------------------------------------------------------------------
 # TrainingConfig(Configurable) configuration

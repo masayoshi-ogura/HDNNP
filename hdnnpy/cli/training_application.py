@@ -113,6 +113,7 @@ class TrainingApplication(Application):
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
+        mc = self.model_config
         tc = self.training_config
 
         preprocess_dir = tc.out_dir / 'preprocess'
@@ -164,6 +165,8 @@ class TrainingApplication(Application):
                 dataset.scatter()
                 datasets.append(dataset)
                 dc.n_sample += dataset.total_size
+                mc.n_input = dataset.n_input
+                mc.n_output = dataset.n_label
 
         for preprocess in preprocesses:
             preprocess.save(
@@ -180,7 +183,8 @@ class TrainingApplication(Application):
         result = {'training_time': 0.0, 'observation': []}
 
         # model and optimizer
-        master_nnp = MasterNNP(tc.elements, mc.layers)
+        master_nnp = MasterNNP(
+            tc.elements, mc.n_input, mc.hidden_layers, mc.n_output)
         master_opt = chainer.optimizers.Adam(tc.init_lr)
         master_opt = chainermn.create_multi_node_optimizer(master_opt, comm)
         master_opt.setup(master_nnp)
@@ -199,7 +203,8 @@ class TrainingApplication(Application):
 
             # model
             hdnnp = HighDimensionalNNP(
-                training.elemental_composition, mc.layers)
+                training.elemental_composition,
+                mc.n_input, mc.hidden_layers, mc.n_output)
             hdnnp.sync_param_with(master_nnp)
             main_opt = chainer.Optimizer()
             main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)

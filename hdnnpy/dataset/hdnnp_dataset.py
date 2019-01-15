@@ -33,6 +33,10 @@ class HDNNPDataset(object):
         self._descriptor = descriptor
         self._property = property_
         self._dataset = dataset.copy()
+        self._n_input = (dataset['inputs/0'].shape[-1]
+                         if 'inputs/0' in dataset else None)
+        self._n_label = (dataset['labels/0'].shape[-1]
+                         if 'labels/0' in dataset else None)
 
     def __getitem__(self, item):
         """Return indexed or sliced dataset as dict data."""
@@ -50,6 +54,11 @@ class HDNNPDataset(object):
         return self.partial_size
 
     @property
+    def descriptor(self):
+        """DescriptorDatasetBase: Descriptor dataset instance."""
+        return self._descriptor
+
+    @property
     def elemental_composition(self):
         """list [str]: Elemental composition of the dataset."""
         return self._descriptor.elemental_composition
@@ -58,6 +67,16 @@ class HDNNPDataset(object):
     def elements(self):
         """list [str]: Elements of the dataset."""
         return self._descriptor.elements
+
+    @property
+    def n_input(self):
+        """int: Number of dimensions of input data."""
+        return self._n_input or self._descriptor.n_feature
+
+    @property
+    def n_label(self):
+        """int: Number of dimensions of label data."""
+        return self._n_label or self._property.n_property
 
     @property
     def partial_size(self):
@@ -77,11 +96,6 @@ class HDNNPDataset(object):
     def total_size(self):
         """int: Number of data before scattered by MPI communication."""
         return len(self._descriptor)
-
-    @property
-    def descriptor(self):
-        """DescriptorDatasetBase: Descriptor dataset instance."""
-        return self._descriptor
 
     @property
     def property(self):
@@ -146,6 +160,7 @@ class HDNNPDataset(object):
             self._dataset.update(
                 {f'inputs/{i}': data for i, data in enumerate(inputs)})
             self._descriptor.clear()
+            self._n_input = inputs[0].shape[-1]
 
         # add property dataset and delete original data
         if self._property.has_data:
@@ -153,6 +168,7 @@ class HDNNPDataset(object):
             self._dataset.update(
                 {f'labels/{i}': data for i, data in enumerate(labels)})
             self._property.clear()
+            self._n_label = labels[0].shape[-1]
 
         # shuffle dataset
         if shuffle:
