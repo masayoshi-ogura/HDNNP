@@ -25,7 +25,7 @@ class HDNNPDataset(object):
                 Descriptor instance you want to use as HDNNP input.
             property\_ (PropertyDatasetBase):
                 Property instance you want to use as HDNNP label.
-            dataset (list [~numpy.ndarray], optional):
+            dataset (dict [~numpy.ndarray], optional):
                 If specified, dataset will be initialized with this.
         """
         if dataset is None:
@@ -174,45 +174,34 @@ class HDNNPDataset(object):
         if shuffle:
             self._shuffle()
 
-    def scatter(self, root=0, max_buf_len=256 * 1024 * 1024):
+    def scatter(self, max_buf_len=256 * 1024 * 1024):
         """Scatter dataset by MPI communication.
 
         Each instance is re-initialized with received dataset.
 
         Args:
-            root (int, optional):
-                Dataset is scattered from root MPI process.
             max_buf_len (int, optional):
                 Each data is divided into chunks of this size at
                 maximum.
         """
-        assert 0 <= root < MPI.size
-
-        if MPI.rank == root:
-            mine = None
-            n_total_samples = self.total_size
-            n_sub_samples = (n_total_samples+MPI.size-1) // MPI.size
-
-            for i in range(MPI.size):
-                b = n_total_samples * i // MPI.size
-                e = b + n_sub_samples
-                slc = slice(b, e, None)
-                dataset = {
-                    key: data[slc] for key, data in self._dataset.items()}
-
-                if i == root:
-                    mine = [self._descriptor, self._property, dataset]
-
-                else:
-                    send = [self._descriptor, self._property, dataset]
-                    send_chunk(send, dest=i, max_buf_len=max_buf_len)
-            assert mine is not None
-            self.__init__(*mine)
+        if MPI.rank == 0:
+            MPI.comm.bcast(len(self._dataset), root=0)
+            while self._dataset:
+                key, data = self._dataset.popitem()
+                for i, send_data in enumerate(np.array_split(data, MPI.size)):
+                    if i == 0:
+                        self._dataset[key] = send_data
+                    else:
+                        MPI.comm.send(key, dest=i)
+                        send_chunk(send_data, dest=i, max_buf_len=max_buf_len)
 
         else:
-            recv = recv_chunk(source=root, max_buf_len=max_buf_len)
-            assert recv is not None
-            self.__init__(*recv)
+            self._dataset.clear()
+            n_data = MPI.comm.bcast(None, root=0)
+            for i in range(n_data):
+                key = MPI.comm.recv(source=0)
+                recv_data = recv_chunk(source=0, max_buf_len=max_buf_len)
+                self._dataset[key] = recv_data
 
     def take(self, index):
         """Return copied object that has sliced dataset.
