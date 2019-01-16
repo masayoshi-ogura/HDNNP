@@ -11,9 +11,9 @@ class InteratomicPotentialDataset(PropertyDatasetBase):
     """Interatomic potential dataset for property of HDNNP. """
     PROPERTIES = ['energy', 'force', 'harmonic', 'third_order']
     """list [str]: Names of properties for each derivative order."""
-    COEFFICIENTS = [1.0, -1.0]
+    COEFFICIENTS = [1.0, -1.0, 1.0, 1.0]
     """list [float]: Coefficient values of each properties."""
-    UNITS = ['eV/atom', 'eV/$\\AA$']
+    UNITS = ['eV/atom', 'eV/$\\AA$', 'eV/$\\AA$^2', 'eV/$\\AA$^3']
     """list [str]: Units of properties for each derivative order."""
     name = 'interatomic_potential'
     """str: Name of this property class."""
