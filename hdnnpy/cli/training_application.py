@@ -251,10 +251,13 @@ class TrainingApplication(Application):
                         + [f'val/main/{key}' for key in observation_keys]))
                 if tc.plot_report:
                     trainer.extend(ext.PlotReport(
-                        [f'main/{observation_keys[-1]}',
-                         f'val/main/{observation_keys[-1]}'],
+                        [f'main/{key}' for key in observation_keys],
                         x_key='epoch', postprocess=set_log_scale,
-                        file_name='RMSE.png', marker=None))
+                        file_name='training_set.png', marker=None))
+                    trainer.extend(ext.PlotReport(
+                        [f'val/main/{key}' for key in observation_keys],
+                        x_key='epoch', postprocess=set_log_scale,
+                        file_name='validation_set.png', marker=None))
 
             manager = Manager(tag, trainer, result, is_snapshot=True)
             if self.is_resume:

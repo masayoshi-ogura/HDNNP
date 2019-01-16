@@ -28,7 +28,7 @@ class Zeroth(LossFunctionBase):
             properties (list [str]): Names of properties to optimize.
         """
         super().__init__(model)
-        self._observation_keys = [f'RMSE/{properties[0]}', 'RMSE/total']
+        self._observation_keys = [f'RMSE/{properties[0]}', 'total']
 
     def eval(self, **dataset):
         """Calculate loss function from given datasets and model.

@@ -38,7 +38,7 @@ class First(LossFunctionBase):
         assert 0.0 <= mixing_beta <= 1.0
         super().__init__(model)
         self._observation_keys = [
-            f'RMSE/{properties[0]}', f'RMSE/{properties[1]}', 'RMSE/total']
+            f'RMSE/{properties[0]}', f'RMSE/{properties[1]}', 'total']
         self._mixing_beta = mixing_beta
 
         if mixing_beta == 0.0:
@@ -71,13 +71,13 @@ class First(LossFunctionBase):
 
         RMSE0 = F.sqrt(loss0)
         RMSE1 = F.sqrt(loss1)
-        total_RMSE = ((1.0 - self._mixing_beta) * RMSE0
-                      + self._mixing_beta * RMSE1)
+        total = ((1.0 - self._mixing_beta) * RMSE0
+                 + self._mixing_beta * RMSE1)
 
         observation = {
             self._observation_keys[0]: RMSE0,
             self._observation_keys[1]: RMSE1,
-            self._observation_keys[2]: total_RMSE,
+            self._observation_keys[2]: total,
             }
         chainer.report(observation, observer=self._model)
         return total_loss
