@@ -109,7 +109,8 @@ class TrainingApplication(Application):
         datasets = self.construct_datasets(tag_xyz_map)
         dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
         result = self.train(dataset)
-        self.dump_result(result)
+        if MPI.rank == 0:
+            self.dump_result(result)
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
@@ -273,9 +274,6 @@ class TrainingApplication(Application):
         return result
 
     def dump_result(self, result):
-        if MPI.rank != 0:
-            return
-
         yaml.add_representer(pathlib.PosixPath, pyyaml_path_representer)
         result_file = self.training_config.out_dir / 'training_result.yaml'
         with result_file.open('w') as f:

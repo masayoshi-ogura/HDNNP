@@ -83,8 +83,9 @@ class PredictionApplication(Application):
             pc.data_file, save=False, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
         datasets = DatasetGenerator(*datasets).all()
-        results = self.predict(datasets)
-        self.dump_result(results)
+        if MPI.rank == 0:
+            results = self.predict(datasets)
+            self.dump_result(results)
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
@@ -164,9 +165,6 @@ class PredictionApplication(Application):
         return results
 
     def dump_result(self, results):
-        if MPI.rank != 0:
-            return
-
         pc = self.prediction_config
         result_file = pc.load_dir / f'prediction_result{pc.dump_format}'
         if pc.dump_format == '.npz':
