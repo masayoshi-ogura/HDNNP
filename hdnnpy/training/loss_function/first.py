@@ -22,13 +22,13 @@ class First(LossFunctionBase):
     """dict: Required orders of each dataset to calculate loss function.
     """
 
-    def __init__(self, model, properties, mixing_beta=1.0, **_):
+    def __init__(self, model, properties, mixing_beta, **_):
         """
         Args:
             model (HighDimensionalNNP):
                 HDNNP object to optimize parameters.
             properties (list [str]): Names of properties to optimize.
-            mixing_beta (float, optional):
+            mixing_beta (float):
                 Mixing parameter of errors of 0th and 1st order.
                 It accepts 0.0 to 1.0. If 0.0 it optimizes HDNNP by only
                 0th order property and it is equal to loss function

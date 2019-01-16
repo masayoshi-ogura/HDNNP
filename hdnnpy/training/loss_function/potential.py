@@ -22,31 +22,33 @@ class Potential(LossFunctionBase):
     """dict: Required orders of each dataset to calculate loss function.
     """
 
-    def __init__(self, model, properties, mixing_beta=1.0,
-                 summation=1e-3, rotation=1e-3, **_):
+    def __init__(
+            self, model, properties, mixing_beta, summation, rotation, **_):
         """
         Args:
             model (HighDimensionalNNP):
                 HDNNP object to optimize parameters.
             properties (list [str]): Names of properties to optimize.
-            mixing_beta (float, optional):
+            mixing_beta (float):
                 Mixing parameter of errors of 0th and 1st order.
                 It accepts 0.0 to 1.0. If 0.0 it optimizes HDNNP by only
                 0th order property and it is equal to loss function
                 ``Zeroth``. If 1.0 it optimizes HDNNP by only 1st order
                 property.
-            summation (float, optional):
+            summation (float):
                 Penalty term coefficient parameter for summation of 1st
                 order property. This loss function adds following
                  penalty to 1st order property vector.
                 :math:`\sum_{i,\alpha} F_{i,\alpha} = 0`
-            rotation (float, optional):
+            rotation (float):
                 Penalty term coefficient parameter for rotation of 1st
                 order property. This loss function adds following
                  penalty to 1st order property vector.
                 :math:`\rot \bm{F} = 0`
         """
         assert 0.0 <= mixing_beta <= 1.0
+        assert 0.0 <= summation
+        assert 0.0 <= rotation
         super().__init__(model)
         self._observation_keys = [
             f'RMSE/{properties[0]}', f'RMSE/{properties[1]}',
@@ -59,11 +61,11 @@ class Potential(LossFunctionBase):
         if mixing_beta == 0.0:
             warnings.warn(
                 'If mixing_beta=0.0, you should use loss function type '
-                '`zeroth` instead of `first`.')
+                '`zeroth` instead of `potential`.')
         if rotation == 0.0:
             warnings.warn(
                 'If rotation=0.0, you should use loss function type '
-                '`first` instead of `first`.')
+                '`first` instead of `potential`.')
 
     def eval(self, **dataset):
         """Calculate loss function from given datasets and model.
@@ -87,8 +89,11 @@ class Potential(LossFunctionBase):
         loss0 = F.mean_squared_error(predictions[0], labels[0])
         loss1 = F.mean_squared_error(predictions[1], labels[1])
         loss_sum = F.mean(predictions[1])
-        loss_rot = F.mean_squared_error(
-            predictions[2], F.swapaxes(predictions[2], 2, 3))
+
+        transverse = F.swapaxes(predictions[2], 2, 3)
+        loss_rot = F.mean(F.square((predictions[2] - transverse)
+                                   / (predictions[2] + transverse)))
+
         total_loss = ((1.0 - self._mixing_beta) * loss0
                       + self._mixing_beta * loss1
                       + self._summation * loss_sum
@@ -99,7 +104,9 @@ class Potential(LossFunctionBase):
         M_sum = loss_sum
         RMS_rot = F.sqrt(loss_rot)
         total_RMSE = ((1.0 - self._mixing_beta) * RMSE0
-                      + self._mixing_beta * RMSE1)
+                      + self._mixing_beta * RMSE1
+                      + self._summation * M_sum
+                      + self._rotation * RMS_rot)
 
         observation = {
             self._observation_keys[0]: RMSE0,
