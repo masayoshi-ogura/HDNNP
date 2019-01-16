@@ -147,8 +147,7 @@ class PredictionApplication(Application):
             hdnnp.sync_param_with(master_nnp)
 
             batch = chainer.dataset.concat_examples(dataset)
-            inputs = [data for key, data in batch.items()
-                      if key.startswith('inputs')]
+            inputs = [batch[f'inputs/{i}'] for i in range(pc.order + 1)]
             with chainer.using_config('train', False), \
                  chainer.using_config('enable_backprop', False):
                 predictions = hdnnp.predict(inputs, pc.order)

@@ -59,10 +59,10 @@ class First(LossFunctionBase):
             ~chainer.Variable:
             A scalar value calculated with loss function.
         """
-        inputs = [data for key, data in dataset.items()
-                  if key.startswith('inputs')]
-        labels = [data for key, data in dataset.items()
-                  if key.startswith('labels')]
+        inputs = [dataset[f'inputs/{i}'] for i
+                  in range(self.order['descriptor'] + 1)]
+        labels = [dataset[f'labels/{i}'] for i
+                  in range(self.order['property'] + 1)]
         predictions = self._model.predict(inputs, self.order['descriptor'])
         loss0 = F.mean_squared_error(predictions[0], labels[0])
         loss1 = F.mean_squared_error(predictions[1], labels[1])
