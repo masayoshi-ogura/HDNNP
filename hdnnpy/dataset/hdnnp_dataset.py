@@ -189,12 +189,16 @@ class HDNNPDataset(object):
             MPI.comm.bcast(len(self._dataset), root=0)
             while self._dataset:
                 key, data = self._dataset.popitem()
-                for i, send_data in enumerate(np.array_split(data, MPI.size)):
+                n_total = self.total_size
+                n_sub = -(-n_total // MPI.size)
+                for i in range(MPI.size):
+                    s = n_total*i//MPI.size
+                    e = n_total*i//MPI.size + n_sub
                     if i == 0:
-                        new_dataset[key] = send_data
+                        new_dataset[key] = data[s:e]
                     else:
                         MPI.comm.send(key, dest=i)
-                        send_chunk(send_data, dest=i, max_buf_len=max_buf_len)
+                        send_chunk(data[s:e], dest=i, max_buf_len=max_buf_len)
             self._dataset.update(new_dataset)
 
         else:
