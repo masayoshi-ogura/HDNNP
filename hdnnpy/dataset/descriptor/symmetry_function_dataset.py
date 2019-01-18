@@ -84,7 +84,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
         for function_name, params_set in self._func_param_map.items():
             for params in params_set:
                 param_key = '/'.join(map(str, params))
-                if function_name in ['type1', 'type2']:
+                if function_name in ['type1', 'type2', 'directed_type2']:
                     for element_key in elements:
                         key = ':'.join([function_name, param_key, element_key])
                         feature_keys.append(key)
@@ -137,7 +137,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             for params in params_set:
                 functions.append(eval(
                     f'self._make_symmetry_function_{function_name}')(*params))
-
+                
         if self._order >= 0:
             G = np.zeros((n_sample, n_atom, self.n_feature),
                          dtype=np.float32)
@@ -283,3 +283,36 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             return symmetry_function_type4,
         elif self._order == 1:
             return symmetry_function_type4, diff_symmetry_function_type4
+
+    def _make_symmetry_function_directed_type2(self, Rc, eta, Rs, eta_, Rs_):
+        """Define symmetry function directed type2 for specific parameters."""
+        def symmetry_function_directed_type2(structure):
+            """Original symmetry function directed type2."""
+            for R, R_, neigh2elem in structure.get_neighbor_info(
+                    Rc, ['distance','distance_vector', 'neigh2elem']):
+                g = np.exp(-eta*(R-Rs)**2) * np.tanh(1.0 - R/Rc)**3 * np.exp(-eta_*(R_[:,2]-Rs_)**2)
+                yield [np.sum(g_e) for g_e in np.split(g, neigh2elem[1:])]
+
+        def diff_symmetry_function_directed_type2(structure):
+            """1st derivative of symmetry function directed type2."""
+            n_atom = len(structure)
+            for R, R_, dRdr, neigh2j, j2elem in structure.get_neighbor_info(
+                    Rc, ['distance', 'distance_vector', 'diff_distance', 'neigh2j', 'j2elem']):
+                tanh = np.tanh(1.0 - R / Rc)
+                dgdr = (np.exp(-eta*(R-Rs)**2)
+                        * tanh**2
+                        * (-2.0*eta*(R-Rs)*tanh + 3.0/Rc*(tanh**2-1.0))
+                        * np.exp(-eta_*(R_[:,2]-Rs_)**2)
+                        )[:, None] * dRdr +\
+                        ((np.exp(-eta*(R-Rs)**2)*tanh**3*np.exp(-eta_*(R_[:,2]-Rs_)**2))
+                        *(-2.0*eta_*(R_[:,2]-Rs_))
+                        )[:,None]*np.array([0,0,1])
+                dgdr = np.array([np.sum(dgdr_j, axis=0)
+                                 for dgdr_j in np.split(dgdr, neigh2j[1:])])
+                yield block_diag(*np.split(dgdr, j2elem[1:])).reshape(
+                    n_atom, -1, 3).transpose(1, 0, 2)
+
+        if self._order == 0:
+            return symmetry_function_directed_type2,
+        elif self._order == 1:
+            return symmetry_function_directed_type2, diff_symmetry_function_directed_type2
