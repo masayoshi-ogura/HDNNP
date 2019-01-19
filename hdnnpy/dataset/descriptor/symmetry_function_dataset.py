@@ -177,9 +177,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def _symmetry_function_type1(self, structure, Rc):
         """Symmetry function type1 for specific parameters."""
         G = []
-        for R, neigh2elem in structure.get_neighbor_info(
-                Rc, ['distance', 'neigh2elem']):
-            g = F.tanh(1.0 - R/Rc) ** 3
+        for fc, neigh2elem in structure.get_neighbor_info(
+                Rc, ['cutoff_function', 'neigh2elem']):
+            g = fc
             g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
             G.append(g)
         return list(zip(*G))
@@ -188,9 +188,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def _symmetry_function_type2(self, structure, Rc, eta, Rs):
         """Symmetry function type2 for specific parameters."""
         G = []
-        for R, neigh2elem in structure.get_neighbor_info(
-                Rc, ['distance', 'neigh2elem']):
-            g = F.exp(-eta*(R-Rs)**2) * F.tanh(1.0 - R/Rc)**3
+        for R, fc, neigh2elem in structure.get_neighbor_info(
+                Rc, ['distance', 'cutoff_function', 'neigh2elem']):
+            g = F.exp(-eta*(R-Rs)**2) * fc
             g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
             G.append(g)
         return list(zip(*G))
@@ -199,8 +199,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def _symmetry_function_type4(self, structure, Rc, eta, lambda_, zeta):
         """Symmetry function type4 for specific parameters."""
         G = []
-        for r, R, neigh2elem in structure.get_neighbor_info(
-                Rc, ['distance_vector', 'distance', 'neigh2elem']):
+        for r, R, fc, neigh2elem in structure.get_neighbor_info(
+                Rc, ['distance_vector', 'distance', 'cutoff_function',
+                     'neigh2elem']):
             cos = (r/F.expand_dims(R, axis=1)) @ (r.T/R)
             if zeta == 1:
                 ang = (1.0 + lambda_*cos)
@@ -208,10 +209,8 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 ang = (1.0 + lambda_*cos) ** zeta
             g = (2.0 ** (1-zeta)
                  * ang
-                 * F.expand_dims(F.exp(-eta*R**2) * F.tanh(1.0 - R/Rc)**3,
-                                 axis=1)
-                 * F.expand_dims(F.exp(-eta*R**2) * F.tanh(1.0 - R/Rc)**3,
-                                 axis=0))
+                 * F.expand_dims(F.exp(-eta*R**2) * fc, axis=1)
+                 * F.expand_dims(F.exp(-eta*R**2) * fc, axis=0))
             triu = np.triu(np.ones_like(cos.data), k=1)
             g = F.where(triu.astype(np.bool), g, triu)
             g = [F.sum(g__)

@@ -95,8 +95,8 @@ class AtomicStructure(object):
         for key in geometry_keys:
             if (cutoff_distance not in self._cache
                     or key not in self._cache[cutoff_distance]):
-                if key in ['distance_vector', 'distance', 'neigh2elem',
-                           'neigh2j']:
+                if key in ['distance_vector', 'distance', 'cutoff_function',
+                           'neigh2elem', 'neigh2j']:
                     self._calculate_distance(cutoff_distance)
             ret.append(self._cache[cutoff_distance][key])
         for neighbor_info in zip(*ret):
@@ -140,6 +140,8 @@ class AtomicStructure(object):
         distance_vector = [chainer.Variable(r.astype(np.float32))
                            for r in np.split(D_list, i_indices[1:])]
         distance = [F.sqrt(F.sum(r**2, axis=1)) for r in distance_vector]
+        cutoff_function = [F.tanh(1.0 - R/cutoff_distance)**3
+                           for R in distance]
         elem_list = np.split(elem_list, i_indices[1:])
 
         neigh2j = []
@@ -151,6 +153,7 @@ class AtomicStructure(object):
         self._cache[cutoff_distance] = {
             'distance_vector': distance_vector,
             'distance': distance,
+            'cutoff_function': cutoff_function,
             'neigh2elem': neigh2elem,
             'neigh2j': neigh2j,
             }
