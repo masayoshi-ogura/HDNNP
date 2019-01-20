@@ -130,11 +130,11 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
 
             n_atom = len(G[0])
             r = []
-            neigh2j = []
-            for r_, neigh2j_ in structure.get_neighbor_info(
-                    Rc, ['distance_vector', 'neigh2j']):
+            j_indices = []
+            for r_, j_idx in structure.get_neighbor_info(
+                    Rc, ['distance_vector', 'j_indices']):
                 r.append(r_)
-                neigh2j.append(neigh2j_)
+                j_indices.append(j_idx)
 
             differentiate_more = self._order > 1
             with chainer.using_config('enable_backprop', differentiate_more):
@@ -144,10 +144,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                         grad = chainer.grad(
                             g, r, enable_double_backprop=differentiate_more)
                     dg = [F.concat([F.sum(dg_, axis=0) for dg_
-                                    in F.split_axis(grad_, neigh2j_[1:],
+                                    in F.split_axis(grad_, j_idx[1:],
                                                     axis=0)],
                                    axis=0)
-                          for grad_, neigh2j_ in zip(grad, neigh2j)]
+                          for grad_, j_idx in zip(grad, j_indices)]
                     dG.append(dg)
                 yield F.stack([F.stack(dg) for dg in dG])
 
@@ -162,10 +162,10 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                                 [dg_[i] for dg_ in dg], r,
                                 enable_double_backprop=differentiate_more)
                         d2g_ = [F.concat([F.sum(d2g_, axis=0) for d2g_
-                                          in F.split_axis(grad_, neigh2j_[1:],
+                                          in F.split_axis(grad_, j_idx[1:],
                                                           axis=0)],
                                          axis=0)
-                                for grad_, neigh2j_ in zip(grad, neigh2j)]
+                                for grad_, j_idx in zip(grad, j_indices)]
                         d2g.append(d2g_)
                     d2G.append(d2g)
                 yield F.stack([F.stack([F.stack(d2g_) for d2g_ in d2g])
@@ -177,10 +177,11 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def _symmetry_function_type1(self, structure, Rc):
         """Symmetry function type1 for specific parameters."""
         G = []
-        for fc, neigh2elem in structure.get_neighbor_info(
-                Rc, ['cutoff_function', 'neigh2elem']):
+        for fc, element_indices in structure.get_neighbor_info(
+                Rc, ['cutoff_function', 'element_indices']):
             g = fc
-            g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
+            g = [F.sum(g_) for g_
+                 in F.split_axis(g, element_indices[1:], axis=0)]
             G.append(g)
         return list(zip(*G))
 
@@ -188,10 +189,11 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def _symmetry_function_type2(self, structure, Rc, eta, Rs):
         """Symmetry function type2 for specific parameters."""
         G = []
-        for R, fc, neigh2elem in structure.get_neighbor_info(
-                Rc, ['distance', 'cutoff_function', 'neigh2elem']):
+        for R, fc, element_indices in structure.get_neighbor_info(
+                Rc, ['distance', 'cutoff_function', 'element_indices']):
             g = F.exp(-eta*(R-Rs)**2) * fc
-            g = [F.sum(g_) for g_ in F.split_axis(g, neigh2elem[1:], axis=0)]
+            g = [F.sum(g_) for g_
+                 in F.split_axis(g, element_indices[1:], axis=0)]
             G.append(g)
         return list(zip(*G))
 
@@ -199,9 +201,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
     def _symmetry_function_type4(self, structure, Rc, eta, lambda_, zeta):
         """Symmetry function type4 for specific parameters."""
         G = []
-        for r, R, fc, neigh2elem in structure.get_neighbor_info(
+        for r, R, fc, element_indices in structure.get_neighbor_info(
                 Rc, ['distance_vector', 'distance', 'cutoff_function',
-                     'neigh2elem']):
+                     'element_indices']):
             cos = (r/F.expand_dims(R, axis=1)) @ (r.T/R)
             if zeta == 1:
                 ang = (1.0 + lambda_*cos)
@@ -215,9 +217,9 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
             g = F.where(triu.astype(np.bool), g, triu)
             g = [F.sum(g__)
                  for j, g_
-                 in enumerate(F.split_axis(g, neigh2elem[1:], axis=0))
+                 in enumerate(F.split_axis(g, element_indices[1:], axis=0))
                  for k, g__
-                 in enumerate(F.split_axis(g_, neigh2elem[1:], axis=1))
+                 in enumerate(F.split_axis(g_, element_indices[1:], axis=1))
                  if j <= k]
             G.append(g)
         return list(zip(*G))

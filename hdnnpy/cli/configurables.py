@@ -36,7 +36,7 @@ class DatasetConfig(Configurable):
 
     # configurable
     descriptor = CaselessStrEnum(
-        ['symmetry_function'],
+        ['symmetry_function', 'weighted_symmetry_function'],
         default_value='symmetry_function',
         help='Name of descriptor dataset used for input of HDNNP'
         ).tag(config=True)
