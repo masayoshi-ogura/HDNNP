@@ -33,10 +33,6 @@ class HDNNPDataset(object):
         self._descriptor = descriptor
         self._property = property_
         self._dataset = dataset.copy()
-        self._n_input = (dataset['inputs/0'].shape[-1]
-                         if 'inputs/0' in dataset else None)
-        self._n_label = (dataset['labels/0'].shape[-1]
-                         if 'labels/0' in dataset else None)
 
     def __getitem__(self, item):
         """Return indexed or sliced dataset as dict data."""
@@ -71,12 +67,18 @@ class HDNNPDataset(object):
     @property
     def n_input(self):
         """int: Number of dimensions of input data."""
-        return self._n_input or self._descriptor.n_feature
+        if 'inputs/0' in self._dataset:
+            return self._dataset['inputs/0'].shape[-1]
+        else:
+            raise ValueError('This object does not have input data')
 
     @property
     def n_label(self):
         """int: Number of dimensions of label data."""
-        return self._n_label or self._property.n_property
+        if 'labels/0' in self._dataset:
+            return self._dataset['labels/0'].shape[-1]
+        else:
+            raise ValueError('This object does not have label data')
 
     @property
     def partial_size(self):
@@ -160,7 +162,6 @@ class HDNNPDataset(object):
             self._dataset.update(
                 {f'inputs/{i}': data for i, data in enumerate(inputs)})
             self._descriptor.clear()
-            self._n_input = inputs[0].shape[-1]
 
         # add property dataset and delete original data
         if self._property.has_data:
@@ -168,7 +169,6 @@ class HDNNPDataset(object):
             self._dataset.update(
                 {f'labels/{i}': data for i, data in enumerate(labels)})
             self._property.clear()
-            self._n_label = labels[0].shape[-1]
 
         # shuffle dataset
         if shuffle:
