@@ -13,7 +13,7 @@ class Scaling(PreprocessBase):
     name = 'scaling'
     """str: Name of this class."""
 
-    def __init__(self, min_=0.0, max_=1.0):
+    def __init__(self, min_=-1.0, max_=1.0):
         """
         Args:
             min\_ (float): Target minimum value of scaling.
