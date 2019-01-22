@@ -70,7 +70,7 @@ class HDNNPDataset(object):
         if 'inputs/0' in self._dataset:
             return self._dataset['inputs/0'].shape[-1]
         else:
-            raise ValueError('This object does not have input data')
+            return self._descriptor.n_feature
 
     @property
     def n_label(self):
@@ -78,7 +78,7 @@ class HDNNPDataset(object):
         if 'labels/0' in self._dataset:
             return self._dataset['labels/0'].shape[-1]
         else:
-            raise ValueError('This object does not have label data')
+            return self._property.n_property
 
     @property
     def partial_size(self):
