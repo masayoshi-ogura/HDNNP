@@ -30,10 +30,9 @@ In addition, override the following abstract method.
 | In addition to being able to use it internally,
   it is also used to expand feature dimension and zero-fill in ``hdnnpy.dataset.HDNNPDataset``
 
-* make
+* calculate_descriptors
 
-| It is main function for calculating descriptors from atomic structures and parameters.
-| The calculated descriptors are stored in instance variable ``self._dataset`` as a list of Numpy arrays.
+| It is main function for calculating descriptors from a atomic structure, which is a wrapper of ase.Atoms object.
 
 
 
@@ -49,10 +48,9 @@ Property dataset
 
 In addition, override the following abstract method.
 
-* make
+* calculate_properties
 
-| It is main function for getting properties from atomic structures, which is a wrapper of ase.Atoms object.
-| The obtained properties are stored in instance variable ``self._dataset`` as a list of Numpy arrays.
+| It is main function for getting properties from a atomic structure, which is a wrapper of ase.Atoms object.
 
 
 Preprocess
@@ -68,36 +66,26 @@ Loss function
 
 Currently, we have implemented following loss function for HDNNP training.
 
-* zeroth_only
-* first_only
+* Zeroth
+* First
 
 Each loss function uses a 0th/1st order error of property to optimize HDNNP.
+``First`` uses both 0th/1st order errors of property weighted by parameter ``mixing_beta`` to optimize HDNNP.
 
-* mix
+* Potential
 
-It uses both 0th/1st order errors of property weighted by parameter ``mixing_beta`` to optimize HDNNP.
+It uses 2nd order derivative of descriptor dataset to optimize HDNNP to satisfy following condition:
 
-If you want to use other loss function, define a function of following form:
+.. math::
 
-.. code-block:: python
+    \rot \bm{F} = 0
 
-   def your_loss_function(model, properties, **kwargs):
-       parameterA = kwargs['keyA']
-       parameterB = kwargs['keyB']
-       observation_keys = ['metricsA', 'metricsB']
+Then, there is a scalar potential :math:`\varphi`:
 
-       def loss_function(*datasets):
-           half = len(datasets) // 2
-           inputs, labels = datasets[:half], datasets[half:]
-           predictions = model(inputs)
-           loss = ...
-           observation = {
-               observation_keys[0]: ...,
-               observation_keys[1]: ...,
-               }
-           chainer.report(observation, observer=model)
-           return loss
+.. math::
 
-       return loss_function, observation_keys
+    \bm{F} = \mathrm{grad} \varphi
 
-
+| If you want to use other loss function, define a class that inherits
+| ``hdnnpy.training.loss_function.loss_function_base.LossFunctionBase``.
+| It defines several instance variables, properties and instance methods.

@@ -22,6 +22,7 @@ setup(
         'hdnnpy.model',
         'hdnnpy.preprocess',
         'hdnnpy.training',
+        'hdnnpy.training.loss_function',
         ],
     scripts=[
         'scripts/merge_xyz',

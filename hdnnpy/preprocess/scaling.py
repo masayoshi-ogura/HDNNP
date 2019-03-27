@@ -13,7 +13,7 @@ class Scaling(PreprocessBase):
     name = 'scaling'
     """str: Name of this class."""
 
-    def __init__(self, min_=0.0, max_=1.0):
+    def __init__(self, min_=-1.0, max_=1.0):
         """
         Args:
             min\_ (float): Target minimum value of scaling.
@@ -63,7 +63,7 @@ class Scaling(PreprocessBase):
                 Processed dataset into the same min-max range.
         """
         order = len(dataset) - 1
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -79,6 +79,10 @@ class Scaling(PreprocessBase):
                           + self._target_min)
         if order >= 1:
             dataset[1] = (dataset[1]
+                          / (max_ - min_)[..., None]
+                          * (self._target_max - self._target_min))
+        if order >= 2:
+            dataset[2] = (dataset[2]
                           / (max_ - min_)[..., None, None]
                           * (self._target_max - self._target_min))
 
@@ -119,15 +123,13 @@ class Scaling(PreprocessBase):
             file_path (~pathlib.Path): File path to load parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        ndarray = np.load(file_path)
-        self._elements = ndarray['elements'].item()
-        self._max = {element: ndarray[f'max:{element}']
-                     for element in self._elements}
-        self._min = {element: ndarray[f'min:{element}']
-                     for element in self._elements}
+        if MPI.rank == 0:
+            ndarray = np.load(file_path)
+            self._elements = ndarray['elements'].item()
+            self._max = {element: ndarray[f'max:{element}']
+                         for element in self._elements}
+            self._min = {element: ndarray[f'min:{element}']
+                         for element in self._elements}
         if verbose:
             pprint(f'Loaded Scaling parameters from {file_path}.')
 
@@ -140,13 +142,11 @@ class Scaling(PreprocessBase):
             file_path (~pathlib.Path): File path to save parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        info = {'elements': self._elements}
-        max_ = {f'max:{k}': v for k, v in self._max.items()}
-        min_ = {f'min:{k}': v for k, v in self._min.items()}
-        np.savez(file_path, **info, **max_, **min_)
+        if MPI.rank == 0:
+            info = {'elements': self._elements}
+            max_ = {f'max:{k}': v for k, v in self._max.items()}
+            min_ = {f'min:{k}': v for k, v in self._min.items()}
+            np.savez(file_path, **info, **max_, **min_)
         if verbose:
             pprint(f'Saved Scaling parameters to {file_path}.')
 

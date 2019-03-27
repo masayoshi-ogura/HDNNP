@@ -83,11 +83,13 @@ class PredictionApplication(Application):
             pc.data_file, save=False, verbose=self.verbose)
         datasets = self.construct_datasets(tag_xyz_map)
         datasets = DatasetGenerator(*datasets).all()
-        results = self.predict(datasets)
-        self.dump_result(results)
+        if MPI.rank == 0:
+            results = self.predict(datasets)
+            self.dump_result(results)
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
+        mc = self.model_config
         pc = self.prediction_config
 
         preprocesses = []
@@ -122,6 +124,8 @@ class PredictionApplication(Application):
                     shuffle=False, verbose=self.verbose)
                 datasets.append(dataset)
                 dc.n_sample += dataset.total_size
+                mc.n_input = dataset.n_input
+                mc.n_output = dataset.n_label
 
         return datasets
 
@@ -131,20 +135,24 @@ class PredictionApplication(Application):
         results = []
 
         # master model
-        master_nnp = MasterNNP(pc.elements, mc.layers)
+        master_nnp = MasterNNP(
+            pc.elements, mc.n_input, mc.hidden_layers, mc.n_output)
         chainer.serializers.load_npz(
             pc.load_dir / 'master_nnp.npz', master_nnp)
 
         for dataset in datasets:
             # hdnnp model
             hdnnp = HighDimensionalNNP(
-                dataset.elemental_composition, mc.layers, pc.order)
+                dataset.elemental_composition,
+                mc.n_input, mc.hidden_layers, mc.n_output)
             hdnnp.sync_param_with(master_nnp)
 
+            batch = chainer.dataset.concat_examples(dataset)
+            inputs = [batch[f'inputs/{i}'] for i in range(pc.order + 1)]
             with chainer.using_config('train', False), \
                  chainer.using_config('enable_backprop', False):
-                predictions = hdnnp.predict(
-                    chainer.dataset.concat_examples(dataset))
+                predictions = hdnnp.predict(inputs, pc.order)
+
             result = {
                 **{'tag': dataset.tag},
                 **{property_: coefficient * prediction.data
@@ -157,9 +165,6 @@ class PredictionApplication(Application):
         return results
 
     def dump_result(self, results):
-        if MPI.rank != 0:
-            return
-
         pc = self.prediction_config
         result_file = pc.load_dir / f'prediction_result{pc.dump_format}'
         if pc.dump_format == '.npz':

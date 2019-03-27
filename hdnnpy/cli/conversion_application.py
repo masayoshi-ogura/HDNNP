@@ -63,7 +63,10 @@ class ConversionApplication(Application):
                 self.load_dir / 'preprocess' / f'{name}.npz', verbose=False)
             preprocesses.append(preprocess)
         # load master nnp
-        master_nnp = MasterNNP(tr['training']['elements'], mc.layers)
+        master_nnp = MasterNNP(tr['training']['elements'],
+                               tr['model']['n_input'],
+                               mc.hidden_layers,
+                               tr['model']['n_output'])
         chainer.serializers.load_npz(
             self.load_dir / 'master_nnp.npz', master_nnp)
 

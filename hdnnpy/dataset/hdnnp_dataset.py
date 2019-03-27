@@ -25,28 +25,34 @@ class HDNNPDataset(object):
                 Descriptor instance you want to use as HDNNP input.
             property\_ (PropertyDatasetBase):
                 Property instance you want to use as HDNNP label.
-            dataset (list [~numpy.ndarray], optional):
+            dataset (dict [~numpy.ndarray], optional):
                 If specified, dataset will be initialized with this.
         """
         if dataset is None:
-            dataset = []
+            dataset = {}
         self._descriptor = descriptor
         self._property = property_
-        self._dataset = dataset[:]
+        self._dataset = dataset.copy()
 
     def __getitem__(self, item):
-        """Return indexed or sliced dataset as tuple data."""
-        batches = [dataset[item] for dataset in self._dataset]
+        """Return indexed or sliced dataset as dict data."""
+        batches = {key: data[item]
+                   for key, data in self._dataset.items()}
         if isinstance(item, slice):
-            length = len(batches[0])
-            return [tuple([batch[i] for batch in batches])
+            length = len(list(batches.values())[0])
+            return [{key: batch[i] for key, batch in batches.items()}
                     for i in range(length)]
         else:
-            return tuple(batches)
+            return batches
 
     def __len__(self):
         """Redicect to :attr:`partial_size`"""
         return self.partial_size
+
+    @property
+    def descriptor(self):
+        """DescriptorDatasetBase: Descriptor dataset instance."""
+        return self._descriptor
 
     @property
     def elemental_composition(self):
@@ -59,14 +65,25 @@ class HDNNPDataset(object):
         return self._descriptor.elements
 
     @property
-    def order(self):
-        """int: Derivative order of the dataset."""
-        return self._descriptor.order
+    def n_input(self):
+        """int: Number of dimensions of input data."""
+        if 'inputs/0' in self._dataset:
+            return self._dataset['inputs/0'].shape[-1]
+        else:
+            return self._descriptor.n_feature
+
+    @property
+    def n_label(self):
+        """int: Number of dimensions of label data."""
+        if 'labels/0' in self._dataset:
+            return self._dataset['labels/0'].shape[-1]
+        else:
+            return self._property.n_property
 
     @property
     def partial_size(self):
         """int: Number of data after scattered by MPI communication."""
-        return len(self._dataset[0])
+        return len(list(self._dataset.values())[0])
 
     @property
     def tag(self):
@@ -83,11 +100,6 @@ class HDNNPDataset(object):
         return len(self._descriptor)
 
     @property
-    def descriptor(self):
-        """DescriptorDatasetBase: Descriptor dataset instance."""
-        return self._descriptor
-
-    @property
     def property(self):
         """PropertyDatasetBase: Property dataset instance."""
         return self._property
@@ -98,13 +110,13 @@ class HDNNPDataset(object):
 
         This method does following steps:
 
-        * Check compatibility between descriptor and property dataset.
-        * Expand feature dimension of input dataset according to
-          ``all_elements``.
-        * Pre-process input dataset in a given order.
-        * Merge input and label dataset to make its own dataset.
-        * Shuffle the order of the data.
+        * Check compatibility between descriptor and property datasets.
+        * Expand feature dimension of descriptor dataset according to
+          ``all_elements`` and pre-process descriptor dataset in a
+          given order and add to its own dataset.
+        * Add property dataset to its own dataset.
         * Clear up the original data in descriptor and property dataset.
+        * Shuffle the order of the data.
 
         Args:
             all_elements (list [str], optional):
@@ -119,87 +131,83 @@ class HDNNPDataset(object):
                 Print log to stdout.
 
         Raises:
-            RuntimeError:
-                If descriptor dataset does not have any data.
             AssertionError:
-                If descriptor and property dataset are incompatible.
+                If descriptor and property datasets are incompatible.
         """
         if preprocesses is None:
             preprocesses = []
-        if MPI.rank != 0:
-            return
 
-        # check compatibility and add info to myself
-        self._check_dataset_compatibility()
+        # check compatibility between descriptor and property datasets
+        assert len(self._descriptor) == len(self._property)
+        assert self._descriptor.elemental_composition \
+               == self._property.elemental_composition
+        assert self._descriptor.elements == self._property.elements
+        assert self._descriptor.tag == self._property.tag
 
-        # apply pre-processing & append my dataset
-        inputs = [self._descriptor[key]
-                  for key in self._descriptor.descriptors]
-        if all_elements != self._descriptor.elements:
-            old_feature_keys = self._descriptor.feature_keys
-            new_feature_keys = (
-                self._descriptor.generate_feature_keys(all_elements))
-            inputs = self._expand_feature_dims(
-                inputs, old_feature_keys, new_feature_keys)
-        for preprocess in preprocesses:
-            inputs = preprocess.apply(
-                inputs, self.elemental_composition, verbose=verbose)
+        # add descriptor dataset and delete original data
+        if self._descriptor.has_data:
+            inputs = [self._descriptor[key]
+                      for key in self._descriptor.descriptors]
+            # expand along to feature dimension
+            if all_elements != self._descriptor.elements:
+                old_feature_keys = self._descriptor.feature_keys
+                new_feature_keys = (
+                    self._descriptor.generate_feature_keys(all_elements))
+                inputs = self._expand_feature_dims(
+                    inputs, old_feature_keys, new_feature_keys)
+            # pre-process descriptor dataset
+            for preprocess in preprocesses:
+                inputs = preprocess.apply(
+                    inputs, self.elemental_composition, verbose=verbose)
+            self._dataset.update(
+                {f'inputs/{i}': data for i, data in enumerate(inputs)})
+            self._descriptor.clear()
 
-        # merge dataset
+        # add property dataset and delete original data
         if self._property.has_data:
             labels = [self._property[key] for key in self._property.properties]
-            self._dataset = inputs + labels
-        else:
-            self._dataset = inputs
+            self._dataset.update(
+                {f'labels/{i}': data for i, data in enumerate(labels)})
+            self._property.clear()
 
         # shuffle dataset
         if shuffle:
             self._shuffle()
 
-        # delete original datasets
-        self._descriptor.clear()
-        if self._property.has_data:
-            self._property.clear()
-
-    def scatter(self, root=0, max_buf_len=256 * 1024 * 1024):
+    def scatter(self, max_buf_len=256 * 1024 * 1024):
         """Scatter dataset by MPI communication.
 
         Each instance is re-initialized with received dataset.
 
         Args:
-            root (int, optional):
-                Dataset is scattered from root MPI process.
             max_buf_len (int, optional):
                 Each data is divided into chunks of this size at
                 maximum.
         """
-        assert 0 <= root < MPI.size
-
-        if MPI.rank == root:
-            mine = None
-            n_total_samples = self.total_size
-            n_sub_samples = (n_total_samples+MPI.size-1) // MPI.size
-
-            for i in range(MPI.size):
-                b = n_total_samples * i // MPI.size
-                e = b + n_sub_samples
-                slc = slice(b, e, None)
-
-                if i == root:
-                    dataset = [data[slc] for data in self._dataset]
-                    mine = [self._descriptor, self._property, dataset]
-
-                else:
-                    dataset = [data[slc] for data in self._dataset]
-                    send = [self._descriptor, self._property, dataset]
-                    send_chunk(send, dest=i, max_buf_len=max_buf_len)
-            assert mine is not None
-            self.__init__(*mine)
+        if MPI.rank == 0:
+            new_dataset = {}
+            MPI.comm.bcast(len(self._dataset), root=0)
+            while self._dataset:
+                key, data = self._dataset.popitem()
+                n_total = self.total_size
+                n_sub = -(-n_total // MPI.size)
+                for i in range(MPI.size):
+                    s = n_total*i//MPI.size
+                    e = n_total*i//MPI.size + n_sub
+                    if i == 0:
+                        new_dataset[key] = data[s:e]
+                    else:
+                        MPI.comm.send(key, dest=i)
+                        send_chunk(data[s:e], dest=i, max_buf_len=max_buf_len)
+            self._dataset.update(new_dataset)
 
         else:
-            recv = recv_chunk(source=root, max_buf_len=max_buf_len)
-            assert recv is not None
-            self.__init__(*recv)
+            self._dataset.clear()
+            n_data = MPI.comm.bcast(None, root=0)
+            for i in range(n_data):
+                key = MPI.comm.recv(source=0)
+                recv_data = recv_chunk(source=0, max_buf_len=max_buf_len)
+                self._dataset[key] = recv_data
 
     def take(self, index):
         """Return copied object that has sliced dataset.
@@ -208,29 +216,9 @@ class HDNNPDataset(object):
             index (int or slice):
                 Copied object has dataset indexed or sliced by this.
         """
-        dataset = [data[index] for data in self._dataset]
+        dataset = {key: data[index] for key, data in self._dataset.items()}
         new_dataset = self.__class__(self._descriptor, self._property, dataset)
         return new_dataset
-
-    def _check_dataset_compatibility(self):
-        """Check compatibility between descriptor and property dataset.
-        """
-        if not self._descriptor.has_data:
-            raise RuntimeError('Cannot construct HDNNP dataset, because'
-                               ' descriptor dataset does not have any data.\n'
-                               'Use `descriptor.make() or load()` before'
-                               ' constructing HDNNP dataset.\n')
-
-        elif not self._property.has_data:
-            return
-
-        else:
-            assert len(self._descriptor) == len(self._property)
-            assert self._descriptor.elemental_composition \
-                   == self._property.elemental_composition
-            assert self._descriptor.elements == self._property.elements
-            assert self._descriptor.order == self._property.order
-            assert self._descriptor.tag == self._property.tag
 
     @staticmethod
     def _expand_feature_dims(inputs, old_feature_keys, new_feature_keys):
@@ -256,6 +244,6 @@ class HDNNPDataset(object):
 
     def _shuffle(self):
         """Shuffle the order of the data."""
-        for data in self._dataset:
+        for data in self._dataset.values():
             np.random.set_state(RANDOMSTATE)
             np.random.shuffle(data)

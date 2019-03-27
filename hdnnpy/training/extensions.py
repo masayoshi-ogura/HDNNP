@@ -20,6 +20,7 @@ class ScatterPlot(Extension):
             comm (~chainermn.CommunicatorBase):
                 ChainerMN communicator instance.
         """
+        self._order = dataset.property.order
         self._model = model
         self._comm = comm.mpi_comm
 
@@ -46,9 +47,9 @@ class ScatterPlot(Extension):
         """
         with chainer.using_config('train', False), \
              chainer.using_config('enable_backprop', False):
-            predictions = self._model.predict(self._inputs)
+            predictions = self._model.predict(self._inputs, self._order)
 
-        for i in range(self._model.order + 1):
+        for i in range(self._order + 1):
             pred_send = predictions[i].data
             if self._comm.Get_rank() == 0:
                 self._comm.Gatherv(pred_send, self._predictions[i], root=0)
@@ -68,12 +69,11 @@ class ScatterPlot(Extension):
         self._coefficients = dataset.property.coefficients
         self._units = dataset.property.units
         batch = chainer.dataset.concat_examples(dataset)
-        half = len(batch) // 2
-        self._inputs = batch[:half]
-        labels = batch[half:]
+        self._inputs = [batch[f'inputs/{i}'] for i in range(self._order + 1)]
+        labels = [batch[f'labels/{i}'] for i in range(self._order + 1)]
         self._count = np.array(self._comm.gather(len(labels[0]), root=0))
 
-        for i in range(self._model.order + 1):
+        for i in range(self._order + 1):
             label_send = labels[i]
             if self._comm.Get_rank() == 0:
                 total_size = sum(self._count)

@@ -5,6 +5,8 @@
 from ase.calculators.singlepoint import SinglePointCalculator
 import ase.io
 import ase.neighborlist
+import chainer
+import chainer.functions as F
 import numpy as np
 
 
@@ -16,7 +18,7 @@ class AtomicStructure(object):
           and attributes.
         | Before wrapping, it sorts atoms by element alphabetically.
         | It stores calculated neighbor information such as distance,
-          indices, and cosine.
+          indices.
 
         Args:
             atoms (~ase.Atoms): an object to wrap.
@@ -30,10 +32,10 @@ class AtomicStructure(object):
         calculator = atoms.get_calculator()
         if calculator:
             for key, value in calculator.results.items():
-                if key in ['energy', 'magmom', 'free_energy']:
-                    results[key] = value
+                if key in atoms.arrays:
+                    results[key] = value[indices]
                 else:
-                    results[key] = np.array(value[indices], float)
+                    results[key] = value
         self._atoms.set_calculator(
             SinglePointCalculator(self._atoms, **results))
 
@@ -93,15 +95,7 @@ class AtomicStructure(object):
         for key in geometry_keys:
             if (cutoff_distance not in self._cache
                     or key not in self._cache[cutoff_distance]):
-                if key in ['distance', 'distance_vector',
-                           'j2elem', 'neigh2elem', 'neigh2j']:
-                    self._calculate_distance(cutoff_distance)
-                elif key in ['diff_distance']:
-                    self._calculate_diff_distance(cutoff_distance)
-                elif key in ['cosine']:
-                    self._calculate_cosine(cutoff_distance)
-                elif key in ['diff_cosine']:
-                    self._calculate_diff_cosine(cutoff_distance)
+                self._calculate_neighbors(cutoff_distance)
             ret.append(self._cache[cutoff_distance][key])
         for neighbor_info in zip(*ret):
             yield neighbor_info
@@ -123,80 +117,41 @@ class AtomicStructure(object):
         return [cls(atoms) for atoms
                 in ase.io.iread(str(file_path), index=':', format='xyz')]
 
-    def _calculate_cosine(self, cutoff_distance):
-        """Calculate cosine between two neighboring atoms."""
-        cosine = []
-        for dRdr, in self.get_neighbor_info(
-                cutoff_distance, ['diff_distance']):
-            cosine.append(np.dot(dRdr, dRdr.T))
-
-        self._cache[cutoff_distance].update({
-            'cosine': cosine,
-            })
-
-    def _calculate_diff_cosine(self, cutoff_distance):
-        """Calculate differentiation of cosine between two neighboring
-        atoms by atomic position."""
-        diff_cosine = []
-        for R, cos, dRdr in self.get_neighbor_info(
-                cutoff_distance, ['distance', 'cosine', 'diff_distance']):
-            dcosdr = ((dRdr[None, :, :]
-                       - dRdr[:, None, :] * cos[:, :, None])
-                      / R[:, None, None])
-            diff_cosine.append(dcosdr)
-
-        self._cache[cutoff_distance].update({
-            'diff_cosine': diff_cosine,
-            })
-
-    def _calculate_diff_distance(self, cutoff_distance):
-        """Calculate differentiation of distance to one neighboring atom
-        by atomic position."""
-        diff_distance = []
-        for r, R in self.get_neighbor_info(
-                cutoff_distance, ['distance_vector', 'distance']):
-            diff_distance.append(r / R[:, None])
-
-        self._cache[cutoff_distance].update({
-            'diff_distance': diff_distance,
-            })
-
-    def _calculate_distance(self, cutoff_distance):
+    def _calculate_neighbors(self, cutoff_distance):
         """Calculate distance to one neighboring atom and store indices
         of neighboring atoms."""
         symbols = self._atoms.get_chemical_symbols()
         elements = sorted(set(symbols))
+        atomic_numbers = self._atoms.get_atomic_numbers()
         index_element_map = [elements.index(element) for element in symbols]
 
-        i_list, j_list, d_list, D_list = ase.neighborlist.neighbor_list(
-            'ijdD', self._atoms, cutoff_distance)
+        i_list, j_list, D_list = ase.neighborlist.neighbor_list(
+            'ijD', self._atoms, cutoff_distance)
 
         sort_indices = np.lexsort((j_list, i_list))
         i_list = i_list[sort_indices]
         j_list = j_list[sort_indices]
-        d_list = d_list[sort_indices]
         D_list = D_list[sort_indices]
         elem_list = np.array([index_element_map[idx] for idx in j_list])
 
         i_indices = np.unique(i_list, return_index=True)[1]
         j_list = np.split(j_list, i_indices[1:])
-        distance = np.split(d_list, i_indices[1:])
-        distance_vector = np.split(D_list, i_indices[1:])
+        distance_vector = [chainer.Variable(r.astype(np.float32))
+                           for r in np.split(D_list, i_indices[1:])]
+        distance = [F.sqrt(F.sum(r**2, axis=1)) for r in distance_vector]
+        cutoff_function = [F.tanh(1.0 - R/cutoff_distance)**3
+                           for R in distance]
         elem_list = np.split(elem_list, i_indices[1:])
 
-        j2elem = []
-        neigh2elem = []
-        neigh2j = []
-        for j, elem in zip(j_list, elem_list):
-            j2elem.append(np.unique(
-                self._atoms.get_chemical_symbols(), return_index=True)[1])
-            neigh2j.append(np.searchsorted(j, range(len(symbols))))
-            neigh2elem.append(np.searchsorted(elem, range(len(elements))))
-
         self._cache[cutoff_distance] = {
-            'distance': distance,
             'distance_vector': distance_vector,
-            'j2elem': j2elem,
-            'neigh2elem': neigh2elem,
-            'neigh2j': neigh2j,
+            'distance': distance,
+            'cutoff_function': cutoff_function,
+            'element_indices': [np.searchsorted(elem, range(len(elements)))
+                                for elem in elem_list],
+            'j_indices': [np.searchsorted(j, range(len(symbols)))
+                          for j in j_list],
+            'atomic_number': [
+                np.apply_along_axis(lambda x: atomic_numbers[x], 0, j)
+                for j in j_list],
             }

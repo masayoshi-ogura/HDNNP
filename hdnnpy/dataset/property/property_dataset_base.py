@@ -9,8 +9,9 @@ class.
 from abc import (ABC, abstractmethod)
 
 import numpy as np
+from tqdm import tqdm
 
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class PropertyDatasetBase(ABC):
@@ -21,8 +22,10 @@ class PropertyDatasetBase(ABC):
     """list [float]: Coefficient values of each properties."""
     UNITS = []
     """list [str]: Units of properties for each derivative order."""
-    name = ''
+    name = None
     """str: Name of this property class."""
+    n_property = None
+    """int: Number of dimensions of 0th property."""
 
     def __init__(self, order, structures):
         """
@@ -37,7 +40,10 @@ class PropertyDatasetBase(ABC):
         self._properties = self.PROPERTIES[: order+1]
         self._elemental_composition = structures[0].get_chemical_symbols()
         self._elements = sorted(set(self._elemental_composition))
-        self._structures = structures
+        self._length = len(structures)
+        self._slices = [slice(i[0], i[-1]+1)
+                        for i in np.array_split(range(self._length), MPI.size)]
+        self._structures = structures[self._slices[MPI.rank]]
         self._tag = structures[0].info['tag']
         self._coefficients = self.COEFFICIENTS[: order+1]
         self._units = self.UNITS[: order+1]
@@ -61,7 +67,7 @@ class PropertyDatasetBase(ABC):
 
     def __len__(self):
         """Number of atomic structures given at initialization."""
-        return len(self._structures)
+        return self._length
 
     @property
     def coefficients(self):
@@ -84,7 +90,7 @@ class PropertyDatasetBase(ABC):
     def has_data(self):
         """bool: True if success to load or make dataset,
         False otherwise."""
-        return len(self._dataset) > 0
+        return len(self._dataset) == self._order + 1
 
     @property
     def order(self):
@@ -181,6 +187,43 @@ class PropertyDatasetBase(ABC):
             pprint(f'Successfully loaded & made needed {self.name} dataset'
                    f' from {file_path}')
 
+    def make(self, verbose=True):
+        """Calculate & retain property dataset
+
+        | It calculates property dataset by data-parallel using MPI
+          communication.
+        | The calculated dataset is retained in only root MPI process.
+
+        Each property values are divided by ``COEFFICIENTS`` which is
+        unique to each property dataset class.
+
+        Args:
+            verbose (bool, optional): Print log to stdout.
+        """
+        dataset = []
+        for structure in tqdm(self._structures,
+                              ascii=True, desc=f'Process #{MPI.rank}',
+                              leave=False, position=MPI.rank):
+            dataset.append(self.calculate_properties(structure))
+
+        for data_list, coefficient in zip(zip(*dataset), self._coefficients):
+            shape = data_list[0].shape
+            send_data = np.stack(data_list) / coefficient
+            del data_list
+            if MPI.rank == 0:
+                recv_data = np.empty((self._length, *shape), dtype=np.float32)
+                recv_data[self._slices[0]] = send_data
+                del send_data
+                for i in range(1, MPI.size):
+                    recv_data[self._slices[i]] = recv_chunk(source=i)
+                self._dataset.append(recv_data)
+            else:
+                send_chunk(send_data, dest=0)
+                del send_data
+
+        if verbose:
+            pprint(f'Calculated {self.name} dataset.')
+
     def save(self, file_path, verbose=True):
         """Save dataset to .npz format file.
 
@@ -211,10 +254,18 @@ class PropertyDatasetBase(ABC):
             pprint(f'Successfully saved {self.name} dataset to {file_path}.')
 
     @abstractmethod
-    def make(self, *args, **kwargs):
-        """Calculate & retain property dataset.
+    def calculate_properties(self, structure):
+        """Calculate required properties for a structure data.
 
         This is abstract method.
         Subclass of this base class have to override.
+
+        Args:
+            structure (AtomicStructure):
+                A structure data to calculate properties.
+
+        Returns:
+            list [~numpy.ndarray]: Calculated properties.
+            The length is the same as ``order`` given at initialization.
         """
-        pass
+        return

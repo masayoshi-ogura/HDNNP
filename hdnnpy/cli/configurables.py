@@ -36,7 +36,7 @@ class DatasetConfig(Configurable):
 
     # configurable
     descriptor = CaselessStrEnum(
-        ['symmetry_function'],
+        ['symmetry_function', 'weighted_symmetry_function'],
         default_value='symmetry_function',
         help='Name of descriptor dataset used for input of HDNNP'
         ).tag(config=True)
@@ -72,12 +72,17 @@ class DatasetConfig(Configurable):
 
 
 class ModelConfig(Configurable):
+    # not configurable
+    n_input = Integer(
+        help='Number of nodes of input layer.')
+    n_output = Integer(
+        help='Number of nodes of output layer.')
+
     # configurable
-    layers = List(
+    hidden_layers = List(
         trait=Tuple(Integer, Unicode),
-        help='Structure of a neural network constituting HDNNP. '
+        help='Hidden layers of a neural network constituting HDNNP. '
              'Set as List[Tuple(Int(# of nodes), Str(activation function))]. '
-             'Activation function of the last layer must be "identity". '
         ).tag(config=True)
 
 
@@ -104,11 +109,6 @@ class TrainingConfig(Configurable):
         help='Path to output directory. '
              'NOTE: Currently, all output files will be overwritten.'
         ).tag(config=True)
-    order = Integer(
-        help='Order of differentiation used for calculation '
-             'of descriptor & property datasets and HDNNP training. '
-             'ex.) 0: energy, 1: force, for interatomic potential'
-        ).tag(config=True)
     train_test_ratio = Float(
         default_value=0.9,
         help='Ratio to use for training data. '
@@ -116,11 +116,11 @@ class TrainingConfig(Configurable):
         ).tag(config=True)
     # chainer training
     loss_function = Tuple(
-        CaselessStrEnum(['zeroth_only', 'first_only', 'mix']),
+        CaselessStrEnum(['zeroth', 'first', 'potential']),
         Dict(),
         help='Name of loss function and parameters of it. '
              'Set as Tuple(Str(name), Dict{parameters}). '
-             'ex.) ("mix", {"mixing_beta": 0.5})'
+             'ex.) ("first", {"mixing_beta": 0.5})'
         ).tag(config=True)
     init_lr = Float(
         default_value=1.0e-3,

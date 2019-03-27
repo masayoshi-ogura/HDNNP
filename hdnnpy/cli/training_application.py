@@ -22,8 +22,9 @@ from hdnnpy.format import parse_xyz
 from hdnnpy.model import (HighDimensionalNNP, MasterNNP)
 from hdnnpy.preprocess import PREPROCESS
 from hdnnpy.training import (
-    LOSS_FUNCTION, Manager, Updater, ScatterPlot, set_log_scale,
+    Manager, Updater, ScatterPlot, set_log_scale,
     )
+from hdnnpy.training.loss_function import LOSS_FUNCTION
 from hdnnpy.utils import (MPI, pprint, pyyaml_path_representer)
 
 
@@ -77,6 +78,7 @@ class TrainingApplication(Application):
         self.dataset_config = None
         self.model_config = None
         self.training_config = None
+        self.loss_function = None
 
     def initialize(self, argv=None):
         # temporarily set `resume_dir` configurable
@@ -93,6 +95,8 @@ class TrainingApplication(Application):
         self.training_config = TrainingConfig(config=self.config)
         if self.is_resume:
             self.training_config.out_dir = self.resume_dir.parent
+        name, _ = self.training_config.loss_function
+        self.loss_function = LOSS_FUNCTION[name]
 
     def start(self):
         tc = self.training_config
@@ -105,10 +109,12 @@ class TrainingApplication(Application):
         datasets = self.construct_datasets(tag_xyz_map)
         dataset = DatasetGenerator(*datasets).holdout(tc.train_test_ratio)
         result = self.train(dataset)
-        self.dump_result(result)
+        if MPI.rank == 0:
+            self.dump_result(result)
 
     def construct_datasets(self, tag_xyz_map):
         dc = self.dataset_config
+        mc = self.model_config
         tc = self.training_config
 
         preprocess_dir = tc.out_dir / 'preprocess'
@@ -131,7 +137,8 @@ class TrainingApplication(Application):
 
                 # prepare descriptor dataset
                 descriptor = DESCRIPTOR_DATASET[dc.descriptor](
-                    tc.order, structures, **dc.parameters)
+                    self.loss_function.order['descriptor'],
+                    structures, **dc.parameters)
                 descriptor_npz = tagged_xyz.with_name(f'{dc.descriptor}.npz')
                 if descriptor_npz.exists():
                     descriptor.load(
@@ -142,7 +149,7 @@ class TrainingApplication(Application):
 
                 # prepare property dataset
                 property_ = PROPERTY_DATASET[dc.property_](
-                    tc.order, structures)
+                    self.loss_function.order['property'], structures)
                 property_npz = tagged_xyz.with_name(f'{dc.property_}.npz')
                 if property_npz.exists():
                     property_.load(
@@ -159,6 +166,8 @@ class TrainingApplication(Application):
                 dataset.scatter()
                 datasets.append(dataset)
                 dc.n_sample += dataset.total_size
+                mc.n_input = dataset.n_input
+                mc.n_output = dataset.n_label
 
         for preprocess in preprocesses:
             preprocess.save(
@@ -175,7 +184,8 @@ class TrainingApplication(Application):
         result = {'training_time': 0.0, 'observation': []}
 
         # model and optimizer
-        master_nnp = MasterNNP(tc.elements, mc.layers)
+        master_nnp = MasterNNP(
+            tc.elements, mc.n_input, mc.hidden_layers, mc.n_output)
         master_opt = chainer.optimizers.Adam(tc.init_lr)
         master_opt = chainermn.create_multi_node_optimizer(master_opt, comm)
         master_opt.setup(master_nnp)
@@ -194,16 +204,17 @@ class TrainingApplication(Application):
 
             # model
             hdnnp = HighDimensionalNNP(
-                training.elemental_composition, mc.layers, tc.order)
+                training.elemental_composition,
+                mc.n_input, mc.hidden_layers, mc.n_output)
             hdnnp.sync_param_with(master_nnp)
             main_opt = chainer.Optimizer()
             main_opt = chainermn.create_multi_node_optimizer(main_opt, comm)
             main_opt.setup(hdnnp)
 
             # loss function
-            name, kwargs = tc.loss_function
-            loss_function, observation_keys = (
-                LOSS_FUNCTION[name](hdnnp, properties, **kwargs))
+            _, kwargs = tc.loss_function
+            loss_function = self.loss_function(hdnnp, properties, **kwargs)
+            observation_keys = loss_function.observation_keys
 
             # triggers
             interval = (tc.interval, 'epoch')
@@ -216,7 +227,7 @@ class TrainingApplication(Application):
             # updater and trainer
             updater = Updater(train_iter,
                               {'main': main_opt, 'master': master_opt},
-                              loss_func=loss_function)
+                              loss_func=loss_function.eval)
             out_dir = tc.out_dir / tag
             trainer = chainer.training.Trainer(updater, stop_trigger, out_dir)
 
@@ -225,7 +236,8 @@ class TrainingApplication(Application):
                                                 target=tc.final_lr,
                                                 optimizer=master_opt))
             evaluator = chainermn.create_multi_node_evaluator(
-                ext.Evaluator(test_iter, hdnnp, eval_func=loss_function), comm)
+                ext.Evaluator(test_iter, hdnnp, eval_func=loss_function.eval),
+                comm)
             trainer.extend(evaluator, name='val')
             if tc.scatter_plot:
                 trainer.extend(ScatterPlot(test, hdnnp, comm),
@@ -240,10 +252,13 @@ class TrainingApplication(Application):
                         + [f'val/main/{key}' for key in observation_keys]))
                 if tc.plot_report:
                     trainer.extend(ext.PlotReport(
-                        [f'main/{observation_keys[-1]}',
-                         f'val/main/{observation_keys[-1]}'],
+                        [f'main/{key}' for key in observation_keys],
                         x_key='epoch', postprocess=set_log_scale,
-                        file_name='RMSE.png', marker=None))
+                        file_name='training_set.png', marker=None))
+                    trainer.extend(ext.PlotReport(
+                        [f'val/main/{key}' for key in observation_keys],
+                        x_key='epoch', postprocess=set_log_scale,
+                        file_name='validation_set.png', marker=None))
 
             manager = Manager(tag, trainer, result, is_snapshot=True)
             if self.is_resume:
@@ -259,9 +274,6 @@ class TrainingApplication(Application):
         return result
 
     def dump_result(self, result):
-        if MPI.rank != 0:
-            return
-
         yaml.add_representer(pathlib.PosixPath, pyyaml_path_representer)
         result_file = self.training_config.out_dir / 'training_result.yaml'
         with result_file.open('w') as f:

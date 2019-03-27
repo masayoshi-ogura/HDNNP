@@ -9,15 +9,16 @@ class.
 from abc import (ABC, abstractmethod)
 
 import numpy as np
+from tqdm import tqdm
 
-from hdnnpy.utils import (MPI, pprint)
+from hdnnpy.utils import (MPI, pprint, recv_chunk, send_chunk)
 
 
 class DescriptorDatasetBase(ABC):
     """Base class of atomic structure based descriptor dataset."""
     DESCRIPTORS = []
     """list [str]: Names of descriptors for each derivative order."""
-    name = ''
+    name = None
     """str: Name of this descriptor class."""
 
     def __init__(self, order, structures):
@@ -34,7 +35,10 @@ class DescriptorDatasetBase(ABC):
         self._descriptors = self.DESCRIPTORS[: order+1]
         self._elemental_composition = structures[0].get_chemical_symbols()
         self._elements = sorted(set(self._elemental_composition))
-        self._structures = structures
+        self._length = len(structures)
+        self._slices = [slice(i[0], i[-1]+1)
+                        for i in np.array_split(range(self._length), MPI.size)]
+        self._structures = structures[self._slices[MPI.rank]]
         self._tag = structures[0].info['tag']
         self._dataset = []
         self._feature_keys = []
@@ -57,7 +61,7 @@ class DescriptorDatasetBase(ABC):
 
     def __len__(self):
         """Number of atomic structures given at initialization."""
-        return len(self._structures)
+        return self._length
 
     @property
     def descriptors(self):
@@ -85,7 +89,7 @@ class DescriptorDatasetBase(ABC):
     def has_data(self):
         """bool: True if success to load or make dataset,
         False otherwise."""
-        return len(self._dataset) > 0
+        return len(self._dataset) == self._order + 1
 
     @property
     def n_feature(self):
@@ -190,6 +194,40 @@ class DescriptorDatasetBase(ABC):
             pprint(f'Successfully loaded & made needed {self.name} dataset'
                    f' from {file_path}')
 
+    def make(self, verbose=True):
+        """Calculate & retain descriptor dataset
+
+        | It calculates descriptor dataset by data-parallel using MPI
+          communication.
+        | The calculated dataset is retained in only root MPI process.
+
+        Args:
+            verbose (bool, optional): Print log to stdout.
+        """
+        dataset = []
+        for structure in tqdm(self._structures,
+                              ascii=True, desc=f'Process #{MPI.rank}',
+                              leave=False, position=MPI.rank):
+            dataset.append(self.calculate_descriptors(structure))
+
+        for data_list in zip(*dataset):
+            shape = data_list[0].shape
+            send_data = np.stack(data_list)
+            del data_list
+            if MPI.rank == 0:
+                recv_data = np.empty((self._length, *shape), dtype=np.float32)
+                recv_data[self._slices[0]] = send_data
+                del send_data
+                for i in range(1, MPI.size):
+                    recv_data[self._slices[i]] = recv_chunk(source=i)
+                self._dataset.append(recv_data)
+            else:
+                send_chunk(send_data, dest=0)
+                del send_data
+
+        if verbose:
+            pprint(f'Calculated {self.name} dataset.')
+
     def save(self, file_path, verbose=True):
         """Save dataset to .npz format file.
 
@@ -221,6 +259,23 @@ class DescriptorDatasetBase(ABC):
             pprint(f'Successfully saved {self.name} dataset to {file_path}.')
 
     @abstractmethod
+    def calculate_descriptors(self, structure):
+        """Calculate required descriptors for a structure data.
+
+        This is abstract method.
+        Subclass of this base class have to override.
+
+        Args:
+            structure (AtomicStructure):
+                A structure data to calculate descriptors.
+
+        Returns:
+            list [~numpy.ndarray]: Calculated descriptors.
+            The length is the same as ``order`` given at initialization.
+        """
+        return
+
+    @abstractmethod
     def generate_feature_keys(self, *args, **kwargs):
         """Generate feature keys of current state.
 
@@ -231,12 +286,3 @@ class DescriptorDatasetBase(ABC):
             list [str]: Unique keys of feature dimension.
         """
         return
-
-    @abstractmethod
-    def make(self, *args, **kwargs):
-        """Calculate & retain descriptor dataset.
-
-        This is abstract method.
-        Subclass of this base class have to override.
-        """
-        pass

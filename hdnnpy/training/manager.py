@@ -91,11 +91,9 @@ class Manager(AbstractContextManager):
         self._result['training_time'] += interim_result['training_time']
         self._result['observation'].extend(interim_result['observation'])
         # remove snapshot
-        if MPI.rank != 0:
-            return
-
-        self._trainer_snapshot.unlink()
-        self._interim_result.unlink()
+        if MPI.rank == 0:
+            self._trainer_snapshot.unlink()
+            self._interim_result.unlink()
 
     def _snapshot(self, signum, _):
         """Take trainer snapshot."""

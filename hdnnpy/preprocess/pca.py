@@ -65,7 +65,7 @@ class PCA(PreprocessBase):
                 Processed dataset to be zero-mean and unit-variance.
         """
         order = len(dataset) - 1
-        assert 0 <= order <= 1
+        assert 0 <= order <= 2
 
         self._initialize_params(dataset[0], elemental_composition, verbose)
 
@@ -75,9 +75,11 @@ class PCA(PreprocessBase):
             [self._transform[element] for element in elemental_composition])
 
         if order >= 0:
-            dataset[0] = np.einsum('ijk,jkl->ijl', dataset[0]-mean, transform)
+            dataset[0] = np.einsum('saf,aft->sat', dataset[0]-mean, transform)
         if order >= 1:
-            dataset[1] = np.einsum('ijkmn,jkl->ijlmn', dataset[1], transform)
+            dataset[1] = np.einsum('safx,aft->satx', dataset[1], transform)
+        if order >= 2:
+            dataset[2] = np.einsum('safxy,aft->satxy', dataset[2], transform)
 
         return dataset
 
@@ -114,16 +116,14 @@ class PCA(PreprocessBase):
             file_path (~pathlib.Path): File path to load parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        ndarray = np.load(file_path)
-        self._elements = ndarray['elements'].item()
-        self._n_components = ndarray['n_components'].item()
-        self._mean = {element: ndarray[f'mean:{element}']
-                      for element in self._elements}
-        self._transform = {element: ndarray[f'transform:{element}']
-                           for element in self._elements}
+        if MPI.rank == 0:
+            ndarray = np.load(file_path)
+            self._elements = ndarray['elements'].item()
+            self._n_components = ndarray['n_components'].item()
+            self._mean = {element: ndarray[f'mean:{element}']
+                          for element in self._elements}
+            self._transform = {element: ndarray[f'transform:{element}']
+                               for element in self._elements}
         if verbose:
             pprint(f'Loaded PCA parameters from {file_path}.')
 
@@ -136,17 +136,15 @@ class PCA(PreprocessBase):
             file_path (~pathlib.Path): File path to save parameters.
             verbose (bool, optional): Print log to stdout.
         """
-        if MPI.rank != 0:
-            return
-
-        info = {
-            'elements': self._elements,
-            'n_components': self._n_components,
-            }
-        mean = {f'mean:{k}': v for k, v in self._mean.items()}
-        transform = {f'transform:{k}': v
-                     for k, v in self._transform.items()}
-        np.savez(file_path, **info, **mean, **transform)
+        if MPI.rank == 0:
+            info = {
+                'elements': self._elements,
+                'n_components': self._n_components,
+                }
+            mean = {f'mean:{k}': v for k, v in self._mean.items()}
+            transform = {f'transform:{k}': v
+                         for k, v in self._transform.items()}
+            np.savez(file_path, **info, **mean, **transform)
         if verbose:
             pprint(f'Saved PCA parameters to {file_path}.')
 

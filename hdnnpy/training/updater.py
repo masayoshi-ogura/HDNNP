@@ -24,7 +24,7 @@ class Updater(chainer.training.updaters.StandardUpdater):
         master_nnp.cleargrads()
         hdnnp.cleargrads()
 
-        loss = self.loss_func(*batch)
+        loss = self.loss_func(**batch)
         loss.backward()
 
         hdnnp.reduce_grad_to(master_nnp)
