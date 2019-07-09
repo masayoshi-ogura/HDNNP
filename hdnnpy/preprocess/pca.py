@@ -117,7 +117,8 @@ class PCA(PreprocessBase):
             verbose (bool, optional): Print log to stdout.
         """
         if MPI.rank == 0:
-            ndarray = np.load(file_path)
+            ndarray = np.load(file_path, allow_pickle=True)
+            """Add <allow_pickle=True> for issue-265: enabling to use numpy 1.16.3 or later """
             self._elements = ndarray['elements'].item()
             self._n_components = ndarray['n_components'].item()
             self._mean = {element: ndarray[f'mean:{element}']

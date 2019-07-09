@@ -70,7 +70,8 @@ class PredictionApplication(Application):
         self.load_config_file(self.config_file)
         self.prediction_config = PredictionConfig(config=self.config)
 
-        yaml.add_constructor('Path', pyyaml_path_constructor)
+        yaml.add_constructor('Path', pyyaml_path_constructor, Loader=yaml.FullLoader)
+        """Add <Loader=yaml.FullLoader> for issue-265: enabling to use pyyaml 5.1x """
         training_result = yaml.load(
             (self.prediction_config.load_dir / 'training_result.yaml').open())
         self.dataset_config = DatasetConfig(**training_result['dataset'])
