@@ -213,8 +213,8 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                  * ang
                  * F.expand_dims(F.exp(-eta*R**2) * fc, axis=1)
                  * F.expand_dims(F.exp(-eta*R**2) * fc, axis=0))
-            triu = np.triu(np.ones_like(cos.data), k=1)
-            g = F.where(triu.astype(np.bool), g, triu)
+            mask = 1 - np.eye(cos.data.shape[0], dtype=np.float32)
+            g = F.where(mask.astype(np.bool), g, mask)
             g = [F.sum(g__)
                  for j, g_
                  in enumerate(F.split_axis(g, element_indices[1:], axis=0))
