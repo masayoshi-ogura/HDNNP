@@ -129,12 +129,14 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 yield F.stack([F.stack(g) for g in G])
 
             n_atom = len(G[0])
-            r = []
-            j_indices = []
-            for r_, j_idx in structure.get_neighbor_info(
-                    Rc, ['distance_vector', 'j_indices']):
-                r.append(r_)
-                j_indices.append(j_idx)
+            diff_positions = []
+            diff_indices = []
+            for i_pos, i_idx, j_pos, j_idx in structure.get_neighbor_info(
+                    Rc,
+                    ['i_positions', 'i_indices', 'j_positions', 'j_indices']
+                ):
+                diff_positions.extend([i_pos, j_pos])
+                diff_indices.extend([i_idx, j_idx])
 
             differentiate_more = self._order > 1
             with chainer.using_config('enable_backprop', differentiate_more):
@@ -142,12 +144,25 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 for g in G:
                     with chainer.force_backprop_mode():
                         grad = chainer.grad(
-                            g, r, enable_double_backprop=differentiate_more)
-                    dg = [F.concat([F.sum(dg_, axis=0) for dg_
-                                    in F.split_axis(grad_, j_idx[1:],
-                                                    axis=0)],
-                                   axis=0)
-                          for grad_, j_idx in zip(grad, j_indices)]
+                            g, diff_positions,
+                            enable_double_backprop=differentiate_more)
+                    dg = [
+                        # by center atom itself
+                        F.concat([
+                            F.sum(dg_, axis=0)
+                            for dg_ in F.split_axis(
+                                grad[2*i], diff_indices[2*i][1:], axis=0
+                                )
+                            ], axis=0)
+                        # by neighbor atoms
+                        + F.concat([
+                            F.sum(dg_, axis=0)
+                            for dg_ in F.split_axis(
+                                grad[2*i+1], diff_indices[2*i+1][1:], axis=0
+                                )
+                            ], axis=0)
+                        for i in range(n_atom)
+                    ]
                     dG.append(dg)
                 yield F.stack([F.stack(dg) for dg in dG])
 
@@ -156,16 +171,28 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                 d2G = []
                 for dg in dG:
                     d2g = []
-                    for i in range(3 * n_atom):
+                    for j in range(3 * n_atom):
                         with chainer.force_backprop_mode():
                             grad = chainer.grad(
-                                [dg_[i] for dg_ in dg], r,
+                                [dg_[j] for dg_ in dg], diff_positions,
                                 enable_double_backprop=differentiate_more)
-                        d2g_ = [F.concat([F.sum(d2g_, axis=0) for d2g_
-                                          in F.split_axis(grad_, j_idx[1:],
-                                                          axis=0)],
-                                         axis=0)
-                                for grad_, j_idx in zip(grad, j_indices)]
+                        d2g_ = [
+                            # by center atom itself
+                            F.concat([
+                                F.sum(d2g_, axis=0)
+                                for d2g_ in F.split_axis(
+                                    grad[2*i], diff_indices[2*i][1:], axis=0
+                                    )
+                                ], axis=0)
+                            # by neighbor atoms
+                            + F.concat([
+                                F.sum(d2g_, axis=0)
+                                for d2g_ in F.split_axis(
+                                    grad[2*i+1], diff_indices[2*i+1][1:], axis=0
+                                    )
+                                ], axis=0)
+                            for i in range(n_atom)
+                        ]
                         d2g.append(d2g_)
                     d2G.append(d2g)
                 yield F.stack([F.stack([F.stack(d2g_) for d2g_ in d2g])

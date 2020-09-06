@@ -125,19 +125,32 @@ class AtomicStructure(object):
         atomic_numbers = self._atoms.get_atomic_numbers()
         index_element_map = [elements.index(element) for element in symbols]
 
-        i_list, j_list, D_list = ase.neighborlist.neighbor_list(
-            'ijD', self._atoms, cutoff_distance)
+        i_list, j_list, S_list = ase.neighborlist.neighbor_list(
+            'ijS', self._atoms, cutoff_distance)
 
-        sort_indices = np.lexsort((j_list, i_list))
+        sort_indices = np.lexsort((j_list, i_list))  # sort by i, then by j
         i_list = i_list[sort_indices]
         j_list = j_list[sort_indices]
-        D_list = D_list[sort_indices]
+        S_list = S_list[sort_indices]
         elem_list = np.array([index_element_map[idx] for idx in j_list])
 
-        i_indices = np.unique(i_list, return_index=True)[1]
+        i_list, i_indices = np.unique(i_list, return_index=True)
         j_list = np.split(j_list, i_indices[1:])
-        distance_vector = [chainer.Variable(r.astype(np.float32))
-                           for r in np.split(D_list, i_indices[1:])]
+        S_list = np.split(S_list, i_indices[1:])
+        r_i_list = [
+            chainer.Variable(np.array([
+                self._atoms.positions[i]
+                ], dtype=np.float32))
+            for i in i_list
+            ]
+        r_j_list = [
+            chainer.Variable(np.array([
+                self._atoms.positions[j] + np.dot(s, self._atoms.cell)
+                for j, s in zip(j_indices, shift)
+                ], dtype=np.float32))
+            for j_indices, shift in zip(j_list, S_list)
+            ]
+        distance_vector = [r_j - r_i for r_i, r_j in zip(r_i_list, r_j_list)]
         distance = [F.sqrt(F.sum(r**2, axis=1)) for r in distance_vector]
         cutoff_function = [F.tanh(1.0 - R/cutoff_distance)**3
                            for R in distance]
@@ -149,6 +162,11 @@ class AtomicStructure(object):
             'cutoff_function': cutoff_function,
             'element_indices': [np.searchsorted(elem, range(len(elements)))
                                 for elem in elem_list],
+            'i_positions': r_i_list,
+            'i_indices': i_list,
+            'i_indices': [np.searchsorted([i], range(len(symbols)))
+                          for i in i_list],
+            'j_positions': r_j_list,
             'j_indices': [np.searchsorted(j, range(len(symbols)))
                           for j in j_list],
             'atomic_number': [
