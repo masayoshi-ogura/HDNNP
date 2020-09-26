@@ -166,6 +166,7 @@ class SymmetryFunctionDataset(DescriptorDatasetBase):
                     dG.append(dg)
                 yield F.stack([F.stack(dg) for dg in dG])
 
+            # d2G code is not tested yet
             differentiate_more = self._order > 2
             with chainer.using_config('enable_backprop', differentiate_more):
                 d2G = []

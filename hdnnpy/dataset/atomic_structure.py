@@ -163,7 +163,6 @@ class AtomicStructure(object):
             'element_indices': [np.searchsorted(elem, range(len(elements)))
                                 for elem in elem_list],
             'i_positions': r_i_list,
-            'i_indices': i_list,
             'i_indices': [np.searchsorted([i], range(len(symbols)))
                           for i in i_list],
             'j_positions': r_j_list,
